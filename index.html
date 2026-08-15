@@ -289,7 +289,8 @@
           <div class="field"><label for="f-company-doc">CNPJ</label><input id="f-company-doc" placeholder="00.000.000/0000-00"></div>
           <div class="field"><label for="f-company-phone">Telefone</label><input id="f-company-phone" placeholder="(00) 00000-0000"></div>
         </div>
-        <div class="field"><label for="f-company-address">Endereço</label><input id="f-company-address" placeholder="Rua, nº - Bairro - Cidade/UF"></div>
+        <div class="field"><label for="f-company-address">Endereço</label><input id="f-company-address" placeholder="Rua, nº - Bairro"></div>
+        <div class="field"><label for="f-company-address2">Endereço (linha 2)</label><input id="f-company-address2" placeholder="Cidade/UF"></div>
         <div class="field-row">
           <div class="field"><label for="f-company-email">E-mail</label><input id="f-company-email" placeholder="contato@suaempresa.com.br"></div>
           <div class="field"><label for="f-company-site">Site</label><input id="f-company-site" placeholder="www.suaempresa.com.br"></div>
@@ -428,7 +429,7 @@
 
   function defaultState(){
     return {
-      company:{ name:"", doc:"", address:"", phone:"", email:"", site:"", logo:"" },
+      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"" },
       mode:"projeto",
       counters:{ projeto:2, cabos:2 },
       drafts:{ projeto: demoProjetoDraft(1), cabos: demoCabosDraft(1) }
@@ -516,6 +517,7 @@
     ["f-company-doc", function(s){return s.company.doc;}, function(s,v){s.company.doc=v;}],
     ["f-company-phone", function(s){return s.company.phone;}, function(s,v){s.company.phone=v;}],
     ["f-company-address", function(s){return s.company.address;}, function(s,v){s.company.address=v;}],
+    ["f-company-address2", function(s){return s.company.address2;}, function(s,v){s.company.address2=v;}],
     ["f-company-email", function(s){return s.company.email;}, function(s,v){s.company.email=v;}],
     ["f-company-site", function(s){return s.company.site;}, function(s,v){s.company.site=v;}],
 
@@ -788,6 +790,7 @@
             '<div class="sheet-company-meta">' +
               (state.company.doc ? "CNPJ "+escapeHtml(state.company.doc)+"<br>" : "") +
               (state.company.address ? escapeHtml(state.company.address)+"<br>" : "") +
+              (state.company.address2 ? escapeHtml(state.company.address2)+"<br>" : "") +
               [state.company.phone, state.company.email, state.company.site].filter(Boolean).map(escapeHtml).join(" · ") +
             '</div>' +
           '</div>' +
@@ -936,6 +939,7 @@
       var metaLines = [];
       if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
       if(state.company.address) metaLines.push(state.company.address);
+      if(state.company.address2) metaLines.push(state.company.address2);
       var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
       if(contactLine) metaLines.push(contactLine);
       metaLines.forEach(function(line){
@@ -1279,6 +1283,7 @@
     var metaLines = [];
     if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
     if(state.company.address) metaLines.push(state.company.address);
+    if(state.company.address2) metaLines.push(state.company.address2);
     var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
     if(contactLine) metaLines.push(contactLine);
     metaLines.forEach(function(line){
