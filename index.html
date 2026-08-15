@@ -125,6 +125,21 @@
     display:flex; flex-direction:column; gap:22px;
   }
 
+  .side-tabs{
+    display:flex; gap:2px; overflow-x:auto; scrollbar-width:none;
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; margin:-18px -18px 4px; padding:14px 18px 0;
+    background:var(--paper-raised); z-index:5;
+  }
+  .side-tabs::-webkit-scrollbar{ display:none; }
+  .side-tab{
+    flex:0 0 auto; background:transparent; border:none; border-bottom:2px solid transparent;
+    padding:6px 10px 10px; font-size:12px; font-weight:700; letter-spacing:.03em; text-transform:uppercase;
+    color:var(--ink-faint); cursor:pointer; white-space:nowrap;
+  }
+  .side-tab[aria-selected="true"]{ color:var(--accent); border-bottom-color:var(--accent); }
+  .side-tab:hover{ color:var(--ink); }
+
   .field-group{display:flex; flex-direction:column; gap:10px;}
   .field-group legend{
     font-family:var(--font-mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
@@ -275,7 +290,81 @@
   <div class="workspace">
     <aside class="form-panel">
 
-      <div class="field-group">
+      <div class="side-tabs" role="tablist" aria-label="Seções do formulário">
+        <button type="button" class="side-tab" id="tab-btn-proposta" data-tab="proposta" role="tab" aria-selected="true">Proposta</button>
+        <button type="button" class="side-tab" id="tab-btn-itens" data-tab="itens" role="tab" aria-selected="false">Itens</button>
+        <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false">Condições</button>
+        <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false">Catálogo</button>
+        <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false">Empresa</button>
+      </div>
+
+      <div class="field-group" data-panel="proposta">
+        <legend>Proposta</legend>
+        <div class="field-row">
+          <div class="field"><label>Número</label><input id="f-meta-number" readonly style="font-family:var(--font-mono); color:var(--ink-soft);"></div>
+          <div class="field"><label for="f-meta-date">Data</label><input type="date" id="f-meta-date"></div>
+        </div>
+        <div class="field"><label for="f-meta-validade">Validade da proposta (dias)</label><input type="number" min="0" id="f-meta-validade"></div>
+      </div>
+
+      <div class="field-group" data-panel="proposta">
+        <legend>Cliente</legend>
+        <div class="field"><label for="f-client-name">Nome / Razão social</label><input id="f-client-name" placeholder="Nome do cliente"></div>
+        <div class="field-row">
+          <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc"></div>
+          <div class="field"><label for="f-client-phone">Telefone</label><input id="f-client-phone"></div>
+        </div>
+        <div class="field"><label for="f-client-address">Endereço</label><input id="f-client-address"></div>
+        <div class="field-row">
+          <div class="field"><label for="f-client-contact">Contato</label><input id="f-client-contact" placeholder="Pessoa de contato"></div>
+          <div class="field"><label for="f-client-email">E-mail</label><input id="f-client-email"></div>
+        </div>
+      </div>
+
+      <div class="field-group" data-panel="itens">
+        <legend>Itens <button type="button" class="add-row-btn" id="btn-add-item">+ item</button></legend>
+        <div id="catalog-picker-wrap" class="field-row" style="align-items:flex-end;">
+          <div class="field"><label for="f-catalog-pick">Adicionar do catálogo</label>
+            <select id="f-catalog-pick"></select>
+          </div>
+          <button type="button" class="btn btn-sm" id="btn-add-from-catalog" style="margin-bottom:1px;">Adicionar</button>
+        </div>
+        <div class="items-list" id="items-list"></div>
+      </div>
+
+      <div class="field-group" data-panel="condicoes">
+        <legend>Desconto</legend>
+        <div class="field-row">
+          <div class="field"><label for="f-disc-type">Tipo</label>
+            <select id="f-disc-type">
+              <option value="percent">Percentual (%)</option>
+              <option value="value">Valor fixo (R$)</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-disc-value">Valor</label><input type="number" min="0" step="0.01" id="f-disc-value"></div>
+        </div>
+      </div>
+
+      <div class="field-group" data-panel="condicoes">
+        <legend>Impostos <button type="button" class="add-row-btn" id="btn-add-tax">+ imposto</button></legend>
+        <div id="taxes-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <label class="checkbox-field"><input type="checkbox" id="f-tax-included"> Preço dos itens já inclui os impostos acima</label>
+      </div>
+
+      <div class="field-group" data-panel="condicoes">
+        <legend>Condições comerciais</legend>
+        <div class="field"><label for="f-cond-pagamento">Forma de pagamento</label><input id="f-cond-pagamento"></div>
+        <div class="field"><label for="f-cond-prazo" id="lbl-cond-prazo">Prazo</label><input id="f-cond-prazo"></div>
+        <div class="field"><label for="f-cond-garantia">Garantia</label><input id="f-cond-garantia"></div>
+        <div class="field"><label for="f-cond-obs">Observações</label><textarea id="f-cond-obs"></textarea></div>
+      </div>
+
+      <div class="field-group" id="fg-catalog" data-panel="catalogo">
+        <legend>Catálogo de cabos <button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></legend>
+        <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+
+      <div class="field-group" data-panel="empresa">
         <legend>Dados da empresa</legend>
         <div class="logo-row">
           <div class="logo-preview" id="logo-preview">sem logo</div>
@@ -297,72 +386,6 @@
         </div>
       </div>
 
-      <div class="field-group">
-        <legend>Proposta</legend>
-        <div class="field-row">
-          <div class="field"><label>Número</label><input id="f-meta-number" readonly style="font-family:var(--font-mono); color:var(--ink-soft);"></div>
-          <div class="field"><label for="f-meta-date">Data</label><input type="date" id="f-meta-date"></div>
-        </div>
-        <div class="field"><label for="f-meta-validade">Validade da proposta (dias)</label><input type="number" min="0" id="f-meta-validade"></div>
-      </div>
-
-      <div class="field-group">
-        <legend>Cliente</legend>
-        <div class="field"><label for="f-client-name">Nome / Razão social</label><input id="f-client-name" placeholder="Nome do cliente"></div>
-        <div class="field-row">
-          <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc"></div>
-          <div class="field"><label for="f-client-phone">Telefone</label><input id="f-client-phone"></div>
-        </div>
-        <div class="field"><label for="f-client-address">Endereço</label><input id="f-client-address"></div>
-        <div class="field-row">
-          <div class="field"><label for="f-client-contact">Contato</label><input id="f-client-contact" placeholder="Pessoa de contato"></div>
-          <div class="field"><label for="f-client-email">E-mail</label><input id="f-client-email"></div>
-        </div>
-      </div>
-
-      <div class="field-group" id="fg-catalog">
-        <legend>Catálogo de cabos <button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></legend>
-        <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-      </div>
-
-      <div class="field-group">
-        <legend>Itens <button type="button" class="add-row-btn" id="btn-add-item">+ item</button></legend>
-        <div id="catalog-picker-wrap" class="field-row" style="align-items:flex-end;">
-          <div class="field"><label for="f-catalog-pick">Adicionar do catálogo</label>
-            <select id="f-catalog-pick"></select>
-          </div>
-          <button type="button" class="btn btn-sm" id="btn-add-from-catalog" style="margin-bottom:1px;">Adicionar</button>
-        </div>
-        <div class="items-list" id="items-list"></div>
-      </div>
-
-      <div class="field-group">
-        <legend>Desconto</legend>
-        <div class="field-row">
-          <div class="field"><label for="f-disc-type">Tipo</label>
-            <select id="f-disc-type">
-              <option value="percent">Percentual (%)</option>
-              <option value="value">Valor fixo (R$)</option>
-            </select>
-          </div>
-          <div class="field"><label for="f-disc-value">Valor</label><input type="number" min="0" step="0.01" id="f-disc-value"></div>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <legend>Impostos <button type="button" class="add-row-btn" id="btn-add-tax">+ imposto</button></legend>
-        <div id="taxes-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-        <label class="checkbox-field"><input type="checkbox" id="f-tax-included"> Preço dos itens já inclui os impostos acima</label>
-      </div>
-
-      <div class="field-group">
-        <legend>Condições comerciais</legend>
-        <div class="field"><label for="f-cond-pagamento">Forma de pagamento</label><input id="f-cond-pagamento"></div>
-        <div class="field"><label for="f-cond-prazo" id="lbl-cond-prazo">Prazo</label><input id="f-cond-prazo"></div>
-        <div class="field"><label for="f-cond-garantia">Garantia</label><input id="f-cond-garantia"></div>
-        <div class="field"><label for="f-cond-obs">Observações</label><textarea id="f-cond-obs"></textarea></div>
-      </div>
-
       <div class="save-hint"><span class="save-dot"></span> Dados salvos automaticamente neste navegador</div>
       <div class="save-hint" style="align-items:flex-start;">Aberto fora do chat (arquivo salvo no seu computador), "Baixar proposta" gera o PDF direto. Dentro do chat, baixa um arquivo/imagem para você imprimir como PDF.</div>
     </aside>
@@ -381,6 +404,7 @@
   var LS_KEY = "prancheta-propostas-v1";
   var state = null;
   var saveTimer = null;
+  var activeTab = "proposta";
 
   function todayISO(){
     var d = new Date();
@@ -582,6 +606,29 @@
     });
   }
 
+  // ---------- side tabs ----------
+  function applyTabVisibility(){
+    document.querySelectorAll("[data-panel]").forEach(function(el){
+      var name = el.getAttribute("data-panel");
+      var visible = (name === activeTab) && (name !== "catalogo" || state.mode==="cabos");
+      el.style.display = visible ? "" : "none";
+    });
+  }
+  function setActiveTab(tab){
+    activeTab = tab;
+    document.querySelectorAll(".side-tab").forEach(function(btn){
+      btn.setAttribute("aria-selected", btn.getAttribute("data-tab")===tab ? "true":"false");
+    });
+    applyTabVisibility();
+    var panel = document.querySelector(".form-panel");
+    if(panel) panel.scrollTop = 0;
+  }
+  function attachTabHandlers(){
+    document.querySelectorAll(".side-tab").forEach(function(btn){
+      btn.addEventListener("click", function(){ setActiveTab(btn.getAttribute("data-tab")); });
+    });
+  }
+
   function syncFormFromState(){
     bindings.forEach(function(b){
       var el = document.getElementById(b[0]);
@@ -596,8 +643,10 @@
     document.getElementById("btn-mode-cabos").setAttribute("aria-pressed", state.mode==="cabos" ? "true":"false");
 
     var showCatalog = state.mode==="cabos";
-    document.getElementById("fg-catalog").style.display = showCatalog ? "" : "none";
     document.getElementById("catalog-picker-wrap").style.display = showCatalog ? "" : "none";
+    document.getElementById("tab-btn-catalogo").style.display = showCatalog ? "" : "none";
+    if(!showCatalog && activeTab==="catalogo") setActiveTab("proposta");
+    applyTabVisibility();
 
     renderLogoPreview();
     renderItemsList();
@@ -1786,6 +1835,7 @@
     attachLogoHandlers();
     attachCatalogDelegation();
     attachCatalogPickerHandler();
+    attachTabHandlers();
 
     document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
     document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
