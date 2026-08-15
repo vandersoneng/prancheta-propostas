@@ -1113,18 +1113,365 @@
   }
 
   // ---------- real PDF (only reliable outside the Claude sandbox — used when this file runs standalone) ----------
-  function canvasToRawRGB(canvas){
-    var ctx = canvas.getContext("2d");
-    var W = canvas.width, H = canvas.height;
-    var data = ctx.getImageData(0,0,W,H).data;
-    var rgb = new Uint8Array(W*H*3);
-    var j = 0;
-    for(var i=0;i<data.length;i+=4){
-      rgb[j++] = data[i];
-      rgb[j++] = data[i+1];
-      rgb[j++] = data[i+2];
+  // Text is drawn as real vector text using the PDF standard fonts (Helvetica/Courier) — selectable,
+  // crisp at any zoom, tiny file size. Only the optional logo is embedded as a raster image.
+  function padOffset10(n){
+    var s = String(n);
+    while(s.length<10) s = "0"+s;
+    return s;
+  }
+
+  function hex01(hex){
+    hex = String(hex).replace("#","");
+    return [
+      parseInt(hex.substring(0,2),16)/255,
+      parseInt(hex.substring(2,4),16)/255,
+      parseInt(hex.substring(4,6),16)/255
+    ];
+  }
+
+  var WINANSI_SPECIAL = { 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2013:0x96, 0x2014:0x97, 0x2022:0x95, 0x2026:0x85, 0x20AC:0x80 };
+  function toWinAnsiBytes(str){
+    var out = [];
+    for(var i=0;i<str.length;i++){
+      var cp = str.codePointAt(i);
+      if(WINANSI_SPECIAL[cp] !== undefined) out.push(WINANSI_SPECIAL[cp]);
+      else if(cp <= 0xFF) out.push(cp);
+      else out.push(0x3F);
     }
-    return { width:W, height:H, bytes:rgb };
+    return out;
+  }
+  function pdfStr(text){
+    var bytes = toWinAnsiBytes(String(text));
+    var out = [0x28];
+    for(var i=0;i<bytes.length;i++){
+      var b = bytes[i];
+      if(b===0x28 || b===0x29 || b===0x5C){ out.push(0x5C); out.push(b); }
+      else out.push(b);
+    }
+    out.push(0x29);
+    return Uint8Array.from(out);
+  }
+
+  var _measureCtx = null;
+  function measureScratch(){
+    if(!_measureCtx) _measureCtx = document.createElement("canvas").getContext("2d");
+    return _measureCtx;
+  }
+
+  function imageToRawRGB(img){
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var cx = c.getContext("2d");
+    cx.fillStyle = "#ffffff";
+    cx.fillRect(0,0,w,h);
+    cx.drawImage(img,0,0,w,h);
+    var data = cx.getImageData(0,0,w,h).data;
+    var rgb = new Uint8Array(w*h*3);
+    var j=0;
+    for(var i=0;i<data.length;i+=4){ rgb[j++]=data[i]; rgb[j++]=data[i+1]; rgb[j++]=data[i+2]; }
+    return { width:w, height:h, bytes:rgb };
+  }
+
+  // Builds the list of draw commands (text/line/rect) for the proposal, in top-down layout coordinates
+  // (points, same numbering as an A4 page). y is flipped to PDF's bottom-up space at emission time.
+  function buildProposalOps(){
+    var dr = draft();
+    var mode = state.mode;
+    var totals = calcTotals(dr);
+    var modeColor = mode==="cabos" ? "#B5652E" : "#2B5876";
+    var LW = 595.28, ML = 42, MR = 42, CW = LW-ML-MR;
+    var ctx = measureScratch();
+    var ops = [];
+    var y = 34;
+    var hasLogo = !!state.company.logo;
+
+    function setFontFor(bold, size, mono){
+      ctx.font = (bold?"700 ":"") + size + "px " + (mono?CV_MONO:CV_SANS);
+    }
+    function text(o){
+      var bold=!!o.bold, mono=!!o.mono, align=o.align||"left";
+      setFontFor(bold, o.size, mono);
+      var w = ctx.measureText(o.text).width;
+      var x = o.x;
+      if(align==="right") x -= w;
+      else if(align==="center") x -= w/2;
+      ops.push({ t:"text", x:x, y:o.y, text:o.text, size:o.size, bold:bold, mono:mono, color:o.color||CV_INK, tc:o.tc||0 });
+      return w;
+    }
+    function line(x1,y1,x2,y2,width,color){ ops.push({ t:"line", x1:x1,y1:y1,x2:x2,y2:y2, width:width||1, color:color||CV_LINE }); }
+    function rect(x,y0,w,h,color){ ops.push({ t:"rect", x:x, y:y0, w:w, h:h, color:color }); }
+
+    function sectionLabel(label){
+      text({ x:ML, y:y+8, text:label.toUpperCase(), size:10, bold:true, color:CV_FAINT, tc:0.6 });
+      y += 14;
+      line(ML,y,LW-MR,y,1,CV_LINE);
+      y += 14;
+    }
+    function fieldGrid(pairs){
+      var colW = (CW-24)/2;
+      for(var i=0;i<pairs.length;i+=2){
+        var rowPairs = pairs.slice(i,i+2);
+        var rowH = 0;
+        rowPairs.forEach(function(p){
+          setFontFor(false,13,false);
+          var lines = wrapText(ctx, p[1]||"—", colW);
+          rowH = Math.max(rowH, 13 + lines.length*15);
+        });
+        rowPairs.forEach(function(p, ci){
+          var x = ML + ci*(colW+24);
+          text({ x:x, y:y+8, text:String(p[0]).toUpperCase(), size:9.5, bold:true, color:CV_FAINT });
+          setFontFor(false,13,false);
+          var lines = wrapText(ctx, p[1]||"—", colW);
+          var vy = y+24;
+          lines.forEach(function(l){ text({ x:x, y:vy, text:l, size:13, color:CV_INK }); vy += 15; });
+        });
+        y += rowH + 8;
+      }
+      y += 6;
+    }
+
+    // header
+    var companyX = ML, yCompany = y;
+    var logoBox = hasLogo ? { x:ML, y:y, w:52, h:52 } : null;
+    if(hasLogo) companyX = ML+52+12;
+    text({ x:companyX, y:yCompany+13, text:state.company.name||"Sua empresa", size:15, bold:true, color:CV_INK });
+    yCompany += 22;
+    var metaLines = [];
+    if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
+    if(state.company.address) metaLines.push(state.company.address);
+    var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
+    if(contactLine) metaLines.push(contactLine);
+    metaLines.forEach(function(l){ text({ x:companyX, y:yCompany+9, text:l, size:11, color:CV_SOFT }); yCompany += 15; });
+    var leftBottom = Math.max(yCompany, y+(hasLogo?52:0));
+
+    var yDoc = y;
+    text({ x:LW-MR, y:yDoc+9, text:(mode==="cabos"?"PROPOSTA DE FORNECIMENTO":"PROPOSTA DE SERVIÇO"), size:10, bold:true, color:modeColor, align:"right" });
+    yDoc += 17;
+    text({ x:LW-MR, y:yDoc+11, text:"Nº "+dr.number, size:14, bold:true, color:CV_INK, align:"right" });
+    yDoc += 19;
+    text({ x:LW-MR, y:yDoc+9, text:"Data "+dateBR(dr.date), size:11, color:CV_SOFT, align:"right" });
+    yDoc += 15;
+    text({ x:LW-MR, y:yDoc+9, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:11, color:CV_SOFT, align:"right" });
+    yDoc += 15;
+
+    y = Math.max(leftBottom, yDoc) + 12;
+    line(ML,y,LW-MR,y,2,modeColor);
+    y += 24;
+
+    text({ x:ML, y:y+14, text:"Proposta Comercial", size:18, bold:true, color:CV_INK });
+    y += 24;
+    text({ x:ML, y:y+9, text:(mode==="cabos"?"Fornecimento de materiais elétricos":"Projeto elétrico e consultoria técnica"), size:12, color:CV_SOFT });
+    y += 26;
+
+    sectionLabel("Cliente");
+    fieldGrid([
+      ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", dr.client.doc],
+      ["Endereço", dr.client.address], ["Contato", dr.client.contact],
+      ["Telefone", dr.client.phone], ["E-mail", dr.client.email]
+    ]);
+
+    sectionLabel("Itens");
+    var colQty=60, colPrice=95, colTotal=100, colDesc=CW-colQty-colPrice-colTotal;
+    var xDesc=ML, xQty=xDesc+colDesc, xPrice=xQty+colQty, xTotal=xPrice+colPrice;
+    text({ x:xDesc, y:y+8, text:(mode==="cabos"?"PRODUTO":"DESCRIÇÃO"), size:9.5, bold:true, color:CV_FAINT });
+    text({ x:xQty+colQty, y:y+8, text:"QTD", size:9.5, bold:true, color:CV_FAINT, align:"right" });
+    text({ x:xPrice+colPrice, y:y+8, text:"VALOR UNIT.", size:9.5, bold:true, color:CV_FAINT, align:"right" });
+    text({ x:xTotal+colTotal, y:y+8, text:"TOTAL", size:9.5, bold:true, color:CV_FAINT, align:"right" });
+    y += 12;
+    line(ML,y,LW-MR,y,1,CV_LINE_STRONG);
+    y += 14;
+
+    dr.items.forEach(function(it){
+      var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
+      setFontFor(false,12.5,false);
+      var descLines = wrapText(ctx, it.desc||"—", colDesc-10);
+      var detailLines = [];
+      if(it.detail){ setFontFor(false,11,false); detailLines = wrapText(ctx, it.detail, colDesc-10); }
+      var rowTop = y, dy = y+11;
+      descLines.forEach(function(l){ text({ x:xDesc, y:dy, text:l, size:12.5, color:CV_INK }); dy += 15; });
+      if(detailLines.length){ detailLines.forEach(function(l){ text({ x:xDesc, y:dy, text:l, size:11, color:CV_SOFT }); dy += 14; }); }
+      text({ x:xQty+colQty, y:rowTop+11, text:fmtNum(it.qty, it.unit==="m"?0:2)+" "+it.unit, size:12, mono:true, color:CV_INK, align:"right" });
+      text({ x:xPrice+colPrice, y:rowTop+11, text:fmtBRL(it.price), size:12, mono:true, color:CV_INK, align:"right" });
+      text({ x:xTotal+colTotal, y:rowTop+11, text:fmtBRL(lineTotal), size:12, mono:true, color:CV_INK, align:"right" });
+      y = Math.max(dy, rowTop+17) + 8;
+      line(ML,y,LW-MR,y,1,CV_LINE);
+      y += 10;
+    });
+
+    y += 4;
+    var totalsW = 220, totalsX = LW-MR-totalsW;
+    function totalsRow(label, value, o){
+      o = o||{};
+      var big=!!o.big, bold=!!o.bold;
+      text({ x:totalsX, y:y+(big?12:9), text:label, size:big?16:12.5, bold:bold, color:bold?CV_INK:CV_SOFT });
+      text({ x:totalsX+totalsW, y:y+(big?12:9), text:value, size:big?16:12, bold:bold, mono:true, color:bold?CV_INK:CV_SOFT, align:"right" });
+      y += big ? 24 : 18;
+    }
+    totalsRow("Subtotal", fmtBRL(totals.subtotal));
+    if(totals.discountAmount>0) totalsRow("Desconto", "-"+fmtBRL(totals.discountAmount));
+    var taxLines = dr.taxes.filter(function(t){return t.label||t.percent;}).map(function(t){
+      return (t.label||"Imposto")+" "+fmtNum(t.percent,2)+"%";
+    }).join(" + ");
+    if(taxLines) totalsRow("Impostos ("+taxLines+")", dr.taxIncluded ? "inclusos" : "+"+fmtBRL(totals.taxAmount));
+    line(totalsX, y+4, totalsX+totalsW, y+4, 2, modeColor);
+    y += 16;
+    totalsRow("Valor total", fmtBRL(totals.total), {bold:true, big:true});
+    y += 10;
+
+    sectionLabel("Condições comerciais");
+    fieldGrid([
+      ["Forma de pagamento", dr.conditions.pagamento],
+      [mode==="cabos" ? "Prazo de entrega" : "Prazo de execução", dr.conditions.prazo],
+      ["Garantia", dr.conditions.garantia],
+      ["Validade da proposta", (dr.validadeDias||0)+" dias"]
+    ]);
+    if(dr.conditions.obs){
+      text({ x:ML, y:y+8, text:"OBSERVAÇÕES", size:9.5, bold:true, color:CV_FAINT });
+      y += 13;
+      setFontFor(false,12.5,false);
+      var obsLines = wrapText(ctx, dr.conditions.obs, CW);
+      obsLines.forEach(function(l){ text({ x:ML, y:y+9, text:l, size:12.5, color:CV_INK }); y += 15; });
+      y += 8;
+    }
+
+    y += 30;
+    var sigW = (CW-40)/2;
+    var sigs = [ [ML, state.company.name||"Empresa"], [ML+sigW+40, dr.client.name||"Cliente"] ];
+    sigs.forEach(function(s){
+      line(s[0], y, s[0]+sigW, y, 1, CV_LINE_STRONG);
+      text({ x:s[0]+sigW/2, y:y+16, text:s[1], size:11, color:CV_SOFT, align:"center" });
+    });
+    y += 40;
+
+    var footerH = 30;
+    rect(0, y, LW, footerH, "#F3F5F4");
+    line(0, y, LW, y, 1, CV_LINE);
+    text({ x:ML, y:y+19, text:dr.number, size:10, mono:true, color:CV_FAINT });
+    text({ x:LW-MR, y:y+19, text:"Gerado em "+dateBR(todayISO()), size:10, mono:true, color:CV_FAINT, align:"right" });
+    y += footerH;
+
+    return { ops:ops, pageW:LW, pageH:y, logoBox:logoBox };
+  }
+
+  function fontResource(bold, mono){ return mono ? (bold?"/F4":"/F3") : (bold?"/F2":"/F1"); }
+
+  function buildVectorPdfBytes(layoutResult, logoData){
+    var encoder = new TextEncoder();
+    function asciiBytes(s){ return encoder.encode(s); }
+
+    var cparts = [], clength = 0;
+    function cpush(x){ var b=(typeof x==="string")?asciiBytes(x):x; cparts.push(b); clength+=b.length; }
+
+    var pageH = layoutResult.pageH, pageW = layoutResult.pageW;
+    var hasLogo = !!(layoutResult.logoBox && logoData);
+
+    if(hasLogo){
+      var lb = layoutResult.logoBox;
+      var ly = pageH - lb.y - lb.h;
+      cpush("q\n"+lb.w.toFixed(2)+" 0 0 "+lb.h.toFixed(2)+" "+lb.x.toFixed(2)+" "+ly.toFixed(2)+" cm\n/Im0 Do\nQ\n");
+    }
+
+    layoutResult.ops.forEach(function(op){
+      if(op.t==="line"){
+        var rgb = hex01(op.color);
+        var y1 = pageH-op.y1, y2 = pageH-op.y2;
+        cpush(rgb[0].toFixed(3)+" "+rgb[1].toFixed(3)+" "+rgb[2].toFixed(3)+" RG\n"+op.width.toFixed(2)+" w\n"+op.x1.toFixed(2)+" "+y1.toFixed(2)+" m\n"+op.x2.toFixed(2)+" "+y2.toFixed(2)+" l\nS\n");
+      } else if(op.t==="rect"){
+        var rgb2 = hex01(op.color);
+        var ry = pageH-op.y-op.h;
+        cpush(rgb2[0].toFixed(3)+" "+rgb2[1].toFixed(3)+" "+rgb2[2].toFixed(3)+" rg\n"+op.x.toFixed(2)+" "+ry.toFixed(2)+" "+op.w.toFixed(2)+" "+op.h.toFixed(2)+" re\nf\n");
+      } else if(op.t==="text"){
+        var rgb3 = hex01(op.color);
+        var yPdf = pageH-op.y;
+        cpush(rgb3[0].toFixed(3)+" "+rgb3[1].toFixed(3)+" "+rgb3[2].toFixed(3)+" rg\nBT\n"+fontResource(op.bold,op.mono)+" "+op.size.toFixed(2)+" Tf\n"+(op.tc?op.tc.toFixed(2):"0")+" Tc\n"+op.x.toFixed(2)+" "+yPdf.toFixed(2)+" Td\n");
+        cpush(pdfStr(op.text));
+        cpush(" Tj\nET\n");
+      }
+    });
+
+    var contentRaw = concatUint8(cparts);
+
+    return deflateZlib(contentRaw).then(function(compressed){
+      var useFlateContent = !!compressed;
+      var finalContent = useFlateContent ? compressed : contentRaw;
+
+      var parts = [], length = 0;
+      function push(x){ var b=(typeof x==="string")?asciiBytes(x):x; parts.push(b); length+=b.length; }
+      var offsets = {};
+
+      push("%PDF-1.4\n");
+      offsets[1]=length; push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+      offsets[2]=length; push("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+      var resourceFonts = "/Font << /F1 4 0 R /F2 5 0 R /F3 6 0 R /F4 7 0 R >>";
+      var contentObjNum = hasLogo ? 9 : 8;
+      var resourceXObj = hasLogo ? " /XObject << /Im0 8 0 R >>" : "";
+      offsets[3]=length; push("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+pageW.toFixed(2)+" "+pageH.toFixed(2)+"] /Resources << "+resourceFonts+resourceXObj+" >> /Contents "+contentObjNum+" 0 R >>\nendobj\n");
+
+      offsets[4]=length; push("4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[5]=length; push("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[6]=length; push("6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[7]=length; push("7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>\nendobj\n");
+
+      if(hasLogo){
+        offsets[8]=length;
+        push("8 0 obj\n<< /Type /XObject /Subtype /Image /Width "+logoData.width+" /Height "+logoData.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8"+(logoData.useFlate?" /Filter /FlateDecode":"")+" /Length "+logoData.bytes.length+" >>\nstream\n");
+        push(logoData.bytes);
+        push("\nendstream\nendobj\n");
+      }
+
+      offsets[contentObjNum]=length;
+      push(contentObjNum+" 0 obj\n<< /Length "+finalContent.length+(useFlateContent?" /Filter /FlateDecode":"")+" >>\nstream\n");
+      push(finalContent);
+      push("\nendstream\nendobj\n");
+
+      var xrefOffset = length;
+      var totalObjs = contentObjNum;
+      push("xref\n0 "+(totalObjs+1)+"\n");
+      push("0000000000 65535 f\r\n");
+      for(var i=1;i<=totalObjs;i++){ push(padOffset10(offsets[i])+" 00000 n\r\n"); }
+      push("trailer\n<< /Size "+(totalObjs+1)+" /Root 1 0 R >>\nstartxref\n"+xrefOffset+"\n%%EOF");
+
+      return concatUint8(parts);
+    });
+  }
+
+  function exportRealPdf(){
+    var logoSrc = state.company.logo;
+    (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
+      var layoutResult;
+      try{
+        layoutResult = buildProposalOps();
+      }catch(e){
+        toast("Falha ao montar a proposta");
+        return;
+      }
+      var logoDataPromise = (logoImg && layoutResult.logoBox) ? (function(){
+        var raw = imageToRawRGB(logoImg);
+        return deflateZlib(raw.bytes).then(function(compressed){
+          return { width:raw.width, height:raw.height, bytes: compressed||raw.bytes, useFlate: !!compressed };
+        });
+      })() : Promise.resolve(null);
+
+      logoDataPromise.then(function(logoData){
+        buildVectorPdfBytes(layoutResult, logoData).then(function(pdfBytes){
+          var blob = new Blob([pdfBytes], { type:"application/pdf" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = (draft().number || "proposta") + ".pdf";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+          toast("PDF baixado");
+        }).catch(function(){
+          toast("Falha ao gerar o PDF");
+        });
+      });
+    });
   }
 
   function deflateZlib(bytes){
@@ -1145,93 +1492,6 @@
     var off = 0;
     arrays.forEach(function(a){ out.set(a, off); off += a.length; });
     return out;
-  }
-
-  function buildMinimalPdf(opts){
-    var encoder = new TextEncoder();
-    function strBytes(s){ return encoder.encode(s); }
-    function padOffset(n){
-      var s = String(n);
-      while(s.length<10) s = "0"+s;
-      return s;
-    }
-    var parts = [];
-    var length = 0;
-    function push(x){
-      var b = (typeof x === "string") ? strBytes(x) : x;
-      parts.push(b);
-      length += b.length;
-    }
-    var offsets = {};
-    push("%PDF-1.4\n");
-
-    offsets[1] = length;
-    push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-
-    offsets[2] = length;
-    push("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
-
-    offsets[3] = length;
-    push("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+opts.pageW.toFixed(2)+" "+opts.pageH.toFixed(2)+"] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n");
-
-    offsets[4] = length;
-    push("4 0 obj\n<< /Type /XObject /Subtype /Image /Width "+opts.width+" /Height "+opts.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8"+(opts.useFlate?" /Filter /FlateDecode":"")+" /Length "+opts.imageBytes.length+" >>\nstream\n");
-    push(opts.imageBytes);
-    push("\nendstream\nendobj\n");
-
-    var content = "q\n"+opts.pageW.toFixed(2)+" 0 0 "+opts.pageH.toFixed(2)+" 0 0 cm\n/Im0 Do\nQ";
-    var contentBytes = strBytes(content);
-    offsets[5] = length;
-    push("5 0 obj\n<< /Length "+contentBytes.length+" >>\nstream\n");
-    push(contentBytes);
-    push("\nendstream\nendobj\n");
-
-    var xrefOffset = length;
-    push("xref\n0 6\n");
-    push("0000000000 65535 f\r\n");
-    for(var i=1;i<=5;i++){
-      push(padOffset(offsets[i])+" 00000 n\r\n");
-    }
-    push("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"+xrefOffset+"\n%%EOF");
-
-    return concatUint8(parts);
-  }
-
-  function exportRealPdf(){
-    var logoSrc = state.company.logo;
-    (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
-      var canvas;
-      try{
-        canvas = renderProposalCanvas(logoImg);
-      }catch(e){
-        toast("Falha ao montar a proposta");
-        return;
-      }
-      var raw = canvasToRawRGB(canvas);
-      deflateZlib(raw.bytes).then(function(compressed){
-        var useFlate = !!compressed;
-        var imageBytes = useFlate ? compressed : raw.bytes;
-        var pageW = 595.28;
-        var pageH = pageW * (raw.height/raw.width);
-        var pdfBytes;
-        try{
-          pdfBytes = buildMinimalPdf({ width:raw.width, height:raw.height, imageBytes:imageBytes, useFlate:useFlate, pageW:pageW, pageH:pageH });
-        }catch(e){
-          toast("Falha ao gerar o PDF");
-          return;
-        }
-        var blob = new Blob([pdfBytes], { type:"application/pdf" });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement("a");
-        a.href = url;
-        a.download = (draft().number || "proposta") + ".pdf";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-        toast("PDF baixado");
-      });
-    });
   }
 
   function buildStandaloneHtml(){
