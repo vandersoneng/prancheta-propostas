@@ -924,19 +924,27 @@
       var yCompany = y;
       if(logoImg && draw) ctx.drawImage(logoImg, ML, y, 52, 52);
       if(logoImg) companyX = ML+52+12;
-      ctx.font = "700 15px "+CV_SANS;
       ctx.textAlign = "left";
-      if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(state.company.name||"Sua empresa", companyX, yCompany+13); }
-      yCompany += 22;
-      ctx.font = "11px "+CV_SANS;
+      var headerLeftMaxW = (LW-MR-210) - companyX;
+      ctx.font = "700 15px "+CV_SANS;
+      var nameLines = wrapText(ctx, state.company.name||"Sua empresa", headerLeftMaxW);
+      nameLines.forEach(function(l){
+        if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(l, companyX, yCompany+13); }
+        yCompany += 18;
+      });
+      yCompany += 4;
       var metaLines = [];
       if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
       if(state.company.address) metaLines.push(state.company.address);
       var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
       if(contactLine) metaLines.push(contactLine);
       metaLines.forEach(function(line){
-        if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(line, companyX, yCompany+9); }
-        yCompany += 15;
+        ctx.font = "11px "+CV_SANS;
+        var wrapped = wrapText(ctx, line, headerLeftMaxW);
+        wrapped.forEach(function(l){
+          if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(l, companyX, yCompany+9); }
+          yCompany += 15;
+        });
       });
       var leftBottom = Math.max(yCompany, y+(logoImg?52:0));
 
@@ -1260,14 +1268,27 @@
     var companyX = ML, yCompany = y;
     var logoBox = hasLogo ? { x:ML, y:y, w:52, h:52, page:0 } : null;
     if(hasLogo) companyX = ML+52+12;
-    text({ x:companyX, y:yCompany+13, text:state.company.name||"Sua empresa", size:15, bold:true, color:CV_INK });
-    yCompany += 22;
+    var headerLeftMaxW = (LW-MR-210) - companyX;
+    setFontFor(true,15,false);
+    var nameLines = wrapText(ctx, state.company.name||"Sua empresa", headerLeftMaxW);
+    nameLines.forEach(function(l){
+      text({ x:companyX, y:yCompany+13, text:l, size:15, bold:true, color:CV_INK });
+      yCompany += 18;
+    });
+    yCompany += 4;
     var metaLines = [];
     if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
     if(state.company.address) metaLines.push(state.company.address);
     var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
     if(contactLine) metaLines.push(contactLine);
-    metaLines.forEach(function(l){ text({ x:companyX, y:yCompany+9, text:l, size:11, color:CV_SOFT }); yCompany += 15; });
+    metaLines.forEach(function(line){
+      setFontFor(false,11,false);
+      var wrapped = wrapText(ctx, line, headerLeftMaxW);
+      wrapped.forEach(function(l){
+        text({ x:companyX, y:yCompany+9, text:l, size:11, color:CV_SOFT });
+        yCompany += 15;
+      });
+    });
     var leftBottom = Math.max(yCompany, y+(hasLogo?52:0));
 
     var yDoc = y;
