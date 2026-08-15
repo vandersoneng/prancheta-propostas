@@ -1,0 +1,1352 @@
+<title>Prancheta de Propostas</title>
+<style>
+  :root{
+    --paper:#F3F5F4;
+    --paper-raised:#FFFFFF;
+    --ink:#182129;
+    --ink-soft:#57646D;
+    --ink-faint:#8A959B;
+    --line:#D7DEDC;
+    --line-strong:#BAC4C1;
+    --accent:#B5652E;
+    --accent-ink:#FFFFFF;
+    --blue:#2B5876;
+    --copper:#B5652E;
+    --good:#3F7D58;
+    --good-bg:#E7F1EA;
+    --danger:#B23A34;
+    --danger-bg:#F7E7E5;
+    --shadow:0 1px 2px rgba(24,33,41,.06), 0 8px 24px rgba(24,33,41,.08);
+    --font-sans: ui-sans-serif, "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, "Roboto Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#11161B;
+      --paper-raised:#1A2129;
+      --ink:#E7ECEE;
+      --ink-soft:#9CA9B0;
+      --ink-faint:#6C7A82;
+      --line:#2B3742;
+      --line-strong:#3A4852;
+      --accent:#DD9256;
+      --accent-ink:#1A120B;
+      --blue:#7DB2D4;
+      --copper:#DD9256;
+      --good:#6BC08C;
+      --good-bg:#173023;
+      --danger:#E68981;
+      --danger-bg:#331917;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#11161B;
+    --paper-raised:#1A2129;
+    --ink:#E7ECEE;
+    --ink-soft:#9CA9B0;
+    --ink-faint:#6C7A82;
+    --line:#2B3742;
+    --line-strong:#3A4852;
+    --accent:#DD9256;
+    --accent-ink:#1A120B;
+    --blue:#7DB2D4;
+    --copper:#DD9256;
+    --good:#6BC08C;
+    --good-bg:#173023;
+    --danger:#E68981;
+    --danger-bg:#331917;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-sans);
+    font-size:15px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{text-wrap:balance; margin:0;}
+  button{font:inherit;}
+  input,select,textarea{font:inherit; color:inherit;}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  .app{display:flex; flex-direction:column; min-height:100vh;}
+
+  .topbar{
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper-raised);
+    position:sticky; top:0; z-index:20;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto;}
+  .brand-mark{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:.08em;
+    color:var(--accent); border:1px solid var(--line-strong); border-radius:4px;
+    padding:2px 6px;
+  }
+  .brand-title{font-size:16px; font-weight:600; letter-spacing:.01em;}
+
+  .mode-switch{display:flex; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden;}
+  .mode-btn{
+    padding:8px 14px; border:0; background:var(--paper-raised); color:var(--ink-soft);
+    cursor:pointer; font-size:13px; font-weight:600; letter-spacing:.01em;
+    border-right:1px solid var(--line-strong);
+  }
+  .mode-btn:last-child{border-right:0;}
+  .mode-btn[aria-pressed="true"].mode-btn--projeto{background:var(--blue); color:#fff;}
+  .mode-btn[aria-pressed="true"].mode-btn--cabos{background:var(--copper); color:var(--accent-ink);}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:9px 14px; border-radius:7px; border:1px solid var(--line-strong);
+    background:var(--paper-raised); color:var(--ink); cursor:pointer;
+    font-size:13px; font-weight:600;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn-primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .btn-primary:hover{filter:brightness(1.05);}
+  .btn-ghost{border-color:transparent; background:transparent; color:var(--ink-soft); padding:6px 8px;}
+  .btn-ghost:hover{color:var(--danger); border-color:transparent;}
+  .btn-sm{padding:5px 9px; font-size:12px;}
+
+  .workspace{display:flex; flex:1; min-height:0; gap:0;}
+
+  .form-panel{
+    width:400px; min-width:340px; max-width:440px;
+    border-right:1px solid var(--line);
+    background:var(--paper-raised);
+    overflow-y:auto;
+    padding:18px 18px 60px;
+    display:flex; flex-direction:column; gap:22px;
+  }
+
+  .field-group{display:flex; flex-direction:column; gap:10px;}
+  .field-group legend{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-faint); padding:0 0 6px; border-bottom:1px solid var(--line); width:100%;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:12px; color:var(--ink-soft); font-weight:600;}
+  .field input, .field select, .field textarea{
+    padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px;
+    background:var(--paper); color:var(--ink); width:100%;
+  }
+  .field textarea{resize:vertical; min-height:56px;}
+  .field-row{display:flex; gap:10px;}
+  .field-row > .field{flex:1; min-width:0;}
+
+  .logo-row{display:flex; align-items:center; gap:10px;}
+  .logo-preview{
+    width:64px; height:64px; border:1px dashed var(--line-strong); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; background:var(--paper);
+    color:var(--ink-faint); font-size:10px; text-align:center; flex-shrink:0;
+  }
+  .logo-preview img{width:100%; height:100%; object-fit:contain;}
+  .file-label{
+    font-size:12px; font-weight:600; color:var(--blue); cursor:pointer; text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .file-label input{display:none;}
+
+  .items-list{display:flex; flex-direction:column; gap:10px;}
+  .item-card{border:1px solid var(--line); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px; background:var(--paper);}
+  .item-card-top{display:flex; gap:8px; align-items:flex-start;}
+  .item-card-top .field{flex:1;}
+  .item-grid{display:grid; grid-template-columns:1.4fr .8fr .7fr 1fr; gap:8px;}
+  .item-grid .field label{font-size:10px;}
+
+  .tax-row{display:flex; gap:8px; align-items:flex-end;}
+  .tax-row .field{flex:1;}
+  .checkbox-field{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft);}
+  .checkbox-field input{width:auto;}
+
+  .add-row-btn{
+    align-self:flex-start; background:transparent; border:1px dashed var(--line-strong);
+    color:var(--ink-soft); padding:7px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;
+  }
+  .add-row-btn:hover{border-color:var(--accent); color:var(--accent);}
+
+  .save-hint{font-size:11px; color:var(--ink-faint); display:flex; align-items:center; gap:6px;}
+  .save-dot{width:6px; height:6px; border-radius:50%; background:var(--good);}
+
+  /* preview sheet */
+  .sheet-wrap{flex:1; overflow:auto; padding:32px; display:flex; justify-content:center; align-items:flex-start; background:var(--paper);}
+  .sheet{
+    width:100%; max-width:780px; background:#FFFFFF; color:#182129;
+    border:1px solid #BAC4C1; box-shadow:var(--shadow);
+    padding:36px 40px 0;
+    font-size:13.5px;
+  }
+  .sheet, .sheet *{color:#182129;}
+  .sheet-head{display:flex; justify-content:space-between; gap:24px; padding-bottom:18px; border-bottom:2px solid var(--mode-accent, #2B5876);}
+  .sheet-company{display:flex; gap:12px; align-items:flex-start;}
+  .sheet-logo{width:56px; height:56px; object-fit:contain; flex-shrink:0;}
+  .sheet-company-name{font-weight:700; font-size:16px;}
+  .sheet-company-meta{font-size:11.5px; color:#57646D; line-height:1.5; margin-top:2px;}
+  .sheet-doc-meta{text-align:right; font-family:var(--font-mono); font-size:11.5px; color:#57646D;}
+  .sheet-doc-meta .doc-kind{font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--mode-accent, #2B5876); font-weight:700;}
+  .sheet-doc-meta .doc-number{font-size:15px; color:#182129; font-weight:700; margin:2px 0;}
+
+  .sheet-title{margin:20px 0 4px; font-size:19px; font-weight:700; letter-spacing:.01em;}
+  .sheet-sub{font-size:12px; color:#57646D; margin-bottom:18px;}
+
+  .sheet-label{
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+    color:#8A959B; margin:22px 0 8px; padding-bottom:5px; border-bottom:1px solid #D7DEDC;
+  }
+  .client-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; font-size:13px;}
+  .client-grid div span{display:block; font-size:10.5px; color:#8A959B; text-transform:uppercase; letter-spacing:.05em;}
+
+  table.items-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  table.items-table th{
+    text-align:left; font-family:var(--font-mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+    color:#8A959B; font-weight:600; padding:0 6px 6px; border-bottom:1px solid #BAC4C1;
+  }
+  table.items-table td{padding:8px 6px; border-bottom:1px solid #E4E8E7; vertical-align:top;}
+  table.items-table td.num, table.items-table th.num{text-align:right; font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .item-detail{color:#57646D; font-size:11.5px;}
+
+  .totals{margin-left:auto; width:280px; margin-top:10px; font-size:13px;}
+  .totals-row{display:flex; justify-content:space-between; padding:5px 0; font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+  .totals-row.muted{color:#57646D; font-size:12px;}
+  .totals-row.total{border-top:2px solid var(--mode-accent,#2B5876); margin-top:6px; padding-top:10px; font-size:17px; font-weight:700; font-family:var(--font-sans);}
+  .totals-row.total .amt{font-family:var(--font-mono);}
+  .tax-note{font-size:10.5px; color:#8A959B; text-align:right; margin-top:-2px;}
+
+  .conditions-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; font-size:12.5px;}
+  .conditions-grid .full{grid-column:1/-1;}
+  .conditions-grid div span{display:block; font-size:10.5px; color:#8A959B; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px;}
+
+  .signatures{display:flex; gap:40px; margin-top:44px;}
+  .sig-line{flex:1; border-top:1px solid #BAC4C1; padding-top:6px; font-size:11px; color:#57646D; text-align:center;}
+
+  .sheet-footer{
+    margin:30px -40px 0; padding:10px 40px; background:#F3F5F4;
+    border-top:1px solid #D7DEDC; display:flex; justify-content:space-between;
+    font-family:var(--font-mono); font-size:10px; color:#8A959B; letter-spacing:.03em;
+  }
+
+  .toast{
+    position:fixed; bottom:18px; left:50%; transform:translate(-50%,0); z-index:50;
+    background:var(--ink); color:var(--paper-raised); padding:9px 16px; border-radius:20px;
+    font-size:12.5px; font-weight:600; opacity:0; pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+  @media (prefers-reduced-motion: no-preference){
+    .toast{transition:opacity .25s ease;}
+  }
+
+  @media (max-width:900px){
+    .workspace{flex-direction:column;}
+    .form-panel{width:100%; max-width:none; border-right:0; border-bottom:1px solid var(--line);}
+    .item-grid{grid-template-columns:1fr 1fr;}
+  }
+
+  @media print{
+    .topbar, .form-panel, .toast{display:none !important;}
+    .sheet-wrap{padding:0; display:block;}
+    .sheet{box-shadow:none; border:none; max-width:none; width:100%; padding:0 6mm;}
+    .sheet-footer{background:transparent;}
+    body{background:#fff;}
+  }
+</style>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark">⚡ ELÉTRICA</span>
+      <span class="brand-title">Prancheta de Propostas</span>
+    </div>
+    <div class="mode-switch" role="group" aria-label="Tipo de proposta">
+      <button type="button" class="mode-btn mode-btn--projeto" id="btn-mode-projeto" aria-pressed="true">Projeto &amp; Consultoria</button>
+      <button type="button" class="mode-btn mode-btn--cabos" id="btn-mode-cabos" aria-pressed="false">Venda de Cabos</button>
+    </div>
+    <button type="button" class="btn" id="btn-new">Nova proposta</button>
+    <button type="button" class="btn-ghost btn-sm" id="btn-print" title="Tenta abrir a caixa de impressão do navegador (nem sempre funciona nesta visualização)">Imprimir</button>
+    <button type="button" class="btn btn-primary" id="btn-download">Baixar proposta</button>
+  </div>
+
+  <div class="workspace">
+    <aside class="form-panel">
+
+      <div class="field-group">
+        <legend>Dados da empresa</legend>
+        <div class="logo-row">
+          <div class="logo-preview" id="logo-preview">sem logo</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label class="file-label">Enviar logo<input type="file" id="f-logo" accept="image/*"></label>
+            <button type="button" class="btn-ghost btn-sm" id="btn-remove-logo" style="text-align:left; padding:0;">remover</button>
+          </div>
+        </div>
+        <div class="field"><label for="f-company-name">Razão social</label><input id="f-company-name" placeholder="Nome da sua empresa"></div>
+        <div class="field-row">
+          <div class="field"><label for="f-company-doc">CNPJ</label><input id="f-company-doc" placeholder="00.000.000/0000-00"></div>
+          <div class="field"><label for="f-company-phone">Telefone</label><input id="f-company-phone" placeholder="(00) 00000-0000"></div>
+        </div>
+        <div class="field"><label for="f-company-address">Endereço</label><input id="f-company-address" placeholder="Rua, nº - Bairro - Cidade/UF"></div>
+        <div class="field-row">
+          <div class="field"><label for="f-company-email">E-mail</label><input id="f-company-email" placeholder="contato@suaempresa.com.br"></div>
+          <div class="field"><label for="f-company-site">Site</label><input id="f-company-site" placeholder="www.suaempresa.com.br"></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <legend>Proposta</legend>
+        <div class="field-row">
+          <div class="field"><label>Número</label><input id="f-meta-number" readonly style="font-family:var(--font-mono); color:var(--ink-soft);"></div>
+          <div class="field"><label for="f-meta-date">Data</label><input type="date" id="f-meta-date"></div>
+        </div>
+        <div class="field"><label for="f-meta-validade">Validade da proposta (dias)</label><input type="number" min="0" id="f-meta-validade"></div>
+      </div>
+
+      <div class="field-group">
+        <legend>Cliente</legend>
+        <div class="field"><label for="f-client-name">Nome / Razão social</label><input id="f-client-name" placeholder="Nome do cliente"></div>
+        <div class="field-row">
+          <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc"></div>
+          <div class="field"><label for="f-client-phone">Telefone</label><input id="f-client-phone"></div>
+        </div>
+        <div class="field"><label for="f-client-address">Endereço</label><input id="f-client-address"></div>
+        <div class="field-row">
+          <div class="field"><label for="f-client-contact">Contato</label><input id="f-client-contact" placeholder="Pessoa de contato"></div>
+          <div class="field"><label for="f-client-email">E-mail</label><input id="f-client-email"></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <legend>Itens <button type="button" class="add-row-btn" id="btn-add-item">+ item</button></legend>
+        <div class="items-list" id="items-list"></div>
+      </div>
+
+      <div class="field-group">
+        <legend>Desconto</legend>
+        <div class="field-row">
+          <div class="field"><label for="f-disc-type">Tipo</label>
+            <select id="f-disc-type">
+              <option value="percent">Percentual (%)</option>
+              <option value="value">Valor fixo (R$)</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-disc-value">Valor</label><input type="number" min="0" step="0.01" id="f-disc-value"></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <legend>Impostos <button type="button" class="add-row-btn" id="btn-add-tax">+ imposto</button></legend>
+        <div id="taxes-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <label class="checkbox-field"><input type="checkbox" id="f-tax-included"> Preço dos itens já inclui os impostos acima</label>
+      </div>
+
+      <div class="field-group">
+        <legend>Condições comerciais</legend>
+        <div class="field"><label for="f-cond-pagamento">Forma de pagamento</label><input id="f-cond-pagamento"></div>
+        <div class="field"><label for="f-cond-prazo" id="lbl-cond-prazo">Prazo</label><input id="f-cond-prazo"></div>
+        <div class="field"><label for="f-cond-garantia">Garantia</label><input id="f-cond-garantia"></div>
+        <div class="field"><label for="f-cond-obs">Observações</label><textarea id="f-cond-obs"></textarea></div>
+      </div>
+
+      <div class="save-hint"><span class="save-dot"></span> Dados salvos automaticamente neste navegador</div>
+      <div class="save-hint" style="align-items:flex-start;">Aberto fora do chat (arquivo salvo no seu computador), "Baixar proposta" gera o PDF direto. Dentro do chat, baixa um arquivo/imagem para você imprimir como PDF.</div>
+    </aside>
+
+    <main class="sheet-wrap">
+      <div class="sheet" id="sheet"></div>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var LS_KEY = "prancheta-propostas-v1";
+  var state = null;
+  var saveTimer = null;
+
+  function todayISO(){
+    var d = new Date();
+    var m = String(d.getMonth()+1).padStart(2,"0");
+    var day = String(d.getDate()).padStart(2,"0");
+    return d.getFullYear()+"-"+m+"-"+day;
+  }
+
+  function emptyItem(mode){
+    return { desc:"", detail:"", unit: mode==="cabos" ? "m" : "verba", qty:1, price:0 };
+  }
+  function emptyClient(){
+    return { name:"", doc:"", contact:"", address:"", phone:"", email:"" };
+  }
+  function emptyConditions(){
+    return { pagamento:"", prazo:"", garantia:"", obs:"" };
+  }
+  function defaultTax(mode){
+    return mode==="projeto" ? { label:"ISS", percent:5 } : { label:"ICMS", percent:18 };
+  }
+
+  function demoProjetoDraft(seq){
+    var year = new Date().getFullYear();
+    return {
+      number: "PRJ-"+year+"-"+String(seq).padStart(3,"0"),
+      date: todayISO(),
+      validadeDias: 15,
+      client: { name:"Condomínio Edifício Aurora", doc:"12.345.678/0001-90", contact:"Ricardo Almeida (síndico)", address:"Av. das Nações, 450 - Curitiba/PR", phone:"(41) 99876-5432", email:"sindico@edificioaurora.com.br" },
+      items: [
+        { desc:"Projeto elétrico completo - reforma do sistema de iluminação", detail:"Conforme NBR 5410, inclui memorial descritivo", unit:"verba", qty:1, price:8500 },
+        { desc:"Consultoria técnica - laudo de conformidade elétrica", detail:"Visita técnica + relatório", unit:"visita", qty:2, price:950 }
+      ],
+      discount:{ type:"percent", value:0 },
+      taxIncluded:false,
+      taxes:[ defaultTax("projeto") ],
+      conditions:{ pagamento:"40% na aprovação + 60% na entrega do projeto", prazo:"20 dias úteis após aprovação", garantia:"Revisões inclusas por 30 dias após a entrega", obs:"Valores não incluem ART/RRT, cobrada à parte conforme tabela do CREA." }
+    };
+  }
+  function demoCabosDraft(seq){
+    var year = new Date().getFullYear();
+    return {
+      number: "CAB-"+year+"-"+String(seq).padStart(3,"0"),
+      date: todayISO(),
+      validadeDias: 10,
+      client: { name:"Elétrica Ferreira Materiais Ltda", doc:"98.765.432/0001-10", contact:"Marcos Ferreira (compras)", address:"Rod. BR-116, km 12 - Galpão 4 - São José/SC", phone:"(48) 3234-5678", email:"compras@eletricaferreira.com.br" },
+      items: [
+        { desc:"Cabo flexível 2,5mm² 750V", detail:"Cor preta, rolo de 100m", unit:"m", qty:500, price:2.35 },
+        { desc:"Cabo flexível 4,0mm² 750V", detail:"Cor azul, rolo de 100m", unit:"m", qty:300, price:3.80 },
+        { desc:"Cabo PP 3x2,5mm²", detail:"Uso em extensões e quadros", unit:"m", qty:100, price:6.90 }
+      ],
+      discount:{ type:"percent", value:0 },
+      taxIncluded:true,
+      taxes:[ defaultTax("cabos") ],
+      conditions:{ pagamento:"28 dias, data da fatura (boleto)", prazo:"Entrega em até 5 dias úteis após confirmação", garantia:"Conforme certificação do fabricante (NBR NM 247-3)", obs:"Frete não incluso - cotado conforme CEP de entrega." }
+    };
+  }
+
+  function defaultState(){
+    return {
+      company:{ name:"", doc:"", address:"", phone:"", email:"", site:"", logo:"" },
+      mode:"projeto",
+      counters:{ projeto:2, cabos:2 },
+      drafts:{ projeto: demoProjetoDraft(1), cabos: demoCabosDraft(1) }
+    };
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(LS_KEY);
+      if(!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      var d = defaultState();
+      d.company = Object.assign(d.company, parsed.company||{});
+      d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
+      d.counters = Object.assign(d.counters, parsed.counters||{});
+      if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
+      if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
+      return d;
+    }catch(e){ return defaultState(); }
+  }
+
+  function scheduleSave(){
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      toast("Salvo");
+    }, 500);
+  }
+  function saveNow(){
+    if(saveTimer) clearTimeout(saveTimer);
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  }
+
+  function toast(msg){
+    var el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ el.classList.remove("show"); }, 1400);
+  }
+
+  function escapeHtml(str){
+    return String(str==null?"":str).replace(/[&<>"']/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+  function fmtBRL(n){
+    return (Number(n)||0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+  }
+  function fmtNum(n, dec){
+    return (Number(n)||0).toLocaleString("pt-BR", { minimumFractionDigits:dec||0, maximumFractionDigits:dec||2 });
+  }
+  function dateBR(iso){
+    if(!iso) return "-";
+    var p = iso.split("-");
+    return p[2]+"/"+p[1]+"/"+p[0];
+  }
+  function addDaysBR(iso, days){
+    if(!iso) return "-";
+    var d = new Date(iso+"T00:00:00");
+    d.setDate(d.getDate() + (Number(days)||0));
+    var m = String(d.getMonth()+1).padStart(2,"0");
+    var day = String(d.getDate()).padStart(2,"0");
+    return day+"/"+m+"/"+d.getFullYear();
+  }
+
+  function draft(){ return state.drafts[state.mode]; }
+
+  function calcTotals(dr){
+    var subtotal = dr.items.reduce(function(s,it){ return s + (Number(it.qty)||0)*(Number(it.price)||0); }, 0);
+    var discountAmount = dr.discount.type==="percent"
+      ? subtotal * (Number(dr.discount.value)||0)/100
+      : (Number(dr.discount.value)||0);
+    if(discountAmount > subtotal) discountAmount = subtotal;
+    var base = subtotal - discountAmount;
+    var taxPercentTotal = dr.taxes.reduce(function(s,t){ return s+(Number(t.percent)||0); }, 0);
+    var taxAmount = base * taxPercentTotal/100;
+    var total = dr.taxIncluded ? base : base + taxAmount;
+    return { subtotal:subtotal, discountAmount:discountAmount, base:base, taxAmount:taxAmount, taxPercentTotal:taxPercentTotal, total:total };
+  }
+
+  // ---------- bindings for simple fields ----------
+  var bindings = [
+    ["f-company-name", function(s){return s.company.name;}, function(s,v){s.company.name=v;}],
+    ["f-company-doc", function(s){return s.company.doc;}, function(s,v){s.company.doc=v;}],
+    ["f-company-phone", function(s){return s.company.phone;}, function(s,v){s.company.phone=v;}],
+    ["f-company-address", function(s){return s.company.address;}, function(s,v){s.company.address=v;}],
+    ["f-company-email", function(s){return s.company.email;}, function(s,v){s.company.email=v;}],
+    ["f-company-site", function(s){return s.company.site;}, function(s,v){s.company.site=v;}],
+
+    ["f-meta-date", function(s){return draft().date;}, function(s,v){draft().date=v;}],
+    ["f-meta-validade", function(s){return draft().validadeDias;}, function(s,v){draft().validadeDias=parseFloat(v)||0;}],
+
+    ["f-client-name", function(s){return draft().client.name;}, function(s,v){draft().client.name=v;}],
+    ["f-client-doc", function(s){return draft().client.doc;}, function(s,v){draft().client.doc=v;}],
+    ["f-client-phone", function(s){return draft().client.phone;}, function(s,v){draft().client.phone=v;}],
+    ["f-client-address", function(s){return draft().client.address;}, function(s,v){draft().client.address=v;}],
+    ["f-client-contact", function(s){return draft().client.contact;}, function(s,v){draft().client.contact=v;}],
+    ["f-client-email", function(s){return draft().client.email;}, function(s,v){draft().client.email=v;}],
+
+    ["f-disc-type", function(s){return draft().discount.type;}, function(s,v){draft().discount.type=v;}],
+    ["f-disc-value", function(s){return draft().discount.value;}, function(s,v){draft().discount.value=parseFloat(v)||0;}],
+
+    ["f-cond-pagamento", function(s){return draft().conditions.pagamento;}, function(s,v){draft().conditions.pagamento=v;}],
+    ["f-cond-prazo", function(s){return draft().conditions.prazo;}, function(s,v){draft().conditions.prazo=v;}],
+    ["f-cond-garantia", function(s){return draft().conditions.garantia;}, function(s,v){draft().conditions.garantia=v;}],
+    ["f-cond-obs", function(s){return draft().conditions.obs;}, function(s,v){draft().conditions.obs=v;}]
+  ];
+
+  function attachBindings(){
+    bindings.forEach(function(b){
+      var el = document.getElementById(b[0]);
+      var evt = (el.tagName==="SELECT") ? "change" : "input";
+      el.addEventListener(evt, function(){
+        b[2](state, el.value);
+        scheduleSave();
+        renderPreview();
+      });
+    });
+    document.getElementById("f-tax-included").addEventListener("change", function(e){
+      draft().taxIncluded = e.target.checked;
+      scheduleSave();
+      renderPreview();
+    });
+  }
+
+  function syncFormFromState(){
+    bindings.forEach(function(b){
+      var el = document.getElementById(b[0]);
+      var v = b[1](state);
+      el.value = (v==null) ? "" : v;
+    });
+    document.getElementById("f-meta-number").value = draft().number;
+    document.getElementById("f-tax-included").checked = !!draft().taxIncluded;
+    document.getElementById("lbl-cond-prazo").textContent = state.mode==="cabos" ? "Prazo de entrega" : "Prazo de execução";
+
+    document.getElementById("btn-mode-projeto").setAttribute("aria-pressed", state.mode==="projeto" ? "true":"false");
+    document.getElementById("btn-mode-cabos").setAttribute("aria-pressed", state.mode==="cabos" ? "true":"false");
+
+    renderLogoPreview();
+    renderItemsList();
+    renderTaxesList();
+    renderPreview();
+  }
+
+  // ---------- logo ----------
+  function renderLogoPreview(){
+    var box = document.getElementById("logo-preview");
+    if(state.company.logo){
+      box.innerHTML = '<img src="'+state.company.logo+'" alt="Logo da empresa">';
+    } else {
+      box.textContent = "sem logo";
+    }
+  }
+  function attachLogoHandlers(){
+    var input = document.getElementById("f-logo");
+    input.addEventListener("change", function(){
+      var file = input.files && input.files[0];
+      if(!file) return;
+      var reader = new FileReader();
+      reader.onload = function(){
+        var img = new Image();
+        img.onload = function(){
+          var maxW = 300;
+          var scale = Math.min(1, maxW/img.width);
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.width*scale);
+          canvas.height = Math.round(img.height*scale);
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          state.company.logo = canvas.toDataURL("image/png");
+          renderLogoPreview();
+          renderPreview();
+          scheduleSave();
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    document.getElementById("btn-remove-logo").addEventListener("click", function(){
+      state.company.logo = "";
+      document.getElementById("f-logo").value = "";
+      renderLogoPreview();
+      renderPreview();
+      scheduleSave();
+    });
+  }
+
+  // ---------- items ----------
+  function unitOptions(mode){
+    return mode==="cabos" ? ["m","rolo","cx","un"] : ["verba","h","un","mês","visita","etapa"];
+  }
+  function renderItemsList(){
+    var container = document.getElementById("items-list");
+    var mode = state.mode;
+    var items = draft().items;
+    var opts = unitOptions(mode);
+    container.innerHTML = items.map(function(it, i){
+      var optHtml = opts.map(function(o){
+        return '<option value="'+o+'"'+(it.unit===o?' selected':'')+'>'+o+'</option>';
+      }).join("");
+      return (
+        '<div class="item-card" data-index="'+i+'">' +
+          '<div class="item-card-top">' +
+            '<div class="field"><label>'+(mode==="cabos"?"Cabo / produto":"Descrição do item")+'</label>' +
+              '<input data-field="desc" data-index="'+i+'" value="'+escapeHtml(it.desc)+'" placeholder="'+(mode==="cabos"?"Ex.: Cabo flexível 2,5mm² 750V":"Ex.: Projeto elétrico - reforma")+'"></div>' +
+            '<button type="button" class="btn-ghost btn-sm remove-item" data-index="'+i+'" title="Remover item">✕</button>' +
+          '</div>' +
+          '<div class="field"><label>'+(mode==="cabos"?"Especificação":"Detalhe")+'</label>' +
+            '<input data-field="detail" data-index="'+i+'" value="'+escapeHtml(it.detail)+'" placeholder="'+(mode==="cabos"?"Cor, tensão, rolo...":"Etapa, norma, observação...")+'"></div>' +
+          '<div class="item-grid">' +
+            '<div class="field"><label>Unid.</label><select data-field="unit" data-index="'+i+'">'+optHtml+'</select></div>' +
+            '<div class="field"><label>Qtd</label><input type="number" min="0" step="0.01" data-field="qty" data-index="'+i+'" value="'+it.qty+'"></div>' +
+            '<div class="field"><label>Valor unit. (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+it.price+'"></div>' +
+            '<div class="field"><label>Total</label><input value="'+fmtBRL((Number(it.qty)||0)*(Number(it.price)||0))+'" readonly style="color:var(--ink-soft);"></div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+  function attachItemsDelegation(){
+    var container = document.getElementById("items-list");
+    container.addEventListener("input", function(e){
+      var field = e.target.getAttribute("data-field");
+      if(!field) return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var it = draft().items[idx];
+      if(!it) return;
+      if(field==="qty" || field==="price"){
+        it[field] = parseFloat(e.target.value) || 0;
+        var row = e.target.closest(".item-card");
+        var totalInput = row.querySelector('.item-grid .field:last-child input');
+        totalInput.value = fmtBRL((Number(it.qty)||0)*(Number(it.price)||0));
+      } else {
+        it[field] = e.target.value;
+      }
+      scheduleSave();
+      renderPreview();
+    });
+    container.addEventListener("change", function(e){
+      var field = e.target.getAttribute("data-field");
+      if(field==="unit"){
+        var idx = parseInt(e.target.getAttribute("data-index"), 10);
+        draft().items[idx].unit = e.target.value;
+        scheduleSave();
+        renderPreview();
+      }
+    });
+    container.addEventListener("click", function(e){
+      var btn = e.target.closest(".remove-item");
+      if(!btn) return;
+      var idx = parseInt(btn.getAttribute("data-index"), 10);
+      var items = draft().items;
+      if(items.length>1) items.splice(idx,1);
+      else items[0] = emptyItem(state.mode);
+      renderItemsList();
+      scheduleSave();
+      renderPreview();
+    });
+    document.getElementById("btn-add-item").addEventListener("click", function(){
+      draft().items.push(emptyItem(state.mode));
+      renderItemsList();
+      scheduleSave();
+      renderPreview();
+    });
+  }
+
+  // ---------- taxes ----------
+  function renderTaxesList(){
+    var container = document.getElementById("taxes-list");
+    var taxes = draft().taxes;
+    container.innerHTML = taxes.map(function(t,i){
+      return (
+        '<div class="tax-row" data-index="'+i+'">' +
+          '<div class="field"><label>Tributo</label><input data-tfield="label" data-index="'+i+'" value="'+escapeHtml(t.label)+'" placeholder="ICMS, ISS..."></div>' +
+          '<div class="field" style="max-width:90px;"><label>%</label><input type="number" min="0" step="0.01" data-tfield="percent" data-index="'+i+'" value="'+t.percent+'"></div>' +
+          '<button type="button" class="btn-ghost btn-sm remove-tax" data-index="'+i+'" title="Remover">✕</button>' +
+        '</div>'
+      );
+    }).join("");
+  }
+  function attachTaxesDelegation(){
+    var container = document.getElementById("taxes-list");
+    container.addEventListener("input", function(e){
+      var field = e.target.getAttribute("data-tfield");
+      if(!field) return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var t = draft().taxes[idx];
+      if(!t) return;
+      t[field] = field==="percent" ? (parseFloat(e.target.value)||0) : e.target.value;
+      scheduleSave();
+      renderPreview();
+    });
+    container.addEventListener("click", function(e){
+      var btn = e.target.closest(".remove-tax");
+      if(!btn) return;
+      var idx = parseInt(btn.getAttribute("data-index"), 10);
+      var taxes = draft().taxes;
+      if(taxes.length>1) taxes.splice(idx,1);
+      else taxes[0] = { label:"", percent:0 };
+      renderTaxesList();
+      scheduleSave();
+      renderPreview();
+    });
+    document.getElementById("btn-add-tax").addEventListener("click", function(){
+      draft().taxes.push({ label:"", percent:0 });
+      renderTaxesList();
+      scheduleSave();
+      renderPreview();
+    });
+  }
+
+  // ---------- preview ----------
+  function renderPreview(){
+    var dr = draft();
+    var mode = state.mode;
+    var totals = calcTotals(dr);
+    var sheet = document.getElementById("sheet");
+    sheet.style.setProperty("--mode-accent", mode==="cabos" ? "#B5652E" : "#2B5876");
+
+    var logoHtml = state.company.logo ? '<img class="sheet-logo" src="'+state.company.logo+'" alt="">' : "";
+
+    var itemsRows = dr.items.map(function(it){
+      var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
+      return (
+        '<tr>' +
+          '<td>'+escapeHtml(it.desc||"—")+(it.detail? '<div class="item-detail">'+escapeHtml(it.detail)+'</div>':'')+'</td>' +
+          '<td class="num">'+fmtNum(it.qty, it.unit==="m"?0:2)+' '+escapeHtml(it.unit)+'</td>' +
+          '<td class="num">'+fmtBRL(it.price)+'</td>' +
+          '<td class="num">'+fmtBRL(lineTotal)+'</td>' +
+        '</tr>'
+      );
+    }).join("");
+
+    var taxLines = dr.taxes.filter(function(t){return t.label || t.percent;}).map(function(t){
+      return escapeHtml(t.label||"Imposto")+" "+fmtNum(t.percent,2)+"%";
+    }).join(" + ");
+
+    var totalsHtml =
+      '<div class="totals">' +
+        '<div class="totals-row muted"><span>Subtotal</span><span>'+fmtBRL(totals.subtotal)+'</span></div>' +
+        (totals.discountAmount>0 ? '<div class="totals-row muted"><span>Desconto</span><span>-'+fmtBRL(totals.discountAmount)+'</span></div>' : '') +
+        (taxLines ? (
+          dr.taxIncluded
+          ? '<div class="totals-row muted"><span>Impostos ('+taxLines+')</span><span>inclusos</span></div>'
+          : '<div class="totals-row muted"><span>Impostos ('+taxLines+')</span><span>+'+fmtBRL(totals.taxAmount)+'</span></div>'
+        ) : '') +
+        '<div class="totals-row total"><span>Valor total</span><span class="amt">'+fmtBRL(totals.total)+'</span></div>' +
+      '</div>';
+
+    sheet.innerHTML =
+      '<div class="sheet-head">' +
+        '<div class="sheet-company">' +
+          logoHtml +
+          '<div>' +
+            '<div class="sheet-company-name">'+escapeHtml(state.company.name||"Sua empresa")+'</div>' +
+            '<div class="sheet-company-meta">' +
+              (state.company.doc ? "CNPJ "+escapeHtml(state.company.doc)+"<br>" : "") +
+              (state.company.address ? escapeHtml(state.company.address)+"<br>" : "") +
+              [state.company.phone, state.company.email, state.company.site].filter(Boolean).map(escapeHtml).join(" · ") +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sheet-doc-meta">' +
+          '<div class="doc-kind">'+(mode==="cabos"?"Proposta de fornecimento":"Proposta de serviço")+'</div>' +
+          '<div class="doc-number">Nº '+escapeHtml(dr.number)+'</div>' +
+          '<div>Data '+dateBR(dr.date)+'</div>' +
+          '<div>Válida até '+addDaysBR(dr.date, dr.validadeDias)+'</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="sheet-title">Proposta Comercial</div>' +
+      '<div class="sheet-sub">'+(mode==="cabos" ? "Fornecimento de materiais elétricos" : "Projeto elétrico e consultoria técnica")+'</div>' +
+
+      '<div class="sheet-label">Cliente</div>' +
+      '<div class="client-grid">' +
+        '<div><span>Nome / Razão social</span>'+escapeHtml(dr.client.name||"—")+'</div>' +
+        '<div><span>CNPJ/CPF</span>'+escapeHtml(dr.client.doc||"—")+'</div>' +
+        '<div><span>Endereço</span>'+escapeHtml(dr.client.address||"—")+'</div>' +
+        '<div><span>Contato</span>'+escapeHtml(dr.client.contact||"—")+'</div>' +
+        '<div><span>Telefone</span>'+escapeHtml(dr.client.phone||"—")+'</div>' +
+        '<div><span>E-mail</span>'+escapeHtml(dr.client.email||"—")+'</div>' +
+      '</div>' +
+
+      '<div class="sheet-label">Itens</div>' +
+      '<div style="overflow-x:auto;">' +
+      '<table class="items-table"><thead><tr>' +
+        '<th>'+(mode==="cabos"?"Produto":"Descrição")+'</th><th class="num">Qtd</th><th class="num">Valor unit.</th><th class="num">Total</th>' +
+      '</tr></thead><tbody>' + itemsRows + '</tbody></table></div>' +
+      totalsHtml +
+
+      '<div class="sheet-label">Condições comerciais</div>' +
+      '<div class="conditions-grid">' +
+        '<div><span>Forma de pagamento</span>'+escapeHtml(dr.conditions.pagamento||"—")+'</div>' +
+        '<div><span>'+(mode==="cabos"?"Prazo de entrega":"Prazo de execução")+'</span>'+escapeHtml(dr.conditions.prazo||"—")+'</div>' +
+        '<div><span>Garantia</span>'+escapeHtml(dr.conditions.garantia||"—")+'</div>' +
+        '<div><span>Validade da proposta</span>'+(dr.validadeDias||0)+' dias</div>' +
+        (dr.conditions.obs ? '<div class="full"><span>Observações</span>'+escapeHtml(dr.conditions.obs)+'</div>' : '') +
+      '</div>' +
+
+      '<div class="signatures">' +
+        '<div class="sig-line">'+escapeHtml(state.company.name||"Empresa")+'</div>' +
+        '<div class="sig-line">'+escapeHtml(dr.client.name||"Cliente")+'</div>' +
+      '</div>' +
+
+      '<div class="sheet-footer"><span>'+escapeHtml(dr.number)+'</span><span>Gerado em '+dateBR(todayISO())+'</span></div>';
+  }
+
+  // ---------- export (drawn directly on canvas — no HTML/SVG rasterization, so nothing taints the canvas) ----------
+  var CV_SANS = "Arial, Helvetica, sans-serif";
+  var CV_MONO = '"Courier New", Consolas, monospace';
+  var CV_INK = "#182129";
+  var CV_SOFT = "#57646D";
+  var CV_FAINT = "#8A959B";
+  var CV_LINE = "#D7DEDC";
+  var CV_LINE_STRONG = "#BAC4C1";
+
+  function wrapText(ctx, text, maxWidth){
+    if(!text) return [];
+    var words = String(text).split(/\s+/);
+    var lines = [];
+    var cur = "";
+    for(var i=0;i<words.length;i++){
+      var test = cur ? cur+" "+words[i] : words[i];
+      if(ctx.measureText(test).width > maxWidth && cur){
+        lines.push(cur);
+        cur = words[i];
+      } else {
+        cur = test;
+      }
+    }
+    if(cur) lines.push(cur);
+    return lines;
+  }
+
+  function loadImage(src){
+    return new Promise(function(resolve){
+      var img = new Image();
+      img.onload = function(){ resolve(img); };
+      img.onerror = function(){ resolve(null); };
+      img.src = src;
+    });
+  }
+
+  function renderProposalCanvas(logoImg){
+    var dr = draft();
+    var mode = state.mode;
+    var totals = calcTotals(dr);
+    var modeColor = mode==="cabos" ? "#B5652E" : "#2B5876";
+    var LW = 780, ML = 44, MR = 44, CW = LW-ML-MR;
+    var SCALE = 2;
+
+    function layout(ctx, draw){
+      var y = 36;
+
+      function sectionLabel(text){
+        ctx.font = "700 10px "+CV_SANS;
+        if(draw){ ctx.fillStyle=CV_FAINT; ctx.textAlign="left"; ctx.fillText(text.toUpperCase(), ML, y+8); }
+        y += 14;
+        if(draw){ ctx.strokeStyle=CV_LINE; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(LW-MR,y); ctx.stroke(); }
+        y += 14;
+      }
+
+      function fieldGrid(pairs){
+        var colW = (CW-24)/2;
+        for(var i=0;i<pairs.length;i+=2){
+          var rowPairs = pairs.slice(i,i+2);
+          var rowH = 0;
+          rowPairs.forEach(function(p){
+            ctx.font = "13px "+CV_SANS;
+            var lines = wrapText(ctx, p[1]||"—", colW);
+            rowH = Math.max(rowH, 13 + lines.length*15);
+          });
+          rowPairs.forEach(function(p, ci){
+            var x = ML + ci*(colW+24);
+            ctx.font = "700 9.5px "+CV_SANS;
+            if(draw){ ctx.fillStyle=CV_FAINT; ctx.textAlign="left"; ctx.fillText(String(p[0]).toUpperCase(), x, y+8); }
+            ctx.font = "13px "+CV_SANS;
+            var lines = wrapText(ctx, p[1]||"—", colW);
+            var vy = y+24;
+            lines.forEach(function(line){
+              if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(line, x, vy); }
+              vy += 15;
+            });
+          });
+          y += rowH + 8;
+        }
+        y += 6;
+      }
+
+      // header
+      var companyX = ML;
+      var yCompany = y;
+      if(logoImg && draw) ctx.drawImage(logoImg, ML, y, 52, 52);
+      if(logoImg) companyX = ML+52+12;
+      ctx.font = "700 15px "+CV_SANS;
+      ctx.textAlign = "left";
+      if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(state.company.name||"Sua empresa", companyX, yCompany+13); }
+      yCompany += 22;
+      ctx.font = "11px "+CV_SANS;
+      var metaLines = [];
+      if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
+      if(state.company.address) metaLines.push(state.company.address);
+      var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
+      if(contactLine) metaLines.push(contactLine);
+      metaLines.forEach(function(line){
+        if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(line, companyX, yCompany+9); }
+        yCompany += 15;
+      });
+      var leftBottom = Math.max(yCompany, y+(logoImg?52:0));
+
+      var yDoc = y;
+      ctx.textAlign = "right";
+      ctx.font = "700 10px "+CV_SANS;
+      if(draw){ ctx.fillStyle=modeColor; ctx.fillText(mode==="cabos" ? "PROPOSTA DE FORNECIMENTO" : "PROPOSTA DE SERVIÇO", LW-MR, yDoc+9); }
+      yDoc += 17;
+      ctx.font = "700 14px "+CV_SANS;
+      if(draw){ ctx.fillStyle=CV_INK; ctx.fillText("Nº "+dr.number, LW-MR, yDoc+11); }
+      yDoc += 19;
+      ctx.font = "11px "+CV_SANS;
+      if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText("Data "+dateBR(dr.date), LW-MR, yDoc+9); }
+      yDoc += 15;
+      if(draw){ ctx.fillText("Válida até "+addDaysBR(dr.date, dr.validadeDias), LW-MR, yDoc+9); }
+      yDoc += 15;
+
+      y = Math.max(leftBottom, yDoc) + 12;
+      if(draw){ ctx.strokeStyle=modeColor; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(LW-MR,y); ctx.stroke(); }
+      y += 24;
+
+      // title
+      ctx.textAlign = "left";
+      ctx.font = "700 18px "+CV_SANS;
+      if(draw){ ctx.fillStyle=CV_INK; ctx.fillText("Proposta Comercial", ML, y+14); }
+      y += 24;
+      ctx.font = "12px "+CV_SANS;
+      if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(mode==="cabos" ? "Fornecimento de materiais elétricos" : "Projeto elétrico e consultoria técnica", ML, y+9); }
+      y += 26;
+
+      // client
+      sectionLabel("Cliente");
+      fieldGrid([
+        ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", dr.client.doc],
+        ["Endereço", dr.client.address], ["Contato", dr.client.contact],
+        ["Telefone", dr.client.phone], ["E-mail", dr.client.email]
+      ]);
+
+      // items
+      sectionLabel("Itens");
+      var colDesc=330, colQty=90, colPrice=130, colTotal=CW-colDesc-colQty-colPrice;
+      var xDesc=ML, xQty=xDesc+colDesc, xPrice=xQty+colQty, xTotal=xPrice+colPrice;
+      ctx.font = "700 9.5px "+CV_SANS;
+      if(draw){
+        ctx.fillStyle=CV_FAINT; ctx.textAlign="left";
+        ctx.fillText(mode==="cabos" ? "PRODUTO" : "DESCRIÇÃO", xDesc, y+8);
+        ctx.textAlign="right";
+        ctx.fillText("QTD", xQty+colQty, y+8);
+        ctx.fillText("VALOR UNIT.", xPrice+colPrice, y+8);
+        ctx.fillText("TOTAL", xTotal+colTotal, y+8);
+      }
+      y += 12;
+      if(draw){ ctx.strokeStyle=CV_LINE_STRONG; ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(LW-MR,y); ctx.stroke(); }
+      y += 14;
+
+      dr.items.forEach(function(it){
+        var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
+        ctx.font = "12.5px "+CV_SANS;
+        var descLines = wrapText(ctx, it.desc||"—", colDesc-10);
+        var detailLines = [];
+        if(it.detail){
+          ctx.font = "11px "+CV_SANS;
+          detailLines = wrapText(ctx, it.detail, colDesc-10);
+        }
+        var rowTop = y;
+        var dy = y+11;
+        ctx.font = "12.5px "+CV_SANS;
+        ctx.textAlign = "left";
+        descLines.forEach(function(l){ if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(l, xDesc, dy); } dy += 15; });
+        if(detailLines.length){
+          ctx.font = "11px "+CV_SANS;
+          detailLines.forEach(function(l){ if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(l, xDesc, dy); } dy += 14; });
+        }
+        ctx.font = "12px "+CV_MONO;
+        ctx.textAlign = "right";
+        if(draw){
+          ctx.fillStyle = CV_INK;
+          ctx.fillText(fmtNum(it.qty, it.unit==="m"?0:2)+" "+it.unit, xQty+colQty, rowTop+11);
+          ctx.fillText(fmtBRL(it.price), xPrice+colPrice, rowTop+11);
+          ctx.fillText(fmtBRL(lineTotal), xTotal+colTotal, rowTop+11);
+        }
+        y = Math.max(dy, rowTop+17) + 8;
+        if(draw){ ctx.strokeStyle=CV_LINE; ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(LW-MR,y); ctx.stroke(); }
+        y += 10;
+      });
+
+      // totals
+      y += 4;
+      var totalsW = 280, totalsX = LW-MR-totalsW;
+      function totalsRow(label, value, opts){
+        opts = opts||{};
+        var big = !!opts.big, bold = !!opts.bold;
+        if(draw){
+          ctx.textAlign = "left";
+          ctx.font = (bold?"700 ":"") + (big?"16px ":"12.5px ") + CV_SANS;
+          ctx.fillStyle = bold ? CV_INK : CV_SOFT;
+          ctx.fillText(label, totalsX, y+(big?12:9));
+          ctx.textAlign = "right";
+          ctx.font = (bold?"700 ":"") + (big?"16px ":"12px ") + CV_MONO;
+          ctx.fillText(value, totalsX+totalsW, y+(big?12:9));
+        }
+        y += big ? 24 : 18;
+      }
+      totalsRow("Subtotal", fmtBRL(totals.subtotal));
+      if(totals.discountAmount>0) totalsRow("Desconto", "-"+fmtBRL(totals.discountAmount));
+      var taxLines = dr.taxes.filter(function(t){return t.label||t.percent;}).map(function(t){
+        return (t.label||"Imposto")+" "+fmtNum(t.percent,2)+"%";
+      }).join(" + ");
+      if(taxLines) totalsRow("Impostos ("+taxLines+")", dr.taxIncluded ? "inclusos" : "+"+fmtBRL(totals.taxAmount));
+      if(draw){ ctx.strokeStyle=modeColor; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(totalsX,y+4); ctx.lineTo(totalsX+totalsW,y+4); ctx.stroke(); }
+      y += 16;
+      totalsRow("Valor total", fmtBRL(totals.total), {bold:true, big:true});
+      y += 10;
+
+      // conditions
+      sectionLabel("Condições comerciais");
+      fieldGrid([
+        ["Forma de pagamento", dr.conditions.pagamento],
+        [mode==="cabos" ? "Prazo de entrega" : "Prazo de execução", dr.conditions.prazo],
+        ["Garantia", dr.conditions.garantia],
+        ["Validade da proposta", (dr.validadeDias||0)+" dias"]
+      ]);
+      if(dr.conditions.obs){
+        ctx.font = "700 9.5px "+CV_SANS;
+        if(draw){ ctx.fillStyle=CV_FAINT; ctx.textAlign="left"; ctx.fillText("OBSERVAÇÕES", ML, y+8); }
+        y += 13;
+        ctx.font = "12.5px "+CV_SANS;
+        var obsLines = wrapText(ctx, dr.conditions.obs, CW);
+        obsLines.forEach(function(l){ if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(l, ML, y+9); } y += 15; });
+        y += 8;
+      }
+
+      // signatures
+      y += 30;
+      var sigW = (CW-40)/2;
+      var sigs = [ [ML, state.company.name||"Empresa"], [ML+sigW+40, dr.client.name||"Cliente"] ];
+      sigs.forEach(function(sig){
+        if(draw){
+          ctx.strokeStyle=CV_LINE_STRONG; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(sig[0],y); ctx.lineTo(sig[0]+sigW,y); ctx.stroke();
+          ctx.font="11px "+CV_SANS; ctx.fillStyle=CV_SOFT; ctx.textAlign="center";
+          ctx.fillText(sig[1], sig[0]+sigW/2, y+16);
+        }
+      });
+      y += 40;
+
+      // footer
+      var footerH = 32;
+      if(draw){
+        ctx.fillStyle = "#F3F5F4";
+        ctx.fillRect(0,y,LW,footerH);
+        ctx.strokeStyle = CV_LINE; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(LW,y); ctx.stroke();
+        ctx.font = "10px "+CV_MONO; ctx.fillStyle = CV_FAINT;
+        ctx.textAlign = "left"; ctx.fillText(dr.number, ML, y+20);
+        ctx.textAlign = "right"; ctx.fillText("Gerado em "+dateBR(todayISO()), LW-MR, y+20);
+      }
+      y += footerH + 10;
+
+      return y;
+    }
+
+    var scratch = document.createElement("canvas");
+    var mctx = scratch.getContext("2d");
+    var totalH = layout(mctx, false);
+
+    var canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(LW*SCALE);
+    canvas.height = Math.ceil(totalH*SCALE);
+    var ctx = canvas.getContext("2d");
+    ctx.scale(SCALE, SCALE);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,LW,totalH);
+    layout(ctx, true);
+    return canvas;
+  }
+
+  // ---------- real PDF (only reliable outside the Claude sandbox — used when this file runs standalone) ----------
+  function canvasToRawRGB(canvas){
+    var ctx = canvas.getContext("2d");
+    var W = canvas.width, H = canvas.height;
+    var data = ctx.getImageData(0,0,W,H).data;
+    var rgb = new Uint8Array(W*H*3);
+    var j = 0;
+    for(var i=0;i<data.length;i+=4){
+      rgb[j++] = data[i];
+      rgb[j++] = data[i+1];
+      rgb[j++] = data[i+2];
+    }
+    return { width:W, height:H, bytes:rgb };
+  }
+
+  function deflateZlib(bytes){
+    if(typeof CompressionStream === "undefined") return Promise.resolve(null);
+    try{
+      var cs = new CompressionStream("deflate");
+      var writer = cs.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      return new Response(cs.readable).arrayBuffer().then(function(ab){ return new Uint8Array(ab); }).catch(function(){ return null; });
+    }catch(e){ return Promise.resolve(null); }
+  }
+
+  function concatUint8(arrays){
+    var total = 0;
+    arrays.forEach(function(a){ total += a.length; });
+    var out = new Uint8Array(total);
+    var off = 0;
+    arrays.forEach(function(a){ out.set(a, off); off += a.length; });
+    return out;
+  }
+
+  function buildMinimalPdf(opts){
+    var encoder = new TextEncoder();
+    function strBytes(s){ return encoder.encode(s); }
+    function padOffset(n){
+      var s = String(n);
+      while(s.length<10) s = "0"+s;
+      return s;
+    }
+    var parts = [];
+    var length = 0;
+    function push(x){
+      var b = (typeof x === "string") ? strBytes(x) : x;
+      parts.push(b);
+      length += b.length;
+    }
+    var offsets = {};
+    push("%PDF-1.4\n");
+
+    offsets[1] = length;
+    push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+    offsets[2] = length;
+    push("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+    offsets[3] = length;
+    push("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+opts.pageW.toFixed(2)+" "+opts.pageH.toFixed(2)+"] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n");
+
+    offsets[4] = length;
+    push("4 0 obj\n<< /Type /XObject /Subtype /Image /Width "+opts.width+" /Height "+opts.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8"+(opts.useFlate?" /Filter /FlateDecode":"")+" /Length "+opts.imageBytes.length+" >>\nstream\n");
+    push(opts.imageBytes);
+    push("\nendstream\nendobj\n");
+
+    var content = "q\n"+opts.pageW.toFixed(2)+" 0 0 -"+opts.pageH.toFixed(2)+" 0 "+opts.pageH.toFixed(2)+" cm\n/Im0 Do\nQ";
+    var contentBytes = strBytes(content);
+    offsets[5] = length;
+    push("5 0 obj\n<< /Length "+contentBytes.length+" >>\nstream\n");
+    push(contentBytes);
+    push("\nendstream\nendobj\n");
+
+    var xrefOffset = length;
+    push("xref\n0 6\n");
+    push("0000000000 65535 f\r\n");
+    for(var i=1;i<=5;i++){
+      push(padOffset(offsets[i])+" 00000 n\r\n");
+    }
+    push("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"+xrefOffset+"\n%%EOF");
+
+    return concatUint8(parts);
+  }
+
+  function exportRealPdf(){
+    var logoSrc = state.company.logo;
+    (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
+      var canvas;
+      try{
+        canvas = renderProposalCanvas(logoImg);
+      }catch(e){
+        toast("Falha ao montar a proposta");
+        return;
+      }
+      var raw = canvasToRawRGB(canvas);
+      deflateZlib(raw.bytes).then(function(compressed){
+        var useFlate = !!compressed;
+        var imageBytes = useFlate ? compressed : raw.bytes;
+        var pageW = 595.28;
+        var pageH = pageW * (raw.height/raw.width);
+        var pdfBytes;
+        try{
+          pdfBytes = buildMinimalPdf({ width:raw.width, height:raw.height, imageBytes:imageBytes, useFlate:useFlate, pageW:pageW, pageH:pageH });
+        }catch(e){
+          toast("Falha ao gerar o PDF");
+          return;
+        }
+        var blob = new Blob([pdfBytes], { type:"application/pdf" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = (draft().number || "proposta") + ".pdf";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        toast("PDF baixado");
+      });
+    });
+  }
+
+  function buildStandaloneHtml(){
+    var sheet = document.getElementById("sheet");
+    var styleText = document.querySelector("style").textContent;
+    var dr = draft();
+    return (
+      '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
+      '<title>Proposta '+escapeHtml(dr.number)+'</title>' +
+      '<style>'+styleText+
+        'body{background:#fff;margin:0;padding:24px;display:flex;justify-content:center;}' +
+        '@media print{body{padding:0;}}' +
+      '</style></head><body>' + sheet.outerHTML + '</body></html>'
+    );
+  }
+
+  function downloadAsPng(downloads){
+    var logoSrc = state.company.logo;
+    (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
+      var canvas;
+      try{
+        canvas = renderProposalCanvas(logoImg);
+      }catch(e){
+        toast("Falha ao gerar a imagem");
+        return;
+      }
+      canvas.toBlob(function(pngBlob){
+        if(!pngBlob){ toast("Falha ao gerar a imagem"); return; }
+        var filename = (draft().number || "proposta") + ".png";
+        downloads.save({ filename:filename, data:pngBlob }).then(function(){
+          toast("Imagem baixada — abra e imprima para gerar o PDF");
+        }).catch(function(err){
+          if(err && err.code === "declined") return;
+          toast("Não foi possível baixar a proposta");
+        });
+      }, "image/png");
+    });
+  }
+
+  function exportProposalImage(){
+    if(!window.claude || typeof window.claude.use !== "function"){
+      // Rodando fora do chat do Claude (arquivo local ou hospedado): sem sandbox, gera o PDF de verdade.
+      exportRealPdf();
+      return;
+    }
+    window.claude.use("downloads").then(function(downloads){
+      if(!downloads){
+        toast("Download indisponível nesta visualização");
+        return;
+      }
+      var dr = draft();
+      var htmlFilename = (dr.number || "proposta") + ".html";
+      downloads.save({ filename:htmlFilename, data:buildStandaloneHtml() }).then(function(){
+        toast("Arquivo baixado — abra e use Ctrl+P > Salvar como PDF");
+      }).catch(function(err){
+        var code = err && err.code;
+        if(code === "extension_not_enabled" || code === "rejected_extension"){
+          downloadAsPng(downloads);
+        } else if(code === "declined"){
+          return;
+        } else {
+          toast("Não foi possível baixar a proposta");
+        }
+      });
+    }).catch(function(){
+      toast("Download indisponível nesta visualização");
+    });
+  }
+
+  // ---------- top actions ----------
+  function setMode(mode){
+    state.mode = mode;
+    syncFormFromState();
+    saveNow();
+  }
+
+  function newProposal(){
+    var mode = state.mode;
+    var seq = state.counters[mode];
+    state.counters[mode] = seq + 1;
+    var d = mode==="cabos" ? demoCabosDraft(seq) : demoProjetoDraft(seq);
+    d.client = emptyClient();
+    d.items = [ emptyItem(mode) ];
+    d.conditions = emptyConditions();
+    d.discount = { type:"percent", value:0 };
+    d.taxIncluded = (mode==="cabos");
+    d.taxes = [ defaultTax(mode) ];
+    d.date = todayISO();
+    d.validadeDias = mode==="cabos" ? 10 : 15;
+    state.drafts[mode] = d;
+    syncFormFromState();
+    saveNow();
+    toast("Nova proposta "+d.number+" criada");
+  }
+
+  function init(){
+    state = load();
+    attachBindings();
+    attachItemsDelegation();
+    attachTaxesDelegation();
+    attachLogoHandlers();
+
+    document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
+    document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
+    document.getElementById("btn-new").addEventListener("click", newProposal);
+    document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+    document.getElementById("btn-download").addEventListener("click", exportProposalImage);
+
+    syncFormFromState();
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
