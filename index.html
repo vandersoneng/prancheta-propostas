@@ -1174,18 +1174,26 @@
     return { width:w, height:h, bytes:rgb };
   }
 
-  // Builds the list of draw commands (text/line/rect) for the proposal, in top-down layout coordinates
-  // (points, same numbering as an A4 page). y is flipped to PDF's bottom-up space at emission time.
+  // Builds the list of draw commands (text/line/rect) for the proposal, paginated onto fixed A4 sheets.
+  // Coordinates are top-down and page-local; each op carries a .page index. y is flipped to PDF's
+  // bottom-up space, per page, at emission time.
   function buildProposalOps(){
+    var pass1 = layoutPass(null);
+    return layoutPass(pass1.pageCount);
+  }
+
+  function layoutPass(totalPagesHint){
     var dr = draft();
     var mode = state.mode;
     var totals = calcTotals(dr);
     var modeColor = mode==="cabos" ? "#B5652E" : "#2B5876";
-    var LW = 595.28, ML = 42, MR = 42, CW = LW-ML-MR;
+    var LW = 595.28, LH = 841.89, ML = 42, MR = 42, MT = 40, MB = 40, CW = LW-ML-MR;
     var ctx = measureScratch();
     var ops = [];
-    var y = 34;
+    var page = 0;
+    var y = MT;
     var hasLogo = !!state.company.logo;
+    var itemsHeaderRedraw = null;
 
     function setFontFor(bold, size, mono){
       ctx.font = (bold?"700 ":"") + size + "px " + (mono?CV_MONO:CV_SANS);
@@ -1197,13 +1205,28 @@
       var x = o.x;
       if(align==="right") x -= w;
       else if(align==="center") x -= w/2;
-      ops.push({ t:"text", x:x, y:o.y, text:o.text, size:o.size, bold:bold, mono:mono, color:o.color||CV_INK, tc:o.tc||0 });
+      ops.push({ page:page, t:"text", x:x, y:o.y, text:o.text, size:o.size, bold:bold, mono:mono, color:o.color||CV_INK, tc:o.tc||0 });
       return w;
     }
-    function line(x1,y1,x2,y2,width,color){ ops.push({ t:"line", x1:x1,y1:y1,x2:x2,y2:y2, width:width||1, color:color||CV_LINE }); }
-    function rect(x,y0,w,h,color){ ops.push({ t:"rect", x:x, y:y0, w:w, h:h, color:color }); }
+    function line(x1,y1,x2,y2,width,color){ ops.push({ page:page, t:"line", x1:x1,y1:y1,x2:x2,y2:y2, width:width||1, color:color||CV_LINE }); }
+    function rect(x,y0,w,h,color){ ops.push({ page:page, t:"rect", x:x, y:y0, w:w, h:h, color:color }); }
+
+    function newPage(){
+      page += 1;
+      y = MT;
+      var pageLabel = "Proposta Nº "+dr.number+" — página "+(page+1)+(totalPagesHint?(" de "+totalPagesHint):"")+" (continuação)";
+      text({ x:ML, y:y+7, text:pageLabel, size:9, color:CV_FAINT });
+      y += 10;
+      line(ML,y,LW-MR,y,1,CV_LINE);
+      y += 16;
+      if(itemsHeaderRedraw) itemsHeaderRedraw();
+    }
+    function ensureSpace(h){
+      if(y + h > LH - MB) newPage();
+    }
 
     function sectionLabel(label){
+      ensureSpace(28);
       text({ x:ML, y:y+8, text:label.toUpperCase(), size:10, bold:true, color:CV_FAINT, tc:0.6 });
       y += 14;
       line(ML,y,LW-MR,y,1,CV_LINE);
@@ -1219,6 +1242,7 @@
           var lines = wrapText(ctx, p[1]||"—", colW);
           rowH = Math.max(rowH, 13 + lines.length*15);
         });
+        ensureSpace(rowH+8);
         rowPairs.forEach(function(p, ci){
           var x = ML + ci*(colW+24);
           text({ x:x, y:y+8, text:String(p[0]).toUpperCase(), size:9.5, bold:true, color:CV_FAINT });
@@ -1232,9 +1256,9 @@
       y += 6;
     }
 
-    // header
+    // header (only on page 1)
     var companyX = ML, yCompany = y;
-    var logoBox = hasLogo ? { x:ML, y:y, w:52, h:52 } : null;
+    var logoBox = hasLogo ? { x:ML, y:y, w:52, h:52, page:0 } : null;
     if(hasLogo) companyX = ML+52+12;
     text({ x:companyX, y:yCompany+13, text:state.company.name||"Sua empresa", size:15, bold:true, color:CV_INK });
     yCompany += 22;
@@ -1275,13 +1299,18 @@
     sectionLabel("Itens");
     var colQty=60, colPrice=95, colTotal=100, colDesc=CW-colQty-colPrice-colTotal;
     var xDesc=ML, xQty=xDesc+colDesc, xPrice=xQty+colQty, xTotal=xPrice+colPrice;
-    text({ x:xDesc, y:y+8, text:(mode==="cabos"?"PRODUTO":"DESCRIÇÃO"), size:9.5, bold:true, color:CV_FAINT });
-    text({ x:xQty+colQty, y:y+8, text:"QTD", size:9.5, bold:true, color:CV_FAINT, align:"right" });
-    text({ x:xPrice+colPrice, y:y+8, text:"VALOR UNIT.", size:9.5, bold:true, color:CV_FAINT, align:"right" });
-    text({ x:xTotal+colTotal, y:y+8, text:"TOTAL", size:9.5, bold:true, color:CV_FAINT, align:"right" });
-    y += 12;
-    line(ML,y,LW-MR,y,1,CV_LINE_STRONG);
-    y += 14;
+    function drawItemsHeader(){
+      text({ x:xDesc, y:y+8, text:(mode==="cabos"?"PRODUTO":"DESCRIÇÃO"), size:9.5, bold:true, color:CV_FAINT });
+      text({ x:xQty+colQty, y:y+8, text:"QTD", size:9.5, bold:true, color:CV_FAINT, align:"right" });
+      text({ x:xPrice+colPrice, y:y+8, text:"VALOR UNIT.", size:9.5, bold:true, color:CV_FAINT, align:"right" });
+      text({ x:xTotal+colTotal, y:y+8, text:"TOTAL", size:9.5, bold:true, color:CV_FAINT, align:"right" });
+      y += 12;
+      line(ML,y,LW-MR,y,1,CV_LINE_STRONG);
+      y += 14;
+    }
+    ensureSpace(38);
+    drawItemsHeader();
+    itemsHeaderRedraw = drawItemsHeader;
 
     dr.items.forEach(function(it){
       var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
@@ -1289,6 +1318,9 @@
       var descLines = wrapText(ctx, it.desc||"—", colDesc-10);
       var detailLines = [];
       if(it.detail){ setFontFor(false,11,false); detailLines = wrapText(ctx, it.detail, colDesc-10); }
+      var dyRel = 11 + descLines.length*15 + detailLines.length*14;
+      var rowHeight = Math.max(dyRel, 17) + 18;
+      ensureSpace(rowHeight);
       var rowTop = y, dy = y+11;
       descLines.forEach(function(l){ text({ x:xDesc, y:dy, text:l, size:12.5, color:CV_INK }); dy += 15; });
       if(detailLines.length){ detailLines.forEach(function(l){ text({ x:xDesc, y:dy, text:l, size:11, color:CV_SOFT }); dy += 14; }); }
@@ -1299,12 +1331,14 @@
       line(ML,y,LW-MR,y,1,CV_LINE);
       y += 10;
     });
+    itemsHeaderRedraw = null;
 
     y += 4;
     var totalsW = 220, totalsX = LW-MR-totalsW;
     function totalsRow(label, value, o){
       o = o||{};
       var big=!!o.big, bold=!!o.bold;
+      ensureSpace(big?24:18);
       text({ x:totalsX, y:y+(big?12:9), text:label, size:big?16:12.5, bold:bold, color:bold?CV_INK:CV_SOFT });
       text({ x:totalsX+totalsW, y:y+(big?12:9), text:value, size:big?16:12, bold:bold, mono:true, color:bold?CV_INK:CV_SOFT, align:"right" });
       y += big ? 24 : 18;
@@ -1315,6 +1349,7 @@
       return (t.label||"Imposto")+" "+fmtNum(t.percent,2)+"%";
     }).join(" + ");
     if(taxLines) totalsRow("Impostos ("+taxLines+")", dr.taxIncluded ? "inclusos" : "+"+fmtBRL(totals.taxAmount));
+    ensureSpace(40);
     line(totalsX, y+4, totalsX+totalsW, y+4, 2, modeColor);
     y += 16;
     totalsRow("Valor total", fmtBRL(totals.total), {bold:true, big:true});
@@ -1328,14 +1363,17 @@
       ["Validade da proposta", (dr.validadeDias||0)+" dias"]
     ]);
     if(dr.conditions.obs){
-      text({ x:ML, y:y+8, text:"OBSERVAÇÕES", size:9.5, bold:true, color:CV_FAINT });
-      y += 13;
       setFontFor(false,12.5,false);
       var obsLines = wrapText(ctx, dr.conditions.obs, CW);
+      ensureSpace(13 + obsLines.length*15 + 8);
+      text({ x:ML, y:y+8, text:"OBSERVAÇÕES", size:9.5, bold:true, color:CV_FAINT });
+      y += 13;
       obsLines.forEach(function(l){ text({ x:ML, y:y+9, text:l, size:12.5, color:CV_INK }); y += 15; });
       y += 8;
     }
 
+    var footerH = 30;
+    ensureSpace(30+40+footerH);
     y += 30;
     var sigW = (CW-40)/2;
     var sigs = [ [ML, state.company.name||"Empresa"], [ML+sigW+40, dr.client.name||"Cliente"] ];
@@ -1345,35 +1383,31 @@
     });
     y += 40;
 
-    var footerH = 30;
     rect(0, y, LW, footerH, "#F3F5F4");
     line(0, y, LW, y, 1, CV_LINE);
     text({ x:ML, y:y+19, text:dr.number, size:10, mono:true, color:CV_FAINT });
-    text({ x:LW-MR, y:y+19, text:"Gerado em "+dateBR(todayISO()), size:10, mono:true, color:CV_FAINT, align:"right" });
+    var pageTotal = totalPagesHint || (page+1);
+    text({ x:LW-MR, y:y+19, text:"Página "+(page+1)+" de "+pageTotal+" · Gerado em "+dateBR(todayISO()), size:10, mono:true, color:CV_FAINT, align:"right" });
     y += footerH;
 
-    return { ops:ops, pageW:LW, pageH:y, logoBox:logoBox };
+    return { ops:ops, pageW:LW, pageH:LH, pageCount:page+1, logoBox:logoBox };
   }
 
   function fontResource(bold, mono){ return mono ? (bold?"/F4":"/F3") : (bold?"/F2":"/F1"); }
 
-  function buildVectorPdfBytes(layoutResult, logoData){
+  function opsToContentBytes(pageOps, pageH, logoBoxForThisPage){
     var encoder = new TextEncoder();
     function asciiBytes(s){ return encoder.encode(s); }
-
     var cparts = [], clength = 0;
     function cpush(x){ var b=(typeof x==="string")?asciiBytes(x):x; cparts.push(b); clength+=b.length; }
 
-    var pageH = layoutResult.pageH, pageW = layoutResult.pageW;
-    var hasLogo = !!(layoutResult.logoBox && logoData);
-
-    if(hasLogo){
-      var lb = layoutResult.logoBox;
+    if(logoBoxForThisPage){
+      var lb = logoBoxForThisPage;
       var ly = pageH - lb.y - lb.h;
       cpush("q\n"+lb.w.toFixed(2)+" 0 0 "+lb.h.toFixed(2)+" "+lb.x.toFixed(2)+" "+ly.toFixed(2)+" cm\n/Im0 Do\nQ\n");
     }
 
-    layoutResult.ops.forEach(function(op){
+    pageOps.forEach(function(op){
       if(op.t==="line"){
         var rgb = hex01(op.color);
         var y1 = pageH-op.y1, y2 = pageH-op.y2;
@@ -1391,44 +1425,69 @@
       }
     });
 
-    var contentRaw = concatUint8(cparts);
+    return concatUint8(cparts);
+  }
 
-    return deflateZlib(contentRaw).then(function(compressed){
-      var useFlateContent = !!compressed;
-      var finalContent = useFlateContent ? compressed : contentRaw;
+  function buildVectorPdfBytes(layoutResult, logoData){
+    var encoder = new TextEncoder();
+    function asciiBytes(s){ return encoder.encode(s); }
 
+    var pageW = layoutResult.pageW, pageH = layoutResult.pageH, pageCount = layoutResult.pageCount;
+    var hasLogo = !!(layoutResult.logoBox && logoData);
+
+    var opsByPage = [];
+    for(var p=0;p<pageCount;p++) opsByPage.push([]);
+    layoutResult.ops.forEach(function(op){ if(opsByPage[op.page]) opsByPage[op.page].push(op); });
+
+    var contentRawByPage = opsByPage.map(function(pageOps, idx){
+      return opsToContentBytes(pageOps, pageH, (idx===0 && hasLogo) ? layoutResult.logoBox : null);
+    });
+
+    return Promise.all(contentRawByPage.map(function(raw){ return deflateZlib(raw); })).then(function(compressedList){
       var parts = [], length = 0;
       function push(x){ var b=(typeof x==="string")?asciiBytes(x):x; parts.push(b); length+=b.length; }
       var offsets = {};
 
+      // object numbering: 1=Catalog 2=Pages 3-6=fonts [7=logo image] then per page: Page obj, Content obj
+      var logoObjNum = hasLogo ? 7 : null;
+      var nextObj = hasLogo ? 8 : 7;
+      var pageObjNums = [], contentObjNums = [];
+      for(var p2=0;p2<pageCount;p2++){ pageObjNums.push(nextObj++); contentObjNums.push(nextObj++); }
+      var totalObjs = nextObj-1;
+
       push("%PDF-1.4\n");
       offsets[1]=length; push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-      offsets[2]=length; push("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+      offsets[2]=length; push("2 0 obj\n<< /Type /Pages /Kids ["+pageObjNums.map(function(n){return n+" 0 R";}).join(" ")+"] /Count "+pageCount+" >>\nendobj\n");
 
-      var resourceFonts = "/Font << /F1 4 0 R /F2 5 0 R /F3 6 0 R /F4 7 0 R >>";
-      var contentObjNum = hasLogo ? 9 : 8;
-      var resourceXObj = hasLogo ? " /XObject << /Im0 8 0 R >>" : "";
-      offsets[3]=length; push("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+pageW.toFixed(2)+" "+pageH.toFixed(2)+"] /Resources << "+resourceFonts+resourceXObj+" >> /Contents "+contentObjNum+" 0 R >>\nendobj\n");
-
-      offsets[4]=length; push("4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n");
-      offsets[5]=length; push("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n");
-      offsets[6]=length; push("6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>\nendobj\n");
-      offsets[7]=length; push("7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[3]=length; push("3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[4]=length; push("4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[5]=length; push("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>\nendobj\n");
+      offsets[6]=length; push("6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>\nendobj\n");
 
       if(hasLogo){
-        offsets[8]=length;
-        push("8 0 obj\n<< /Type /XObject /Subtype /Image /Width "+logoData.width+" /Height "+logoData.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8"+(logoData.useFlate?" /Filter /FlateDecode":"")+" /Length "+logoData.bytes.length+" >>\nstream\n");
+        offsets[logoObjNum]=length;
+        push(logoObjNum+" 0 obj\n<< /Type /XObject /Subtype /Image /Width "+logoData.width+" /Height "+logoData.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8"+(logoData.useFlate?" /Filter /FlateDecode":"")+" /Length "+logoData.bytes.length+" >>\nstream\n");
         push(logoData.bytes);
         push("\nendstream\nendobj\n");
       }
 
-      offsets[contentObjNum]=length;
-      push(contentObjNum+" 0 obj\n<< /Length "+finalContent.length+(useFlateContent?" /Filter /FlateDecode":"")+" >>\nstream\n");
-      push(finalContent);
-      push("\nendstream\nendobj\n");
+      var resourceFonts = "/Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >>";
+      for(var p3=0;p3<pageCount;p3++){
+        var resourceXObj = (p3===0 && hasLogo) ? (" /XObject << /Im0 "+logoObjNum+" 0 R >>") : "";
+        offsets[pageObjNums[p3]]=length;
+        push(pageObjNums[p3]+" 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+pageW.toFixed(2)+" "+pageH.toFixed(2)+"] /Resources << "+resourceFonts+resourceXObj+" >> /Contents "+contentObjNums[p3]+" 0 R >>\nendobj\n");
+
+        var raw = contentRawByPage[p3];
+        var compressed = compressedList[p3];
+        var useFlateContent = !!compressed;
+        var finalContent = useFlateContent ? compressed : raw;
+        offsets[contentObjNums[p3]]=length;
+        push(contentObjNums[p3]+" 0 obj\n<< /Length "+finalContent.length+(useFlateContent?" /Filter /FlateDecode":"")+" >>\nstream\n");
+        push(finalContent);
+        push("\nendstream\nendobj\n");
+      }
 
       var xrefOffset = length;
-      var totalObjs = contentObjNum;
       push("xref\n0 "+(totalObjs+1)+"\n");
       push("0000000000 65535 f\r\n");
       for(var i=1;i<=totalObjs;i++){ push(padOffset10(offsets[i])+" 00000 n\r\n"); }
