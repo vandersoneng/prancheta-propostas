@@ -1179,7 +1179,7 @@
     push(opts.imageBytes);
     push("\nendstream\nendobj\n");
 
-    var content = "q\n"+opts.pageW.toFixed(2)+" 0 0 -"+opts.pageH.toFixed(2)+" 0 "+opts.pageH.toFixed(2)+" cm\n/Im0 Do\nQ";
+    var content = "q\n"+opts.pageW.toFixed(2)+" 0 0 "+opts.pageH.toFixed(2)+" 0 0 cm\n/Im0 Do\nQ";
     var contentBytes = strBytes(content);
     offsets[5] = length;
     push("5 0 obj\n<< /Length "+contentBytes.length+" >>\nstream\n");
@@ -1350,4 +1350,3 @@
   }
 })();
 </script>
-<!-- deploy check 2026-08-15T14:33:55Z -->
