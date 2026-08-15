@@ -320,8 +320,19 @@
         </div>
       </div>
 
+      <div class="field-group" id="fg-catalog">
+        <legend>Catálogo de cabos <button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></legend>
+        <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+
       <div class="field-group">
         <legend>Itens <button type="button" class="add-row-btn" id="btn-add-item">+ item</button></legend>
+        <div id="catalog-picker-wrap" class="field-row" style="align-items:flex-end;">
+          <div class="field"><label for="f-catalog-pick">Adicionar do catálogo</label>
+            <select id="f-catalog-pick"></select>
+          </div>
+          <button type="button" class="btn btn-sm" id="btn-add-from-catalog" style="margin-bottom:1px;">Adicionar</button>
+        </div>
         <div class="items-list" id="items-list"></div>
       </div>
 
@@ -427,11 +438,24 @@
     };
   }
 
+  function defaultCableCatalog(){
+    return [
+      { desc:"Cabo flexível 1,5mm² 750V", detail:"Cor preta", unit:"m", price:1.65 },
+      { desc:"Cabo flexível 2,5mm² 750V", detail:"Cor preta", unit:"m", price:2.35 },
+      { desc:"Cabo flexível 4,0mm² 750V", detail:"Cor azul", unit:"m", price:3.80 },
+      { desc:"Cabo flexível 6,0mm² 750V", detail:"Cor vermelha", unit:"m", price:5.90 },
+      { desc:"Cabo flexível 10mm² 750V", detail:"Cor verde/amarelo", unit:"m", price:9.40 },
+      { desc:"Cabo PP 2x2,5mm²", detail:"Uso em extensões", unit:"m", price:6.20 },
+      { desc:"Cabo PP 3x2,5mm²", detail:"Uso em extensões e quadros", unit:"m", price:6.90 }
+    ];
+  }
+
   function defaultState(){
     return {
       company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"" },
       mode:"projeto",
       counters:{ projeto:2, cabos:2 },
+      cableCatalog: defaultCableCatalog(),
       drafts:{ projeto: demoProjetoDraft(1), cabos: demoCabosDraft(1) }
     };
   }
@@ -445,6 +469,7 @@
       d.company = Object.assign(d.company, parsed.company||{});
       d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
       d.counters = Object.assign(d.counters, parsed.counters||{});
+      if(Array.isArray(parsed.cableCatalog)) d.cableCatalog = parsed.cableCatalog;
       if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
       if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
       return d;
@@ -570,9 +595,15 @@
     document.getElementById("btn-mode-projeto").setAttribute("aria-pressed", state.mode==="projeto" ? "true":"false");
     document.getElementById("btn-mode-cabos").setAttribute("aria-pressed", state.mode==="cabos" ? "true":"false");
 
+    var showCatalog = state.mode==="cabos";
+    document.getElementById("fg-catalog").style.display = showCatalog ? "" : "none";
+    document.getElementById("catalog-picker-wrap").style.display = showCatalog ? "" : "none";
+
     renderLogoPreview();
     renderItemsList();
     renderTaxesList();
+    renderCatalogList();
+    renderCatalogPicker();
     renderPreview();
   }
 
@@ -692,6 +723,81 @@
     });
     document.getElementById("btn-add-item").addEventListener("click", function(){
       draft().items.push(emptyItem(state.mode));
+      renderItemsList();
+      scheduleSave();
+      renderPreview();
+    });
+  }
+
+  // ---------- cable catalog ----------
+  function renderCatalogList(){
+    var container = document.getElementById("catalog-list");
+    var catalog = state.cableCatalog;
+    container.innerHTML = catalog.map(function(c,i){
+      return (
+        '<div class="item-card" data-index="'+i+'">' +
+          '<div class="item-card-top">' +
+            '<div class="field"><label>Produto</label>' +
+              '<input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo flexível 2,5mm² 750V"></div>' +
+            '<button type="button" class="btn-ghost btn-sm remove-catalog" data-index="'+i+'" title="Remover do catálogo">✕</button>' +
+          '</div>' +
+          '<div class="field"><label>Especificação</label>' +
+            '<input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Cor, tensão, rolo..."></div>' +
+          '<div class="item-grid" style="grid-template-columns:1fr 1fr;">' +
+            '<div class="field"><label>Unid.</label><input data-cfield="unit" data-index="'+i+'" value="'+escapeHtml(c.unit)+'"></div>' +
+            '<div class="field"><label>Preço padrão (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+  function attachCatalogDelegation(){
+    var container = document.getElementById("catalog-list");
+    container.addEventListener("input", function(e){
+      var field = e.target.getAttribute("data-cfield");
+      if(!field) return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var c = state.cableCatalog[idx];
+      if(!c) return;
+      c[field] = (field==="price") ? (parseFloat(e.target.value)||0) : e.target.value;
+      renderCatalogPicker();
+      scheduleSave();
+    });
+    container.addEventListener("click", function(e){
+      var btn = e.target.closest(".remove-catalog");
+      if(!btn) return;
+      var idx = parseInt(btn.getAttribute("data-index"), 10);
+      state.cableCatalog.splice(idx,1);
+      renderCatalogList();
+      renderCatalogPicker();
+      scheduleSave();
+    });
+    document.getElementById("btn-add-catalog").addEventListener("click", function(){
+      state.cableCatalog.push({ desc:"", detail:"", unit:"m", price:0 });
+      renderCatalogList();
+      renderCatalogPicker();
+      scheduleSave();
+    });
+  }
+  function renderCatalogPicker(){
+    var select = document.getElementById("f-catalog-pick");
+    var catalog = state.cableCatalog;
+    if(!catalog.length){
+      select.innerHTML = '<option value="">Catálogo vazio</option>';
+      return;
+    }
+    select.innerHTML = catalog.map(function(c,i){
+      var label = (c.desc||"(sem nome)") + (c.detail? " — "+c.detail : "") + " — " + fmtBRL(c.price) + "/" + (c.unit||"un");
+      return '<option value="'+i+'">'+escapeHtml(label)+'</option>';
+    }).join("");
+  }
+  function attachCatalogPickerHandler(){
+    document.getElementById("btn-add-from-catalog").addEventListener("click", function(){
+      var select = document.getElementById("f-catalog-pick");
+      var idx = parseInt(select.value, 10);
+      var c = state.cableCatalog[idx];
+      if(!c) return;
+      draft().items.push({ desc:c.desc, detail:c.detail, unit:c.unit||"m", qty:1, price:c.price });
       renderItemsList();
       scheduleSave();
       renderPreview();
@@ -1678,6 +1784,8 @@
     attachItemsDelegation();
     attachTaxesDelegation();
     attachLogoHandlers();
+    attachCatalogDelegation();
+    attachCatalogPickerHandler();
 
     document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
     document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
