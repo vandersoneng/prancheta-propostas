@@ -126,15 +126,14 @@
   }
 
   .side-tabs{
-    display:flex; gap:2px; overflow-x:auto; scrollbar-width:none;
+    display:flex; flex-wrap:wrap; gap:2px 4px;
     border-bottom:1px solid var(--line);
-    position:sticky; top:0; margin:-18px -18px 4px; padding:14px 18px 0;
+    position:sticky; top:0; margin:-18px -18px 4px; padding:14px 18px 6px;
     background:var(--paper-raised); z-index:5;
   }
-  .side-tabs::-webkit-scrollbar{ display:none; }
   .side-tab{
     flex:0 0 auto; background:transparent; border:none; border-bottom:2px solid transparent;
-    padding:6px 10px 10px; font-size:12px; font-weight:700; letter-spacing:.03em; text-transform:uppercase;
+    padding:6px 8px 8px; font-size:11.5px; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
     color:var(--ink-faint); cursor:pointer; white-space:nowrap;
   }
   .side-tab[aria-selected="true"]{ color:var(--accent); border-bottom-color:var(--accent); }
@@ -323,11 +322,11 @@
 
       <div class="field-group" data-panel="itens">
         <legend>Itens <button type="button" class="add-row-btn" id="btn-add-item">+ item</button></legend>
-        <div id="catalog-picker-wrap" class="field-row" style="align-items:flex-end;">
+        <div id="catalog-picker-wrap">
           <div class="field"><label for="f-catalog-pick">Adicionar do catálogo</label>
             <select id="f-catalog-pick"></select>
           </div>
-          <button type="button" class="btn btn-sm" id="btn-add-from-catalog" style="margin-bottom:1px;">Adicionar</button>
+          <button type="button" class="btn btn-sm" id="btn-add-from-catalog" style="width:100%; margin-top:6px;">Adicionar</button>
         </div>
         <div class="items-list" id="items-list"></div>
       </div>
@@ -921,7 +920,7 @@
       var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
       return (
         '<tr>' +
-          '<td>'+escapeHtml(it.desc||"—")+(it.detail? '<div class="item-detail">'+escapeHtml(it.detail)+'</div>':'')+'</td>' +
+          '<td>'+escapeHtml(it.desc||"—")+(it.detail? ' <span class="item-detail">('+escapeHtml(it.detail)+')</span>':'')+'</td>' +
           '<td class="num">'+fmtNum(it.qty, it.unit==="m"?0:2)+' '+escapeHtml(it.unit)+'</td>' +
           '<td class="num">'+fmtBRL(it.price)+'</td>' +
           '<td class="num">'+fmtBRL(lineTotal)+'</td>' +
@@ -1171,21 +1170,12 @@
       dr.items.forEach(function(it){
         var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
         ctx.font = "12.5px "+CV_SANS;
-        var descLines = wrapText(ctx, it.desc||"—", colDesc-10);
-        var detailLines = [];
-        if(it.detail){
-          ctx.font = "11px "+CV_SANS;
-          detailLines = wrapText(ctx, it.detail, colDesc-10);
-        }
+        var fullDesc = (it.desc||"—") + (it.detail ? " ("+it.detail+")" : "");
+        var descLines = wrapText(ctx, fullDesc, colDesc-10);
         var rowTop = y;
         var dy = y+11;
-        ctx.font = "12.5px "+CV_SANS;
         ctx.textAlign = "left";
         descLines.forEach(function(l){ if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(l, xDesc, dy); } dy += 15; });
-        if(detailLines.length){
-          ctx.font = "11px "+CV_SANS;
-          detailLines.forEach(function(l){ if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(l, xDesc, dy); } dy += 14; });
-        }
         ctx.font = "12px "+CV_MONO;
         ctx.textAlign = "right";
         if(draw){
@@ -1505,15 +1495,13 @@
     dr.items.forEach(function(it){
       var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
       setFontFor(false,12.5,false);
-      var descLines = wrapText(ctx, it.desc||"—", colDesc-10);
-      var detailLines = [];
-      if(it.detail){ setFontFor(false,11,false); detailLines = wrapText(ctx, it.detail, colDesc-10); }
-      var dyRel = 11 + descLines.length*15 + detailLines.length*14;
+      var fullDesc = (it.desc||"—") + (it.detail ? " ("+it.detail+")" : "");
+      var descLines = wrapText(ctx, fullDesc, colDesc-10);
+      var dyRel = 11 + descLines.length*15;
       var rowHeight = Math.max(dyRel, 17) + 18;
       ensureSpace(rowHeight);
       var rowTop = y, dy = y+11;
       descLines.forEach(function(l){ text({ x:xDesc, y:dy, text:l, size:12.5, color:CV_INK }); dy += 15; });
-      if(detailLines.length){ detailLines.forEach(function(l){ text({ x:xDesc, y:dy, text:l, size:11, color:CV_SOFT }); dy += 14; }); }
       text({ x:xQty+colQty, y:rowTop+11, text:fmtNum(it.qty, it.unit==="m"?0:2)+" "+it.unit, size:12, mono:true, color:CV_INK, align:"right" });
       text({ x:xPrice+colPrice, y:rowTop+11, text:fmtBRL(it.price), size:12, mono:true, color:CV_INK, align:"right" });
       text({ x:xTotal+colTotal, y:rowTop+11, text:fmtBRL(lineTotal), size:12, mono:true, color:CV_INK, align:"right" });
