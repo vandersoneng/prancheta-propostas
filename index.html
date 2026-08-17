@@ -126,18 +126,22 @@
   }
 
   .side-tabs{
-    display:flex; flex-wrap:wrap; gap:2px 4px;
-    border-bottom:1px solid var(--line);
-    position:sticky; top:0; margin:-18px -18px 4px; padding:14px 18px 6px;
-    background:var(--paper-raised); z-index:5;
+    width:180px; flex-shrink:0; background:var(--paper);
+    border-right:1px solid var(--line);
+    padding:18px 10px; display:flex; flex-direction:column; gap:1px;
+    overflow-y:auto;
   }
   .side-tab{
-    flex:0 0 auto; background:transparent; border:none; border-bottom:2px solid transparent;
-    padding:6px 8px 8px; font-size:11.5px; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
-    color:var(--ink-faint); cursor:pointer; white-space:nowrap;
+    display:block; width:100%; text-align:left; background:transparent;
+    border:none; border-left:3px solid transparent; border-radius:0 7px 7px 0;
+    padding:11px 13px; font-size:13.5px; font-weight:600;
+    color:var(--ink-soft); cursor:pointer;
   }
-  .side-tab[aria-selected="true"]{ color:var(--accent); border-bottom-color:var(--accent); }
-  .side-tab:hover{ color:var(--ink); }
+  .side-tab:hover{ background:var(--paper-raised); color:var(--ink); }
+  .side-tab[aria-selected="true"]{
+    background:var(--paper-raised); border-left-color:var(--accent);
+    color:var(--accent); font-weight:700;
+  }
 
   .field-group{display:flex; flex-direction:column; gap:10px;}
   .field-group legend{
@@ -258,12 +262,18 @@
 
   @media (max-width:900px){
     .workspace{flex-direction:column;}
+    .side-tabs{
+      width:100%; flex-direction:row; flex-wrap:wrap; overflow-y:visible;
+      border-right:0; border-bottom:1px solid var(--line); padding:10px 12px; gap:4px;
+    }
+    .side-tab{ flex:0 0 auto; border-left:none; border-bottom:3px solid transparent; border-radius:7px 7px 0 0; }
+    .side-tab[aria-selected="true"]{ border-left-color:transparent; border-bottom-color:var(--accent); }
     .form-panel{width:100%; max-width:none; border-right:0; border-bottom:1px solid var(--line);}
     .item-grid{grid-template-columns:1fr 1fr;}
   }
 
   @media print{
-    .topbar, .form-panel, .toast{display:none !important;}
+    .topbar, .side-tabs, .form-panel, .toast{display:none !important;}
     .sheet-wrap{padding:0; display:block;}
     .sheet{box-shadow:none; border:none; max-width:none; width:100%; padding:0 6mm;}
     .sheet-footer{background:transparent;}
@@ -287,15 +297,14 @@
   </div>
 
   <div class="workspace">
+    <nav class="side-tabs" role="tablist" aria-label="Seções do formulário">
+      <button type="button" class="side-tab" id="tab-btn-proposta" data-tab="proposta" role="tab" aria-selected="true">Proposta</button>
+      <button type="button" class="side-tab" id="tab-btn-itens" data-tab="itens" role="tab" aria-selected="false">Itens</button>
+      <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false">Condições</button>
+      <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false">Catálogo</button>
+      <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false">Empresa</button>
+    </nav>
     <aside class="form-panel">
-
-      <div class="side-tabs" role="tablist" aria-label="Seções do formulário">
-        <button type="button" class="side-tab" id="tab-btn-proposta" data-tab="proposta" role="tab" aria-selected="true">Proposta</button>
-        <button type="button" class="side-tab" id="tab-btn-itens" data-tab="itens" role="tab" aria-selected="false">Itens</button>
-        <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false">Condições</button>
-        <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false">Catálogo</button>
-        <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false">Empresa</button>
-      </div>
 
       <div class="field-group" data-panel="proposta">
         <legend>Proposta</legend>
