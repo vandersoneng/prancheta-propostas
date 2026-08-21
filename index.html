@@ -317,6 +317,7 @@
       <button type="button" class="side-tab" id="tab-btn-itens" data-tab="itens" role="tab" aria-selected="false">Itens</button>
       <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false">Condições</button>
       <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false">Catálogo</button>
+      <button type="button" class="side-tab" id="tab-btn-historico" data-tab="historico" role="tab" aria-selected="false">Histórico</button>
       <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false">Empresa</button>
     </nav>
     <aside class="form-panel">
@@ -385,6 +386,11 @@
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
         <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="btn-ghost btn-sm" id="btn-reset-catalog" style="padding:0;">restaurar padrão</button><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
         <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+
+      <div class="field-group" data-panel="historico">
+        <legend>Histórico de propostas</legend>
+        <div id="history-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
       <div class="field-group" data-panel="empresa">
@@ -489,13 +495,15 @@
     };
   }
 
+  function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
   var CABLE_COLORS = ["Preto","Azul","Verde","Branco"];
   function defaultCableCatalog(){
     var gauges = ["1,5","2,5","4","6","10"];
     var list = [];
     gauges.forEach(function(g){
       CABLE_COLORS.forEach(function(c){
-        list.push({ desc:"Cabo de cobre flexível 750V 1x"+g+"mm²", detail:c, unit:"m", price:0 });
+        list.push({ id:genId(), desc:"Cabo de cobre flexível 750V 1x"+g+"mm²", detail:c, unit:"m", price:0, stock:0 });
       });
     });
     return list;
@@ -507,6 +515,7 @@
       mode:"projeto",
       counters:{ projeto:2, cabos:2 },
       cableCatalog: defaultCableCatalog(),
+      proposalHistory: [],
       drafts:{ projeto: demoProjetoDraft(1), cabos: demoCabosDraft(1) }
     };
   }
@@ -520,7 +529,14 @@
       d.company = Object.assign(d.company, parsed.company||{});
       d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
       d.counters = Object.assign(d.counters, parsed.counters||{});
-      if(Array.isArray(parsed.cableCatalog)) d.cableCatalog = parsed.cableCatalog;
+      if(Array.isArray(parsed.cableCatalog)){
+        d.cableCatalog = parsed.cableCatalog.map(function(c){
+          if(!c.id) c.id = genId();
+          if(c.stock == null) c.stock = 0;
+          return c;
+        });
+      }
+      if(Array.isArray(parsed.proposalHistory)) d.proposalHistory = parsed.proposalHistory;
       if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
       if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
       return d;
@@ -699,6 +715,7 @@
     renderTaxesList();
     renderCatalogList();
     renderCatalogPicker();
+    renderHistoryList();
     renderPreview();
   }
 
@@ -843,9 +860,10 @@
           '<div class="field"><label>Cor</label>' +
             '<select data-cfield="color-select" data-index="'+i+'">'+colorOpts+'</select></div>' +
           (isCustomColor ? '<div class="field"><label>Cor personalizada</label><input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Digite a cor"></div>' : '') +
-          '<div class="item-grid" style="grid-template-columns:1fr 1fr;">' +
+          '<div class="item-grid" style="grid-template-columns:1fr 1fr 1fr;">' +
             '<div class="field"><label>Unid.</label><input data-cfield="unit" data-index="'+i+'" value="'+escapeHtml(c.unit)+'"></div>' +
             '<div class="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
+            '<div class="field"><label>Estoque ('+escapeHtml(c.unit||"un")+')</label><input type="number" step="0.01" data-cfield="stock" data-index="'+i+'" value="'+(c.stock||0)+'" style="'+((Number(c.stock)||0)<=0?'border-color:var(--danger); color:var(--danger);':'')+'"></div>' +
           '</div>' +
         '</div>'
       );
@@ -859,7 +877,12 @@
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
-      c[field] = (field==="price") ? (parseFloat(e.target.value)||0) : e.target.value;
+      c[field] = (field==="price"||field==="stock") ? (parseFloat(e.target.value)||0) : e.target.value;
+      if(field==="stock"){
+        var low = (Number(c.stock)||0) <= 0;
+        e.target.style.borderColor = low ? "var(--danger)" : "";
+        e.target.style.color = low ? "var(--danger)" : "";
+      }
       renderCatalogPicker();
       scheduleSave();
     });
@@ -889,7 +912,7 @@
       scheduleSave();
     });
     document.getElementById("btn-add-catalog").addEventListener("click", function(){
-      state.cableCatalog.push({ desc:"", detail:"", unit:"m", price:0 });
+      state.cableCatalog.push({ id:genId(), desc:"", detail:"", unit:"m", price:0, stock:0 });
       renderCatalogList();
       renderCatalogPicker();
       scheduleSave();
@@ -916,7 +939,7 @@
     }
     select.innerHTML = options.map(function(o){
       var c = o.c;
-      var label = c.desc + (c.detail? " — "+c.detail : "") + " — " + fmtBRL(c.price) + "/" + (c.unit||"un");
+      var label = c.desc + (c.detail? " — "+c.detail : "") + " — " + fmtBRL(c.price) + "/" + (c.unit||"un") + " — " + fmtNum(c.stock||0,2) + (c.unit||"un") + " em estoque";
       return '<option value="'+o.i+'">'+escapeHtml(label)+'</option>';
     }).join("");
   }
@@ -926,10 +949,137 @@
       var idx = parseInt(select.value, 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
-      draft().items.push({ desc:c.desc, detail:c.detail, unit:c.unit||"m", qty:1, price:c.price });
+      draft().items.push({ desc:c.desc, detail:c.detail, unit:c.unit||"m", qty:1, price:c.price, catalogId:c.id });
       renderItemsList();
       scheduleSave();
       renderPreview();
+    });
+  }
+
+  // ---------- proposal history ----------
+  function snapshotDraft(dr){ return JSON.parse(JSON.stringify(dr)); }
+
+  function saveToHistory(){
+    var dr = draft();
+    if(!dr.number) return;
+    var existing = state.proposalHistory.find(function(h){ return h.number === dr.number; });
+    if(existing){
+      existing.draft = snapshotDraft(dr);
+      existing.mode = state.mode;
+      existing.savedAt = todayISO();
+    } else {
+      state.proposalHistory.unshift({
+        id: genId(), number: dr.number, mode: state.mode, status: "pendente",
+        savedAt: todayISO(), draft: snapshotDraft(dr)
+      });
+    }
+    renderHistoryList();
+  }
+
+  function findHistoryEntry(hid){
+    return state.proposalHistory.find(function(h){ return h.id === hid; });
+  }
+
+  function renderHistoryList(){
+    var container = document.getElementById("history-list");
+    var list = state.proposalHistory;
+    if(!list.length){
+      container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint); line-height:1.5;">Nenhuma proposta salva ainda. Toda vez que você clicar em "Baixar proposta", ela é registrada aqui automaticamente.</div>';
+      return;
+    }
+    container.innerHTML = list.map(function(h){
+      var totals = calcTotals(h.draft);
+      var sold = h.status === "vendida";
+      var statusHtml = sold
+        ? '<span style="color:var(--good); font-weight:700;">Vendida'+(h.soldAt?" em "+dateBR(h.soldAt):"")+'</span>'
+        : '<span style="color:var(--ink-faint); font-weight:700;">Pendente</span>';
+      var modeLabel = h.mode === "cabos" ? "Cabos" : "Projeto";
+      return (
+        '<div class="item-card" data-hid="'+h.id+'">' +
+          '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
+            '<div style="font-size:12px; color:var(--ink-soft);">'+escapeHtml(h.draft.client.name||"Sem cliente")+'</div>' +
+            '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+' · '+statusHtml+'</div>' +
+          '</div>' +
+          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">' +
+            '<button type="button" class="btn btn-sm hist-open" data-hid="'+h.id+'">Abrir</button>' +
+            (sold
+              ? '<button type="button" class="btn-ghost btn-sm hist-unsell" data-hid="'+h.id+'">Desfazer venda</button>'
+              : '<button type="button" class="btn btn-sm hist-sell" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Marcar vendida</button>') +
+            '<button type="button" class="btn-ghost btn-sm hist-delete" data-hid="'+h.id+'">Excluir</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  function openHistoryEntry(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    state.mode = h.mode;
+    state.drafts[h.mode] = JSON.parse(JSON.stringify(h.draft));
+    syncFormFromState();
+    setActiveTab("proposta");
+    saveNow();
+    toast("Proposta "+h.number+" carregada");
+  }
+
+  function markSold(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    if(!confirm('Marcar a proposta '+h.number+' como vendida? Isso dá baixa no estoque dos itens vindos do catálogo.')) return;
+    var negativeCount = 0;
+    h.draft.items.forEach(function(it){
+      if(!it.catalogId) return;
+      var c = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
+      if(!c) return;
+      c.stock = (Number(c.stock)||0) - (Number(it.qty)||0);
+      if(c.stock < 0) negativeCount++;
+    });
+    h.status = "vendida";
+    h.soldAt = todayISO();
+    renderHistoryList();
+    renderCatalogList();
+    renderCatalogPicker();
+    scheduleSave();
+    toast(negativeCount ? "Vendida — atenção: estoque negativo em "+negativeCount+" item(ns)" : "Marcada como vendida — estoque atualizado");
+  }
+
+  function unmarkSold(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    if(!confirm('Desfazer a venda da proposta '+h.number+'? A quantidade volta para o estoque.')) return;
+    h.draft.items.forEach(function(it){
+      if(!it.catalogId) return;
+      var c = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
+      if(!c) return;
+      c.stock = (Number(c.stock)||0) + (Number(it.qty)||0);
+    });
+    h.status = "pendente";
+    delete h.soldAt;
+    renderHistoryList();
+    renderCatalogList();
+    renderCatalogPicker();
+    scheduleSave();
+    toast("Venda desfeita — estoque restaurado");
+  }
+
+  function deleteHistoryEntry(hid){
+    var idx = state.proposalHistory.findIndex(function(h){ return h.id === hid; });
+    if(idx<0) return;
+    if(!confirm("Excluir esta proposta do histórico? Isso não altera o estoque.")) return;
+    state.proposalHistory.splice(idx,1);
+    renderHistoryList();
+    scheduleSave();
+  }
+
+  function attachHistoryDelegation(){
+    var container = document.getElementById("history-list");
+    container.addEventListener("click", function(e){
+      var btn;
+      if((btn = e.target.closest(".hist-open"))) return openHistoryEntry(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-sell"))) return markSold(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-unsell"))) return unmarkSold(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-delete"))) return deleteHistoryEntry(btn.getAttribute("data-hid"));
     });
   }
 
@@ -1841,6 +1991,8 @@
   }
 
   function exportProposalImage(){
+    saveToHistory();
+    scheduleSave();
     if(!window.claude || typeof window.claude.use !== "function"){
       // Rodando fora do chat do Claude (arquivo local ou hospedado): sem sandbox, gera o PDF de verdade.
       exportRealPdf();
@@ -1904,6 +2056,7 @@
     attachLogoHandlers();
     attachCatalogDelegation();
     attachCatalogPickerHandler();
+    attachHistoryDelegation();
     attachTabHandlers();
     attachPanelToggle();
 
