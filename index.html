@@ -489,13 +489,13 @@
     };
   }
 
+  var CABLE_COLORS = ["Preto","Azul","Verde","Branco"];
   function defaultCableCatalog(){
     var gauges = ["1,5","2,5","4","6","10"];
-    var colors = ["Preto","Azul","Verde","Branco"];
     var list = [];
     gauges.forEach(function(g){
-      colors.forEach(function(c){
-        list.push({ desc:"Cabo de cobre flexível 750V 1x"+g+"mm² ("+c+")", detail:"", unit:"m", price:0 });
+      CABLE_COLORS.forEach(function(c){
+        list.push({ desc:"Cabo de cobre flexível 750V 1x"+g+"mm²", detail:c, unit:"m", price:0 });
       });
     });
     return list;
@@ -690,6 +690,7 @@
     var showCatalog = state.mode==="cabos";
     document.getElementById("catalog-picker-wrap").style.display = showCatalog ? "" : "none";
     document.getElementById("tab-btn-catalogo").style.display = showCatalog ? "" : "none";
+    document.getElementById("btn-add-item").style.display = showCatalog ? "none" : "";
     if(!showCatalog && activeTab==="catalogo") setActiveTab("proposta");
     applyTabVisibility();
 
@@ -828,15 +829,20 @@
     var container = document.getElementById("catalog-list");
     var catalog = state.cableCatalog;
     container.innerHTML = catalog.map(function(c,i){
+      var isCustomColor = c.detail && CABLE_COLORS.indexOf(c.detail) === -1;
+      var colorOpts = '<option value="">—</option>' +
+        CABLE_COLORS.map(function(col){ return '<option value="'+col+'"'+(c.detail===col?' selected':'')+'>'+col+'</option>'; }).join("") +
+        '<option value="Outra"'+(isCustomColor?' selected':'')+'>Outra…</option>';
       return (
         '<div class="item-card" data-index="'+i+'">' +
           '<div class="item-card-top">' +
             '<div class="field"><label>Produto</label>' +
-              '<input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo flexível 2,5mm² 750V"></div>' +
+              '<input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo de cobre flexível 750V 1x2,5mm²"></div>' +
             '<button type="button" class="btn-ghost btn-sm remove-catalog" data-index="'+i+'" title="Remover do catálogo">✕</button>' +
           '</div>' +
-          '<div class="field"><label>Especificação</label>' +
-            '<input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Cor, tensão, rolo..."></div>' +
+          '<div class="field"><label>Cor</label>' +
+            '<select data-cfield="color-select" data-index="'+i+'">'+colorOpts+'</select></div>' +
+          (isCustomColor ? '<div class="field"><label>Cor personalizada</label><input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Digite a cor"></div>' : '') +
           '<div class="item-grid" style="grid-template-columns:1fr 1fr;">' +
             '<div class="field"><label>Unid.</label><input data-cfield="unit" data-index="'+i+'" value="'+escapeHtml(c.unit)+'"></div>' +
             '<div class="field"><label>Preço padrão (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
@@ -849,12 +855,26 @@
     var container = document.getElementById("catalog-list");
     container.addEventListener("input", function(e){
       var field = e.target.getAttribute("data-cfield");
-      if(!field) return;
+      if(!field || field==="color-select") return;
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
       c[field] = (field==="price") ? (parseFloat(e.target.value)||0) : e.target.value;
       renderCatalogPicker();
+      scheduleSave();
+    });
+    container.addEventListener("change", function(e){
+      if(e.target.getAttribute("data-cfield") !== "color-select") return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var c = state.cableCatalog[idx];
+      if(!c) return;
+      if(e.target.value === "Outra"){
+        if(CABLE_COLORS.indexOf(c.detail) !== -1) c.detail = "";
+        renderCatalogList();
+      } else {
+        c.detail = e.target.value;
+        renderCatalogPicker();
+      }
       scheduleSave();
     });
     container.addEventListener("click", function(e){
@@ -885,13 +905,17 @@
   function renderCatalogPicker(){
     var select = document.getElementById("f-catalog-pick");
     var catalog = state.cableCatalog;
-    if(!catalog.length){
-      select.innerHTML = '<option value="">Catálogo vazio</option>';
+    var options = catalog
+      .map(function(c,i){ return {c:c, i:i}; })
+      .filter(function(o){ return (o.c.desc||"").trim(); });
+    if(!options.length){
+      select.innerHTML = '<option value="">Nenhum produto cadastrado</option>';
       return;
     }
-    select.innerHTML = catalog.map(function(c,i){
-      var label = (c.desc||"(sem nome)") + (c.detail? " — "+c.detail : "") + " — " + fmtBRL(c.price) + "/" + (c.unit||"un");
-      return '<option value="'+i+'">'+escapeHtml(label)+'</option>';
+    select.innerHTML = options.map(function(o){
+      var c = o.c;
+      var label = c.desc + (c.detail? " — "+c.detail : "") + " — " + fmtBRL(c.price) + "/" + (c.unit||"un");
+      return '<option value="'+o.i+'">'+escapeHtml(label)+'</option>';
     }).join("");
   }
   function attachCatalogPickerHandler(){
