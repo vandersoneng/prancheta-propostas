@@ -829,7 +829,7 @@
     var container = document.getElementById("catalog-list");
     var catalog = state.cableCatalog;
     container.innerHTML = catalog.map(function(c,i){
-      var isCustomColor = c.detail && CABLE_COLORS.indexOf(c.detail) === -1;
+      var isCustomColor = c._customColor || (c.detail && CABLE_COLORS.indexOf(c.detail) === -1);
       var colorOpts = '<option value="">—</option>' +
         CABLE_COLORS.map(function(col){ return '<option value="'+col+'"'+(c.detail===col?' selected':'')+'>'+col+'</option>'; }).join("") +
         '<option value="Outra"'+(isCustomColor?' selected':'')+'>Outra…</option>';
@@ -869,9 +869,11 @@
       var c = state.cableCatalog[idx];
       if(!c) return;
       if(e.target.value === "Outra"){
+        c._customColor = true;
         if(CABLE_COLORS.indexOf(c.detail) !== -1) c.detail = "";
         renderCatalogList();
       } else {
+        c._customColor = false;
         c.detail = e.target.value;
         renderCatalogPicker();
       }
