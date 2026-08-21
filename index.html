@@ -129,12 +129,16 @@
     width:0; min-width:0; padding-left:0; padding-right:0; border-right:0; overflow:hidden;
   }
 
+  .panel-toggle-col{ position:relative; width:0; flex-shrink:0; overflow:visible; z-index:6; }
   .panel-toggle{
-    flex-shrink:0; width:16px; align-self:stretch; border:none; border-right:1px solid var(--line);
-    background:var(--paper-raised); color:var(--ink-faint); cursor:pointer; font-size:13px; line-height:1;
-    display:flex; align-items:center; justify-content:center; padding:0;
+    position:absolute; top:18px; left:-16px;
+    width:32px; height:32px; border-radius:50%; border:2px solid var(--paper-raised);
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; font-weight:700; line-height:1; cursor:pointer; padding:0;
+    box-shadow:var(--shadow);
   }
-  .panel-toggle:hover{ background:var(--paper); color:var(--ink); }
+  .panel-toggle:hover{ filter:brightness(1.08); }
 
   .side-tabs{
     width:180px; flex-shrink:0; background:var(--paper);
@@ -284,7 +288,7 @@
   }
 
   @media print{
-    .topbar, .side-tabs, .form-panel, .panel-toggle, .toast{display:none !important;}
+    .topbar, .side-tabs, .form-panel, .panel-toggle-col, .toast{display:none !important;}
     .sheet-wrap{padding:0; display:block;}
     .sheet{box-shadow:none; border:none; max-width:none; width:100%; padding:0 6mm;}
     .sheet-footer{background:transparent;}
@@ -409,7 +413,9 @@
       <div class="save-hint" style="align-items:flex-start;">Aberto fora do chat (arquivo salvo no seu computador), "Baixar proposta" gera o PDF direto. Dentro do chat, baixa um arquivo/imagem para você imprimir como PDF.</div>
     </aside>
 
-    <button type="button" class="panel-toggle" id="btn-toggle-panel" title="Ocultar formulário">‹</button>
+    <div class="panel-toggle-col">
+      <button type="button" class="panel-toggle" id="btn-toggle-panel" title="Ocultar formulário">‹</button>
+    </div>
 
     <main class="sheet-wrap">
       <div class="sheet" id="sheet"></div>
