@@ -384,7 +384,7 @@
       </div>
 
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
-        <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="btn-ghost btn-sm" id="btn-reset-catalog" style="padding:0;">restaurar padrão</button><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
+        <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="btn-ghost btn-sm" id="btn-reset-catalog" style="padding:0;" title="Adiciona os cabos padrão que ainda não estão no catálogo, sem apagar o que você já cadastrou">completar com padrão</button><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
         <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
@@ -508,10 +508,13 @@
   function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 
   var CABLE_COLORS = ["Preto","Azul","Verde","Branco"];
+  var CABLE_GAUGES = ["1,5","2,5","4","6","10"];
+  function defaultProductTemplates(){
+    return CABLE_GAUGES.map(function(g){ return "Cabo de cobre flexível 750V 1x"+g+"mm²"; });
+  }
   function defaultCableCatalog(){
-    var gauges = ["1,5","2,5","4","6","10"];
     var list = [];
-    gauges.forEach(function(g){
+    CABLE_GAUGES.forEach(function(g){
       CABLE_COLORS.forEach(function(c){
         list.push({ id:genId(), desc:"Cabo de cobre flexível 750V 1x"+g+"mm²", detail:c, unit:"m", price:0, stock:0 });
       });
@@ -525,6 +528,7 @@
       mode:"projeto",
       counters:{ projeto:2, cabos:2 },
       cableCatalog: defaultCableCatalog(),
+      productTemplates: defaultProductTemplates(),
       proposalHistory: [],
       drafts:{ projeto: demoProjetoDraft(1), cabos: demoCabosDraft(1) }
     };
@@ -546,6 +550,7 @@
           return c;
         });
       }
+      if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
       if(Array.isArray(parsed.proposalHistory)) d.proposalHistory = parsed.proposalHistory;
       if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
       if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
@@ -856,6 +861,11 @@
     var container = document.getElementById("catalog-list");
     var catalog = state.cableCatalog;
     container.innerHTML = catalog.map(function(c,i){
+      var isCustomDesc = c._customDesc || (c.desc && state.productTemplates.indexOf(c.desc) === -1);
+      var descOpts = '<option value="">—</option>' +
+        state.productTemplates.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(c.desc===t?' selected':'')+'>'+escapeHtml(t)+'</option>'; }).join("") +
+        '<option value="Outro"'+(isCustomDesc?' selected':'')+'>Outro (cadastrar novo)…</option>';
+
       var isCustomColor = c._customColor || (c.detail && CABLE_COLORS.indexOf(c.detail) === -1);
       var colorOpts = '<option value="">—</option>' +
         CABLE_COLORS.map(function(col){ return '<option value="'+col+'"'+(c.detail===col?' selected':'')+'>'+col+'</option>'; }).join("") +
@@ -864,9 +874,10 @@
         '<div class="item-card" data-index="'+i+'">' +
           '<div class="item-card-top">' +
             '<div class="field"><label>Produto</label>' +
-              '<input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo de cobre flexível 750V 1x2,5mm²"></div>' +
+              '<select data-cfield="desc-select" data-index="'+i+'">'+descOpts+'</select></div>' +
             '<button type="button" class="btn-ghost btn-sm remove-catalog" data-index="'+i+'" title="Remover do catálogo">✕</button>' +
           '</div>' +
+          (isCustomDesc ? '<div class="field"><label>Produto novo (fica salvo na lista)</label><input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo de cobre flexível 750V 1x16mm²"></div>' : '') +
           '<div class="field"><label>Cor</label>' +
             '<select data-cfield="color-select" data-index="'+i+'">'+colorOpts+'</select></div>' +
           (isCustomColor ? '<div class="field"><label>Cor personalizada</label><input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Digite a cor"></div>' : '') +
@@ -883,7 +894,7 @@
     var container = document.getElementById("catalog-list");
     container.addEventListener("input", function(e){
       var field = e.target.getAttribute("data-cfield");
-      if(!field || field==="color-select") return;
+      if(!field || field==="color-select" || field==="desc-select") return;
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
@@ -896,21 +907,43 @@
       renderCatalogPicker();
       scheduleSave();
     });
+    container.addEventListener("focusout", function(e){
+      if(e.target.getAttribute("data-cfield") !== "desc") return;
+      var val = (e.target.value||"").trim();
+      if(val && state.productTemplates.indexOf(val) === -1){
+        state.productTemplates.push(val);
+        scheduleSave();
+        toast('Produto "'+val+'" cadastrado na lista');
+      }
+    });
     container.addEventListener("change", function(e){
-      if(e.target.getAttribute("data-cfield") !== "color-select") return;
+      var field = e.target.getAttribute("data-cfield");
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
-      if(e.target.value === "Outra"){
-        c._customColor = true;
-        if(CABLE_COLORS.indexOf(c.detail) !== -1) c.detail = "";
-        renderCatalogList();
-      } else {
-        c._customColor = false;
-        c.detail = e.target.value;
-        renderCatalogPicker();
+      if(field === "color-select"){
+        if(e.target.value === "Outra"){
+          c._customColor = true;
+          if(CABLE_COLORS.indexOf(c.detail) !== -1) c.detail = "";
+          renderCatalogList();
+        } else {
+          c._customColor = false;
+          c.detail = e.target.value;
+          renderCatalogPicker();
+        }
+        scheduleSave();
+      } else if(field === "desc-select"){
+        if(e.target.value === "Outro"){
+          c._customDesc = true;
+          if(state.productTemplates.indexOf(c.desc) !== -1) c.desc = "";
+          renderCatalogList();
+        } else {
+          c._customDesc = false;
+          c.desc = e.target.value;
+          renderCatalogPicker();
+        }
+        scheduleSave();
       }
-      scheduleSave();
     });
     container.addEventListener("click", function(e){
       var btn = e.target.closest(".remove-catalog");
@@ -928,13 +961,19 @@
       scheduleSave();
     });
     document.getElementById("btn-reset-catalog").addEventListener("click", function(){
-      var novo = defaultCableCatalog();
-      if(!confirm("Isso substitui todo o catálogo atual pelos "+novo.length+" cabos padrão (1,5 a 10mm², nas cores Preto/Azul/Verde/Branco). Continuar?")) return;
-      state.cableCatalog = novo;
+      var defaults = defaultCableCatalog();
+      var existingKeys = state.cableCatalog.map(function(c){ return (c.desc||"")+"|"+(c.detail||""); });
+      var added = 0;
+      defaults.forEach(function(d){
+        if(existingKeys.indexOf(d.desc+"|"+d.detail) === -1){
+          state.cableCatalog.push(d);
+          added++;
+        }
+      });
       renderCatalogList();
       renderCatalogPicker();
       scheduleSave();
-      toast("Catálogo restaurado");
+      toast(added ? added+" produto(s) padrão adicionado(s)" : "Todos os produtos padrão já estão no catálogo");
     });
   }
   function renderCatalogPicker(){
