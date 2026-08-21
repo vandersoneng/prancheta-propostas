@@ -912,6 +912,7 @@
       var val = (e.target.value||"").trim();
       if(val && state.productTemplates.indexOf(val) === -1){
         state.productTemplates.push(val);
+        renderCatalogList();
         scheduleSave();
         toast('Produto "'+val+'" cadastrado na lista');
       }
