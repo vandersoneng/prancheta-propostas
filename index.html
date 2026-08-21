@@ -191,8 +191,8 @@
   .item-card{border:1px solid var(--line); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px; background:var(--paper);}
   .item-card-top{display:flex; gap:8px; align-items:flex-start;}
   .item-card-top .field{flex:1;}
-  .item-grid{display:grid; grid-template-columns:1.4fr .8fr .7fr 1fr; gap:8px;}
-  .item-grid .field label{font-size:10px;}
+  .item-grid{display:grid; grid-template-columns:1fr 1fr 1.2fr 1.2fr; gap:8px;}
+  .item-grid .field label{font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
   .tax-row{display:flex; gap:8px; align-items:flex-end;}
   .tax-row .field{flex:1;}
@@ -478,9 +478,9 @@
       validadeDias: 10,
       client: { name:"Elétrica Ferreira Materiais Ltda", doc:"98.765.432/0001-10", contact:"Marcos Ferreira (compras)", address:"Rod. BR-116, km 12 - Galpão 4 - São José/SC", phone:"(48) 3234-5678", email:"compras@eletricaferreira.com.br" },
       items: [
-        { desc:"Cabo flexível 2,5mm² 750V", detail:"Cor preta, rolo de 100m", unit:"m", qty:500, price:2.35 },
-        { desc:"Cabo flexível 4,0mm² 750V", detail:"Cor azul, rolo de 100m", unit:"m", qty:300, price:3.80 },
-        { desc:"Cabo PP 3x2,5mm²", detail:"Uso em extensões e quadros", unit:"m", qty:100, price:6.90 }
+        { desc:"Cabo de cobre flexível 750V 1x2,5mm²", detail:"Preto", unit:"m", qty:500, price:2.35 },
+        { desc:"Cabo de cobre flexível 750V 1x4mm²", detail:"Azul", unit:"m", qty:300, price:3.80 },
+        { desc:"Cabo de cobre flexível 750V 1x6mm²", detail:"Verde", unit:"m", qty:100, price:5.90 }
       ],
       discount:{ type:"percent", value:0 },
       taxIncluded:true,
@@ -770,7 +770,7 @@
           '<div class="item-grid">' +
             '<div class="field"><label>Unid.</label><select data-field="unit" data-index="'+i+'">'+optHtml+'</select></div>' +
             '<div class="field"><label>Qtd</label><input type="number" min="0" step="0.01" data-field="qty" data-index="'+i+'" value="'+it.qty+'"></div>' +
-            '<div class="field"><label>Valor unit. (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+it.price+'"></div>' +
+            '<div class="field"><label>Valor (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+it.price+'"></div>' +
             '<div class="field"><label>Total</label><input value="'+fmtBRL((Number(it.qty)||0)*(Number(it.price)||0))+'" readonly style="color:var(--ink-soft);"></div>' +
           '</div>' +
         '</div>'
@@ -845,7 +845,7 @@
           (isCustomColor ? '<div class="field"><label>Cor personalizada</label><input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Digite a cor"></div>' : '') +
           '<div class="item-grid" style="grid-template-columns:1fr 1fr;">' +
             '<div class="field"><label>Unid.</label><input data-cfield="unit" data-index="'+i+'" value="'+escapeHtml(c.unit)+'"></div>' +
-            '<div class="field"><label>Preço padrão (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
+            '<div class="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
           '</div>' +
         '</div>'
       );
