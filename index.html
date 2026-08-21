@@ -1009,6 +1009,31 @@
   // ---------- proposal history ----------
   function snapshotDraft(dr){ return JSON.parse(JSON.stringify(dr)); }
 
+  function sameClient(a, b){
+    return (a.name||"").trim().toLowerCase() === (b.name||"").trim().toLowerCase()
+        && (a.doc||"").trim() === (b.doc||"").trim();
+  }
+
+  // If the current number was already saved to history under a DIFFERENT client, this isn't a
+  // revision — it's a new proposal that never got a fresh number (user didn't click "Nova proposta").
+  // Auto-assign a new number so the previous one in history is never silently overwritten.
+  function ensureFreshNumberIfNeeded(){
+    var dr = draft();
+    var mode = state.mode;
+    var existing = state.proposalHistory.find(function(h){ return h.number === dr.number; });
+    if(!existing) return;
+    if(sameClient(existing.draft.client, dr.client)) return;
+    var seq = state.counters[mode];
+    state.counters[mode] = seq + 1;
+    var prefix = mode === "cabos" ? "CAB" : "PRJ";
+    var year = new Date(dr.date ? dr.date+"T00:00:00" : Date.now()).getFullYear();
+    var oldNumber = dr.number;
+    dr.number = prefix + "-" + year + "-" + String(seq).padStart(3,"0");
+    var numberField = document.getElementById("f-meta-number");
+    if(numberField) numberField.value = dr.number;
+    toast("Novo cliente detectado — número atualizado para "+dr.number+" ("+oldNumber+" continua no histórico)");
+  }
+
   function saveToHistory(){
     var dr = draft();
     if(!dr.number) return;
@@ -2170,6 +2195,7 @@
   }
 
   function exportProposalImage(){
+    ensureFreshNumberIfNeeded();
     saveToHistory();
     scheduleSave();
     if(!window.claude || typeof window.claude.use !== "function"){
