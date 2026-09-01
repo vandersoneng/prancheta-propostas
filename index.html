@@ -386,6 +386,7 @@
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
         <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="btn-ghost btn-sm" id="btn-reset-catalog" style="padding:0;" title="Adiciona os cabos padrão que ainda não estão no catálogo, sem apagar o que você já cadastrou">completar com padrão</button><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
         <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <button type="button" class="btn btn-sm" id="btn-stock-report" style="align-self:flex-start;">Baixar relatório de estoque (PDF)</button>
       </div>
 
       <div class="field-group" data-panel="historico">
@@ -551,7 +552,12 @@
         });
       }
       if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
-      if(Array.isArray(parsed.proposalHistory)) d.proposalHistory = parsed.proposalHistory;
+      if(Array.isArray(parsed.proposalHistory)){
+        d.proposalHistory = parsed.proposalHistory.map(function(h){
+          if(h.status === "pendente") h.status = "emitida"; // rotulo antigo, mesmo significado
+          return h;
+        });
+      }
       if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
       if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
       return d;
@@ -1044,7 +1050,7 @@
       existing.savedAt = todayISO();
     } else {
       state.proposalHistory.unshift({
-        id: genId(), number: dr.number, mode: state.mode, status: "pendente",
+        id: genId(), number: dr.number, mode: state.mode, status: "emitida",
         savedAt: todayISO(), draft: snapshotDraft(dr)
       });
     }
@@ -1055,6 +1061,54 @@
     return state.proposalHistory.find(function(h){ return h.id === hid; });
   }
 
+  // Matches a proposal item back to a catalog product. Prefers the stored catalogId; if that's
+  // missing or stale (item created before catalogId existed, or its catalog entry was deleted and
+  // re-added with a new id), falls back to an exact description+color match so stock still updates
+  // instead of silently doing nothing.
+  function findCatalogEntryForItem(it){
+    if(it.catalogId){
+      var byId = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
+      if(byId) return byId;
+    }
+    var candidates = state.cableCatalog.filter(function(x){
+      return (x.desc||"").trim() === (it.desc||"").trim() && (x.detail||"").trim() === (it.detail||"").trim();
+    });
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  function historySection(list, statusKey, title, emptyText){
+    var filtered = list.filter(function(h){ return h.status === statusKey; });
+    var rows = filtered.map(function(h){
+      var totals = calcTotals(h.draft);
+      var modeLabel = h.mode === "cabos" ? "Cabos" : "Projeto";
+      var actions = '<button type="button" class="btn btn-sm hist-open" data-hid="'+h.id+'">Abrir</button>';
+      if(statusKey === "emitida"){
+        actions += '<button type="button" class="btn btn-sm hist-sell" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Marcar vendida</button>';
+        actions += '<button type="button" class="btn-ghost btn-sm hist-cancel" data-hid="'+h.id+'">Cancelar</button>';
+      } else if(statusKey === "vendida"){
+        actions += '<button type="button" class="btn-ghost btn-sm hist-unsell" data-hid="'+h.id+'">Desfazer venda</button>';
+      } else if(statusKey === "cancelada"){
+        actions += '<button type="button" class="btn-ghost btn-sm hist-reopen" data-hid="'+h.id+'">Reabrir</button>';
+      }
+      actions += '<button type="button" class="btn-ghost btn-sm hist-delete" data-hid="'+h.id+'">Excluir</button>';
+      return (
+        '<div class="item-card" data-hid="'+h.id+'">' +
+          '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
+            '<div style="font-size:12px; color:var(--ink-soft);">'+escapeHtml(h.draft.client.name||"Sem cliente")+'</div>' +
+            '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+'</div>' +
+          '</div>' +
+          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">'+actions+'</div>' +
+        '</div>'
+      );
+    }).join("");
+    return (
+      '<div>' +
+        '<div class="sheet-label" style="margin:0 0 8px; color:var(--ink-faint);">'+title+' ('+filtered.length+')</div>' +
+        (filtered.length ? '<div style="display:flex; flex-direction:column; gap:8px;">'+rows+'</div>' : '<div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">'+emptyText+'</div>') +
+      '</div>'
+    );
+  }
+
   function renderHistoryList(){
     var container = document.getElementById("history-list");
     var list = state.proposalHistory;
@@ -1062,29 +1116,10 @@
       container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint); line-height:1.5;">Nenhuma proposta salva ainda. Toda vez que você clicar em "Baixar proposta", ela é registrada aqui automaticamente.</div>';
       return;
     }
-    container.innerHTML = list.map(function(h){
-      var totals = calcTotals(h.draft);
-      var sold = h.status === "vendida";
-      var statusHtml = sold
-        ? '<span style="color:var(--good); font-weight:700;">Vendida'+(h.soldAt?" em "+dateBR(h.soldAt):"")+'</span>'
-        : '<span style="color:var(--ink-faint); font-weight:700;">Pendente</span>';
-      var modeLabel = h.mode === "cabos" ? "Cabos" : "Projeto";
-      return (
-        '<div class="item-card" data-hid="'+h.id+'">' +
-          '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
-            '<div style="font-size:12px; color:var(--ink-soft);">'+escapeHtml(h.draft.client.name||"Sem cliente")+'</div>' +
-            '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+' · '+statusHtml+'</div>' +
-          '</div>' +
-          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">' +
-            '<button type="button" class="btn btn-sm hist-open" data-hid="'+h.id+'">Abrir</button>' +
-            (sold
-              ? '<button type="button" class="btn-ghost btn-sm hist-unsell" data-hid="'+h.id+'">Desfazer venda</button>'
-              : '<button type="button" class="btn btn-sm hist-sell" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Marcar vendida</button>') +
-            '<button type="button" class="btn-ghost btn-sm hist-delete" data-hid="'+h.id+'">Excluir</button>' +
-          '</div>' +
-        '</div>'
-      );
-    }).join("");
+    container.innerHTML =
+      historySection(list, "emitida", "Emitidas", "Nenhuma proposta emitida pendente.") +
+      historySection(list, "vendida", "Vendidas", "Nenhuma venda registrada ainda.") +
+      historySection(list, "cancelada", "Canceladas", "Nenhuma proposta cancelada.");
   }
 
   function openHistoryEntry(hid){
@@ -1101,12 +1136,12 @@
   function markSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
-    if(!confirm('Marcar a proposta '+h.number+' como vendida? Isso dá baixa no estoque dos itens vindos do catálogo.')) return;
-    var negativeCount = 0;
+    if(!confirm('Marcar a proposta '+h.number+' como vendida? Isso dá baixa no estoque dos itens que casarem com o catálogo.')) return;
+    var negativeCount = 0, unmatched = [];
     h.draft.items.forEach(function(it){
-      if(!it.catalogId) return;
-      var c = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
-      if(!c) return;
+      var c = findCatalogEntryForItem(it);
+      if(!c){ if(it.desc) unmatched.push(it.desc); return; }
+      it.catalogId = c.id;
       c.stock = (Number(c.stock)||0) - (Number(it.qty)||0);
       if(c.stock < 0) negativeCount++;
     });
@@ -1116,26 +1151,51 @@
     renderCatalogList();
     renderCatalogPicker();
     scheduleSave();
-    toast(negativeCount ? "Vendida — atenção: estoque negativo em "+negativeCount+" item(ns)" : "Marcada como vendida — estoque atualizado");
+    var msg = "Marcada como vendida";
+    if(negativeCount) msg += " — atenção: estoque negativo em "+negativeCount+" item(ns)";
+    if(unmatched.length) msg += " — "+unmatched.length+" item(ns) não encontrados no catálogo, estoque não alterado p/ eles";
+    toast(msg);
   }
 
   function unmarkSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
-    if(!confirm('Desfazer a venda da proposta '+h.number+'? A quantidade volta para o estoque.')) return;
+    if(!confirm('Desfazer a venda da proposta '+h.number+'? A quantidade volta para o estoque dos itens que casarem com o catálogo.')) return;
+    var unmatched = [];
     h.draft.items.forEach(function(it){
-      if(!it.catalogId) return;
-      var c = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
-      if(!c) return;
+      var c = findCatalogEntryForItem(it);
+      if(!c){ if(it.desc) unmatched.push(it.desc); return; }
+      it.catalogId = c.id;
       c.stock = (Number(c.stock)||0) + (Number(it.qty)||0);
     });
-    h.status = "pendente";
+    h.status = "emitida";
     delete h.soldAt;
     renderHistoryList();
     renderCatalogList();
     renderCatalogPicker();
     scheduleSave();
-    toast("Venda desfeita — estoque restaurado");
+    toast(unmatched.length ? "Venda desfeita — "+unmatched.length+" item(ns) não encontrados no catálogo" : "Venda desfeita — estoque restaurado");
+  }
+
+  function cancelProposal(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    if(!confirm('Marcar a proposta '+h.number+' como cancelada? O estoque não é alterado.')) return;
+    h.status = "cancelada";
+    h.canceledAt = todayISO();
+    renderHistoryList();
+    scheduleSave();
+    toast("Proposta marcada como cancelada");
+  }
+
+  function reopenProposal(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    h.status = "emitida";
+    delete h.canceledAt;
+    renderHistoryList();
+    scheduleSave();
+    toast("Proposta reaberta como emitida");
   }
 
   function deleteHistoryEntry(hid){
@@ -1154,6 +1214,8 @@
       if((btn = e.target.closest(".hist-open"))) return openHistoryEntry(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-sell"))) return markSold(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-unsell"))) return unmarkSold(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-cancel"))) return cancelProposal(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-reopen"))) return reopenProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-delete"))) return deleteHistoryEntry(btn.getAttribute("data-hid"));
     });
   }
@@ -2084,6 +2146,121 @@
     loadSaveFolderHandle();
   }
 
+  // ---------- stock report PDF ----------
+  function buildStockReportOps(){
+    var LW = 595.28, LH = 841.89, ML = 42, MR = 42, MT = 40, MB = 40, CW = LW-ML-MR;
+    var ctx = measureScratch();
+    var ops = [];
+    var page = 0;
+    var y = MT;
+
+    function setFontFor(bold, size, mono){
+      ctx.font = (bold?"700 ":"") + size + "px " + (mono?CV_MONO:CV_SANS);
+    }
+    function text(o){
+      var bold=!!o.bold, mono=!!o.mono, align=o.align||"left";
+      setFontFor(bold, o.size, mono);
+      var w = ctx.measureText(o.text).width;
+      var x = o.x;
+      if(align==="right") x -= w;
+      else if(align==="center") x -= w/2;
+      ops.push({ page:page, t:"text", x:x, y:o.y, text:o.text, size:o.size, bold:bold, mono:mono, color:o.color||CV_INK, tc:o.tc||0 });
+      return w;
+    }
+    function line(x1,y1,x2,y2,width,color){ ops.push({ page:page, t:"line", x1:x1,y1:y1,x2:x2,y2:y2, width:width||1, color:color||CV_LINE }); }
+
+    var colProd=210, colCor=90, colUnid=45, colEst=80, colPreco=65, colTotal=CW-colProd-colCor-colUnid-colEst-colPreco;
+    var xProd=ML, xCor=xProd+colProd, xUnid=xCor+colCor, xEst=xUnid+colUnid, xPreco=xEst+colEst, xTotal=xPreco+colPreco;
+
+    function drawTableHeader(){
+      text({ x:xProd, y:y+8, text:"PRODUTO", size:9, bold:true, color:CV_FAINT });
+      text({ x:xCor, y:y+8, text:"COR", size:9, bold:true, color:CV_FAINT });
+      text({ x:xUnid+colUnid, y:y+8, text:"UN.", size:9, bold:true, color:CV_FAINT, align:"right" });
+      text({ x:xEst+colEst, y:y+8, text:"ESTOQUE", size:9, bold:true, color:CV_FAINT, align:"right" });
+      text({ x:xPreco+colPreco, y:y+8, text:"PREÇO", size:9, bold:true, color:CV_FAINT, align:"right" });
+      text({ x:xTotal+colTotal, y:y+8, text:"VALOR TOTAL", size:9, bold:true, color:CV_FAINT, align:"right" });
+      y += 12;
+      line(ML,y,LW-MR,y,1,CV_LINE_STRONG);
+      y += 12;
+    }
+
+    function newPage(){
+      page += 1;
+      y = MT;
+      text({ x:ML, y:y+7, text:"Relatório de estoque (continuação)", size:9, color:CV_FAINT });
+      y += 10;
+      line(ML,y,LW-MR,y,1,CV_LINE);
+      y += 16;
+      drawTableHeader();
+    }
+    function ensureSpace(h){ if(y+h > LH-MB) newPage(); }
+
+    text({ x:ML, y:y+13, text: state.company.name||"Sua empresa", size:15, bold:true, color:CV_INK });
+    y += 26;
+    text({ x:ML, y:y+14, text:"Relatório de Estoque", size:18, bold:true, color:CV_INK });
+    y += 22;
+    text({ x:ML, y:y+9, text:"Gerado em "+dateBR(todayISO()), size:11, color:CV_SOFT });
+    y += 20;
+    line(ML,y,LW-MR,y,2,"#2B5876");
+    y += 20;
+
+    drawTableHeader();
+
+    var sorted = state.cableCatalog.slice()
+      .filter(function(c){ return (c.desc||"").trim(); })
+      .sort(function(a,b){ return (a.desc+a.detail).localeCompare(b.desc+b.detail, "pt-BR"); });
+
+    var grandTotal = 0;
+    sorted.forEach(function(c){
+      var lineTotal = (Number(c.stock)||0) * (Number(c.price)||0);
+      grandTotal += lineTotal;
+      setFontFor(false,11,false);
+      var descLines = wrapText(ctx, c.desc||"—", colProd-8);
+      var rowHeight = Math.max(10+descLines.length*13, 16) + 12;
+      ensureSpace(rowHeight);
+      var rowTop = y, dy = y+10;
+      descLines.forEach(function(l){ text({ x:xProd, y:dy, text:l, size:11, color:CV_INK }); dy += 13; });
+      text({ x:xCor, y:rowTop+10, text:c.detail||"—", size:11, color:CV_SOFT });
+      text({ x:xUnid+colUnid, y:rowTop+10, text:c.unit||"un", size:10.5, mono:true, color:CV_INK, align:"right" });
+      var lowStock = (Number(c.stock)||0) <= 0;
+      text({ x:xEst+colEst, y:rowTop+10, text:fmtNum(c.stock||0,2), size:10.5, mono:true, color: lowStock?"#B23A34":CV_INK, align:"right" });
+      text({ x:xPreco+colPreco, y:rowTop+10, text:fmtBRL(c.price), size:10.5, mono:true, color:CV_INK, align:"right" });
+      text({ x:xTotal+colTotal, y:rowTop+10, text:fmtBRL(lineTotal), size:10.5, mono:true, color:CV_INK, align:"right" });
+      y = Math.max(dy, rowTop+16) + 8;
+      line(ML,y,LW-MR,y,1,CV_LINE);
+      y += 8;
+    });
+
+    ensureSpace(34);
+    y += 6;
+    line(xPreco-2, y, LW-MR, y, 2, "#2B5876");
+    y += 4;
+    text({ x:xPreco-2, y:y+11, text:"Valor total em estoque", size:12, bold:true, color:CV_INK });
+    text({ x:xTotal+colTotal, y:y+11, text:fmtBRL(grandTotal), size:13, bold:true, mono:true, color:CV_INK, align:"right" });
+    y += 26;
+
+    return { ops:ops, pageW:LW, pageH:LH, pageCount:page+1, logoBox:null };
+  }
+
+  function exportStockReportPdf(){
+    if(window.claude && typeof window.claude.use === "function"){
+      toast("Relatório de estoque disponível fora do chat (arquivo local ou pelos links)");
+      return;
+    }
+    var layoutResult;
+    try{
+      layoutResult = buildStockReportOps();
+    }catch(e){
+      toast("Falha ao montar o relatório");
+      return;
+    }
+    buildVectorPdfBytes(layoutResult, null).then(function(pdfBytes){
+      deliverPdf(pdfBytes, "estoque-"+todayISO()+".pdf");
+    }).catch(function(){
+      toast("Falha ao gerar o relatório");
+    });
+  }
+
   function exportRealPdf(){
     var logoSrc = state.company.logo;
     (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
@@ -2263,6 +2440,7 @@
     attachCatalogPickerHandler();
     attachHistoryDelegation();
     attachFolderHandlers();
+    document.getElementById("btn-stock-report").addEventListener("click", exportStockReportPdf);
     attachTabHandlers();
     attachPanelToggle();
 
