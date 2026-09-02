@@ -895,10 +895,25 @@
   }
 
   // ---------- cable catalog ----------
+  function extractGaugeNumber(desc){
+    var m = /(\d+(?:,\d+)?)\s*mm/i.exec(desc||"");
+    return m ? parseFloat(m[1].replace(",",".")) : null;
+  }
+  function catalogSortedIndices(){
+    return state.cableCatalog
+      .map(function(c,i){ return {c:c, i:i}; })
+      .sort(function(a,b){
+        var ga = extractGaugeNumber(a.c.desc), gb = extractGaugeNumber(b.c.desc);
+        if(ga != null && gb != null && ga !== gb) return ga - gb;
+        var d = (a.c.desc||"").localeCompare(b.c.desc||"", "pt-BR");
+        if(d !== 0) return d;
+        return (a.c.detail||"").localeCompare(b.c.detail||"", "pt-BR");
+      });
+  }
   function renderCatalogList(){
     var container = document.getElementById("catalog-list");
-    var catalog = state.cableCatalog;
-    container.innerHTML = catalog.map(function(c,i){
+    container.innerHTML = catalogSortedIndices().map(function(o){
+      var c = o.c, i = o.i;
       var isCustomDesc = c.desc ? (state.productTemplates.indexOf(c.desc) === -1) : !!c._customDesc;
       var descOpts = '<option value="">—</option>' +
         state.productTemplates.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(c.desc===t?' selected':'')+'>'+escapeHtml(t)+'</option>'; }).join("") +
@@ -2411,19 +2426,9 @@
 
     drawTableHeader();
 
-    function extractGaugeNumber(desc){
-      var m = /(\d+(?:,\d+)?)\s*mm/i.exec(desc||"");
-      return m ? parseFloat(m[1].replace(",",".")) : null;
-    }
-    var sorted = state.cableCatalog.slice()
-      .filter(function(c){ return (c.desc||"").trim(); })
-      .sort(function(a,b){
-        var ga = extractGaugeNumber(a.desc), gb = extractGaugeNumber(b.desc);
-        if(ga != null && gb != null && ga !== gb) return ga - gb;
-        var d = (a.desc||"").localeCompare(b.desc||"", "pt-BR");
-        if(d !== 0) return d;
-        return (a.detail||"").localeCompare(b.detail||"", "pt-BR");
-      });
+    var sorted = catalogSortedIndices()
+      .map(function(o){ return o.c; })
+      .filter(function(c){ return (c.desc||"").trim(); });
 
     var grandTotal = 0;
     sorted.forEach(function(c){
