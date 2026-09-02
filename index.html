@@ -118,13 +118,6 @@
   .btn-sm{padding:5px 9px; font-size:12px;}
   .btn-pill{border-radius:999px; padding:9px 17px;}
   .btn-icon{width:15px; height:15px; flex-shrink:0;}
-  .btn-icon-round{
-    display:inline-flex; align-items:center; justify-content:center;
-    width:36px; height:36px; border-radius:999px; border:1px solid transparent;
-    background:transparent; color:var(--ink-soft); cursor:pointer; padding:0; flex-shrink:0;
-  }
-  .btn-icon-round:hover{ background:var(--paper); color:var(--ink); }
-  .btn-icon-round .btn-icon{width:18px; height:18px;}
 
   .workspace{display:flex; flex:1; min-height:0; gap:0;}
 
@@ -363,7 +356,6 @@
       <button type="button" class="mode-btn mode-btn--cabos" id="btn-mode-cabos" aria-pressed="false">Venda de Cabos</button>
     </div>
     <button type="button" class="btn btn-pill" id="btn-new"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova proposta</button>
-    <button type="button" class="btn-icon-round" id="btn-print" title="Tenta abrir a caixa de impressão do navegador (nem sempre funciona nesta visualização)" aria-label="Imprimir"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><path d="M6 18H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/><path d="M6 14h12v7H6z"/></svg></button>
     <button type="button" class="btn btn-primary btn-pill" id="btn-download"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>Baixar proposta</button>
   </div>
 
@@ -446,7 +438,8 @@
       </div>
 
       <div class="field-group" data-panel="historico">
-        <legend>Histórico de propostas</legend>
+        <legend>Histórico de propostas <button type="button" class="btn-ghost btn-sm" id="btn-export-history-csv">Exportar (CSV)</button></legend>
+        <input id="history-search" placeholder="Buscar por cliente ou número..." style="padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink); margin-bottom:4px;">
         <div id="history-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
@@ -727,6 +720,14 @@
     var m = String(d.getMonth()+1).padStart(2,"0");
     var day = String(d.getDate()).padStart(2,"0");
     return day+"/"+m+"/"+d.getFullYear();
+  }
+  function isProposalExpired(dr){
+    if(!dr || !dr.date) return false;
+    var d = new Date(dr.date+"T00:00:00");
+    d.setDate(d.getDate() + (Number(dr.validadeDias)||0));
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    return d < today;
   }
 
   function draft(){ return state.drafts[state.mode]; }
@@ -1152,6 +1153,7 @@
             '<div class="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
             '<div class="field"><label>Estoque ('+escapeHtml(c.unit||"un")+')</label><input type="number" step="0.01" data-cfield="stock" data-index="'+i+'" value="'+(c.stock||0)+'" style="'+((Number(c.stock)||0)<=0?'border-color:var(--danger); color:var(--danger);':'')+'"></div>' +
           '</div>' +
+          '<button type="button" class="add-row-btn stock-add" data-index="'+i+'" style="align-self:flex-start;">+ entrada de estoque</button>' +
         '</div>'
       );
     }).join("");
@@ -1226,12 +1228,29 @@
     });
     container.addEventListener("click", function(e){
       var btn = e.target.closest(".remove-catalog");
-      if(!btn) return;
-      var idx = parseInt(btn.getAttribute("data-index"), 10);
-      state.cableCatalog.splice(idx,1);
-      renderCatalogList();
-      renderCatalogPicker();
-      scheduleSave();
+      if(btn){
+        var idx = parseInt(btn.getAttribute("data-index"), 10);
+        state.cableCatalog.splice(idx,1);
+        renderCatalogList();
+        renderCatalogPicker();
+        scheduleSave();
+        return;
+      }
+      var addBtn = e.target.closest(".stock-add");
+      if(addBtn){
+        var i2 = parseInt(addBtn.getAttribute("data-index"), 10);
+        var c2 = state.cableCatalog[i2];
+        if(!c2) return;
+        var val = prompt('Quanto entrou no estoque de "'+(c2.desc||"produto")+(c2.detail?" ("+c2.detail+")":"")+'"? (em '+(c2.unit||"un")+')\n\nEstoque atual: '+fmtNum(c2.stock||0,2));
+        if(val === null) return;
+        var qty = parseFloat(String(val).replace(",","."));
+        if(!qty || qty<=0){ toast("Quantidade inválida — nada foi alterado"); return; }
+        c2.stock = (Number(c2.stock)||0) + qty;
+        renderCatalogList();
+        renderCatalogPicker();
+        scheduleSave();
+        toast("Estoque atualizado: +"+fmtNum(qty,2)+" "+(c2.unit||"un"));
+      }
     });
     document.getElementById("btn-add-catalog").addEventListener("click", function(){
       var entry = { id:genId(), desc:"", detail:"", unit:"m", price:0, stock:0 };
@@ -1470,11 +1489,13 @@
       actions += '<button type="button" class="btn-ghost btn-sm hist-archive" data-hid="'+h.id+'">Arquivar</button>';
     }
     var reasonEntry = !opts.archived ? lastArchiveReason(h) : null;
+    var expiredBadge = (h.status==="emitida" && isProposalExpired(h.draft))
+      ? ' <span style="color:var(--danger); font-weight:700;">· Vencida</span>' : '';
     return (
       '<div class="item-card" data-hid="'+h.id+'">' +
         '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
           '<div style="font-size:12px; color:var(--ink-soft);">'+escapeHtml(h.draft.client.name||"Sem cliente")+'</div>' +
-          '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+(opts.archived?" · "+statusLabel:"")+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+'</div>' +
+          '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+(opts.archived?" · "+statusLabel:"")+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+expiredBadge+'</div>' +
           (reasonEntry ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:4px; font-style:italic;">Desarquivada em '+dateBR(reasonEntry.at)+': "'+escapeHtml(reasonEntry.reason)+'"</div>' : '') +
         '</div>' +
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">'+actions+'</div>' +
@@ -1486,6 +1507,7 @@
   var HISTORY_COLLAPSE_KEY = "prancheta-history-collapsed";
   var historyCollapsed = { emitida:false, vendida:false, cancelada:false, arquivada:true };
   var historyShowCount = { emitida:10, vendida:10, cancelada:10, arquivada:10 };
+  var historySearchQuery = "";
   function loadHistoryCollapseState(){
     try{
       var raw = localStorage.getItem(HISTORY_COLLAPSE_KEY);
@@ -1495,10 +1517,19 @@
   function saveHistoryCollapseState(){
     try{ localStorage.setItem(HISTORY_COLLAPSE_KEY, JSON.stringify(historyCollapsed)); }catch(e){}
   }
+  function matchesHistorySearch(h){
+    if(!historySearchQuery) return true;
+    var q = historySearchQuery;
+    return (h.number||"").toLowerCase().indexOf(q) !== -1 ||
+      (h.draft.client.name||"").toLowerCase().indexOf(q) !== -1;
+  }
 
+  // Enquanto há uma busca ativa, ignora o recolher e o "mostrar mais" — nada que bata com a
+  // busca deve ficar escondido atrás de um clique extra.
   function renderSection(sectionKey, title, filtered, cardOpts, emptyText){
-    var collapsed = !!historyCollapsed[sectionKey];
-    var shown = historyShowCount[sectionKey] || 10;
+    var searching = !!historySearchQuery;
+    var collapsed = searching ? false : !!historyCollapsed[sectionKey];
+    var shown = searching ? filtered.length : (historyShowCount[sectionKey] || 10);
     var visible = filtered.slice(0, shown);
     var remaining = filtered.length - visible.length;
     var body = "";
@@ -1523,13 +1554,13 @@
   }
 
   function historySection(list, statusKey, title, emptyText){
-    var filtered = list.filter(function(h){ return h.status === statusKey && !h.archived; });
-    return renderSection(statusKey, title, filtered, { archived:false }, emptyText);
+    var filtered = list.filter(function(h){ return h.status === statusKey && !h.archived && matchesHistorySearch(h); });
+    return renderSection(statusKey, title, filtered, { archived:false }, historySearchQuery ? "Nenhum resultado para essa busca." : emptyText);
   }
 
   function archivedSection(list){
-    var filtered = list.filter(function(h){ return h.archived; });
-    return renderSection("arquivada", "Arquivadas", filtered, { archived:true }, "Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.");
+    var filtered = list.filter(function(h){ return h.archived && matchesHistorySearch(h); });
+    return renderSection("arquivada", "Arquivadas", filtered, { archived:true }, historySearchQuery ? "Nenhum resultado para essa busca." : "Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.");
   }
 
   function historyStatCard(icon, label, value, sub, colorVar){
@@ -1559,13 +1590,15 @@
       .filter(function(s){ return archByStatus[s] > 0; })
       .map(function(s){ var n=archByStatus[s]; return n+" "+archLabels[s][n>1?1:0]; });
     var arquivadasSub = archParts.length ? archParts.join(" · ") : "fora da lista principal";
+    var emitidasVencidas = emitidas.filter(function(h){ return isProposalExpired(h.draft); }).length;
+    var emitidasSub = emitidasVencidas ? emitidasVencidas+(emitidasVencidas>1?" vencidas":" vencida") : "aguardando";
     var icoFile = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
     var icoCheck = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>';
     var icoX = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9.5 9.5 5 5m0-5-5 5"/></svg>';
     var icoArchive = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>';
     return (
       '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin-bottom:20px;">' +
-        historyStatCard(icoFile, "Emitidas", emitidas.length, "aguardando", "var(--blue)") +
+        historyStatCard(icoFile, "Emitidas", emitidas.length, emitidasSub, emitidasVencidas ? "var(--danger)" : "var(--blue)") +
         historyStatCard(icoCheck, "Vendidas", vendidas.length, vendidas.length ? fmtBRL(vendidoTotal)+" em vendas" : "nenhuma venda ainda", "var(--good)") +
         historyStatCard(icoX, "Canceladas", canceladas.length, "sem efeito no estoque", "var(--danger)") +
         historyStatCard(icoArchive, "Arquivadas", arquivadas.length, arquivadasSub, "var(--ink-faint)") +
@@ -1587,9 +1620,22 @@
       archivedSection(list);
   }
 
+  function draftHasContent(dr){
+    return !!(dr && ((dr.client && dr.client.name && dr.client.name.trim()) || (dr.items && dr.items.length)));
+  }
+  // Abrir uma proposta do histórico substitui o rascunho em andamento daquele modo — sem isso,
+  // clicar em "Abrir" só para conferir algo antigo apagava silenciosamente o que estava sendo
+  // digitado. Só pergunta quando há algo real em risco (não incomoda em rascunho vazio) e não
+  // pergunta se a proposta que já está aberta é a própria que o usuário clicou.
   function openHistoryEntry(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
+    var current = state.drafts[h.mode];
+    var isSameProposal = current && current.number === h.number;
+    if(!isSameProposal && draftHasContent(current)){
+      var label = current.number + (current.client.name ? " — "+current.client.name : "");
+      if(!confirm('Você tem uma proposta em andamento nesse modo ('+label+'). Abrir "'+h.number+'" vai substituir o que está sendo editado agora — não dá para desfazer. Continuar?')) return;
+    }
     state.mode = h.mode;
     state.drafts[h.mode] = JSON.parse(JSON.stringify(h.draft));
     syncFormFromState();
@@ -1693,6 +1739,11 @@
   }
 
   function attachHistoryDelegation(){
+    document.getElementById("history-search").addEventListener("input", function(e){
+      historySearchQuery = e.target.value.trim().toLowerCase();
+      renderHistoryList();
+    });
+    document.getElementById("btn-export-history-csv").addEventListener("click", exportHistoryCsv);
     var container = document.getElementById("history-list");
     container.addEventListener("click", function(e){
       var btn;
@@ -2805,6 +2856,35 @@
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
   }
 
+  function csvCell(v){
+    var s = String(v==null ? "" : v);
+    if(s.indexOf(";")!==-1 || s.indexOf('"')!==-1 || s.indexOf("\n")!==-1) s = '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }
+  function exportHistoryCsv(){
+    if(!state.proposalHistory.length){ toast("Nenhuma proposta no histórico ainda"); return; }
+    var statusLabel = { emitida:"Emitida", vendida:"Vendida", cancelada:"Cancelada" };
+    var rows = [["Número","Cliente","Modo","Status","Vencida","Data","Válida até","Total (R$)","Arquivada"]];
+    state.proposalHistory.forEach(function(h){
+      var totals = calcTotals(h.draft);
+      rows.push([
+        h.number,
+        h.draft.client.name || "",
+        h.mode==="cabos" ? "Cabos" : "Projeto",
+        statusLabel[h.status] || h.status,
+        (h.status==="emitida" && isProposalExpired(h.draft)) ? "Sim" : "Não",
+        dateBR(h.savedAt),
+        addDaysBR(h.draft.date, h.draft.validadeDias),
+        totals.total.toFixed(2).replace(".",","),
+        h.archived ? "Sim" : "Não"
+      ]);
+    });
+    var csv = rows.map(function(r){ return r.map(csvCell).join(";"); }).join("\r\n");
+    var blob = new Blob(["﻿"+csv], { type:"text/csv;charset=utf-8" });
+    downloadBlob(blob, "historico-propostas-"+todayISO()+".csv");
+    toast("Histórico exportado");
+  }
+
   function deliverPdf(pdfBytes, filename){
     var blob = new Blob([pdfBytes], { type:"application/pdf" });
     if(saveFolderHandle){
@@ -2878,6 +2958,13 @@
   }
 
   function exportProposalImage(){
+    var dr = draft();
+    var missing = [];
+    if(!dr.client.name || !dr.client.name.trim()) missing.push("sem o nome do cliente");
+    if(!dr.items.length) missing.push("sem nenhum item adicionado");
+    if(missing.length){
+      if(!confirm("Essa proposta está "+missing.join(" e ")+". Baixar mesmo assim?")) return;
+    }
     ensureFreshNumberIfNeeded();
     saveToHistory();
     scheduleSave();
@@ -3032,7 +3119,6 @@
     document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
     document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
     document.getElementById("btn-new").addEventListener("click", newProposal);
-    document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
     document.getElementById("btn-download").addEventListener("click", exportProposalImage);
 
     syncFormFromState();
