@@ -361,7 +361,7 @@
         <legend>Cliente</legend>
         <div class="field"><label for="f-client-name">Nome / Razão social</label><input id="f-client-name" placeholder="Nome do cliente"></div>
         <div class="field-row">
-          <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc"></div>
+          <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc" placeholder="Digite o CNPJ para buscar os dados" title="Para CNPJ, os dados da empresa são buscados automaticamente ao sair do campo"></div>
           <div class="field"><label for="f-client-phone">Telefone</label><input id="f-client-phone"></div>
         </div>
         <div class="field"><label for="f-client-address">Endereço</label><input id="f-client-address"></div>
@@ -700,6 +700,66 @@
       draft().taxIncluded = e.target.checked;
       scheduleSave();
       renderPreview();
+    });
+  }
+
+  // ---------- busca automática de dados por CNPJ ----------
+  var lastCnpjLookup = "";
+  function formatCnpjPhone(raw){
+    var d = (raw||"").replace(/\D/g,"");
+    if(d.length === 11) return "("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);
+    if(d.length === 10) return "("+d.slice(0,2)+") "+d.slice(2,6)+"-"+d.slice(6);
+    return raw||"";
+  }
+  function formatCnpjAddress(data){
+    var parts = [];
+    var line1 = [data.logradouro, data.numero].filter(Boolean).join(", ");
+    if(data.complemento) line1 += " - "+data.complemento;
+    if(line1) parts.push(line1);
+    if(data.bairro) parts.push(data.bairro);
+    var cityUf = [data.municipio, data.uf].filter(Boolean).join("/");
+    if(cityUf) parts.push(cityUf);
+    if(data.cep) parts.push("CEP "+data.cep);
+    return parts.join(" - ");
+  }
+  function fillClientField(fieldId, setter, value){
+    if(!value) return;
+    var el = document.getElementById(fieldId);
+    if(el) el.value = value;
+    setter(value);
+  }
+  function lookupCnpj(digits){
+    toast("Buscando dados do CNPJ…");
+    fetch("https://brasilapi.com.br/api/cnpj/v1/"+digits)
+      .then(function(res){
+        if(!res.ok){
+          toast(res.status===404 ? "CNPJ não encontrado" : "Não foi possível buscar o CNPJ agora");
+          return null;
+        }
+        return res.json();
+      })
+      .then(function(data){
+        if(!data) return;
+        var cl = draft().client;
+        fillClientField("f-client-name", function(v){ cl.name=v; }, data.razao_social || data.nome_fantasia || "");
+        fillClientField("f-client-address", function(v){ cl.address=v; }, formatCnpjAddress(data));
+        fillClientField("f-client-phone", function(v){ cl.phone=v; }, formatCnpjPhone(data.ddd_telefone_1));
+        fillClientField("f-client-email", function(v){ cl.email=v; }, data.email || "");
+        scheduleSave();
+        renderPreview();
+        var situacao = data.descricao_situacao_cadastral || "";
+        toast(situacao && situacao.toUpperCase()!=="ATIVA" ? "Dados preenchidos — situação cadastral: "+situacao : "Dados do CNPJ preenchidos");
+      })
+      .catch(function(){
+        toast("Não foi possível buscar o CNPJ agora. Preencha manualmente.");
+      });
+  }
+  function attachCnpjLookup(){
+    document.getElementById("f-client-doc").addEventListener("focusout", function(e){
+      var digits = (e.target.value||"").replace(/\D/g,"");
+      if(digits.length !== 14 || digits === lastCnpjLookup) return;
+      lastCnpjLookup = digits;
+      lookupCnpj(digits);
     });
   }
 
@@ -2778,6 +2838,7 @@
     state = load();
     loadHistoryCollapseState();
     attachBindings();
+    attachCnpjLookup();
     attachItemsDelegation();
     attachTaxesDelegation();
     attachLogoHandlers();
