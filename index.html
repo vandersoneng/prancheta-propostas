@@ -94,13 +94,12 @@
   .brand-title{font-size:15.5px; font-weight:700; letter-spacing:-.01em;}
   .brand-sub{font-size:11px; font-weight:600; letter-spacing:.02em; color:var(--ink-faint);}
 
-  .mode-switch{display:flex; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden;}
+  .mode-switch{display:flex; gap:2px; background:var(--paper); border-radius:999px; padding:3px;}
   .mode-btn{
-    padding:8px 14px; border:0; background:var(--paper-raised); color:var(--ink-soft);
-    cursor:pointer; font-size:13px; font-weight:600; letter-spacing:.01em;
-    border-right:1px solid var(--line-strong);
+    padding:8px 14px; border:0; background:transparent; color:var(--ink-soft);
+    cursor:pointer; font-size:12.5px; font-weight:600; letter-spacing:.01em;
+    border-radius:999px; transition:background .15s ease, color .15s ease;
   }
-  .mode-btn:last-child{border-right:0;}
   .mode-btn[aria-pressed="true"].mode-btn--projeto{background:var(--blue); color:#fff;}
   .mode-btn[aria-pressed="true"].mode-btn--cabos{background:var(--copper); color:var(--accent-ink);}
 
@@ -116,6 +115,15 @@
   .btn-ghost{border-color:transparent; background:transparent; color:var(--ink-soft); padding:6px 8px;}
   .btn-ghost:hover{color:var(--danger); border-color:transparent;}
   .btn-sm{padding:5px 9px; font-size:12px;}
+  .btn-pill{border-radius:999px; padding:9px 17px;}
+  .btn-icon{width:15px; height:15px; flex-shrink:0;}
+  .btn-icon-round{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:999px; border:1px solid transparent;
+    background:transparent; color:var(--ink-soft); cursor:pointer; padding:0; flex-shrink:0;
+  }
+  .btn-icon-round:hover{ background:var(--paper); color:var(--ink); }
+  .btn-icon-round .btn-icon{width:18px; height:18px;}
 
   .workspace{display:flex; flex:1; min-height:0; gap:0;}
 
@@ -320,9 +328,9 @@
       <button type="button" class="mode-btn mode-btn--projeto" id="btn-mode-projeto" aria-pressed="true">Projeto &amp; Consultoria</button>
       <button type="button" class="mode-btn mode-btn--cabos" id="btn-mode-cabos" aria-pressed="false">Venda de Cabos</button>
     </div>
-    <button type="button" class="btn" id="btn-new">Nova proposta</button>
-    <button type="button" class="btn-ghost btn-sm" id="btn-print" title="Tenta abrir a caixa de impressão do navegador (nem sempre funciona nesta visualização)">Imprimir</button>
-    <button type="button" class="btn btn-primary" id="btn-download">Baixar proposta</button>
+    <button type="button" class="btn btn-pill" id="btn-new"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova proposta</button>
+    <button type="button" class="btn-icon-round" id="btn-print" title="Tenta abrir a caixa de impressão do navegador (nem sempre funciona nesta visualização)" aria-label="Imprimir"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><path d="M6 18H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/><path d="M6 14h12v7H6z"/></svg></button>
+    <button type="button" class="btn btn-primary btn-pill" id="btn-download"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>Baixar proposta</button>
   </div>
 
   <div class="workspace">
@@ -1225,6 +1233,37 @@
     return renderSection("arquivada", "Arquivadas", filtered, { archived:true }, "Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.");
   }
 
+  function historyStatCard(icon, label, value, sub, colorVar){
+    return (
+      '<div style="border:1px solid var(--line); border-radius:10px; padding:12px;">' +
+        '<div style="display:flex; align-items:center; gap:6px; color:'+colorVar+'; margin-bottom:8px;">' +
+          icon +
+          '<span style="font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.03em;">'+label+'</span>' +
+        '</div>' +
+        '<div style="font-size:21px; font-weight:700; color:var(--ink);">'+value+'</div>' +
+        '<div style="font-size:10.5px; color:var(--ink-faint); margin-top:2px;">'+sub+'</div>' +
+      '</div>'
+    );
+  }
+  function historyStatsRow(list){
+    var emitidas = list.filter(function(h){ return h.status==="emitida" && !h.archived; });
+    var vendidas = list.filter(function(h){ return h.status==="vendida" && !h.archived; });
+    var canceladas = list.filter(function(h){ return h.status==="cancelada" && !h.archived; });
+    var arquivadas = list.filter(function(h){ return h.archived; });
+    var vendidoTotal = vendidas.reduce(function(s,h){ return s + calcTotals(h.draft).total; }, 0);
+    var icoFile = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+    var icoCheck = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>';
+    var icoX = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9.5 9.5 5 5m0-5-5 5"/></svg>';
+    var icoArchive = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>';
+    return (
+      '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin-bottom:20px;">' +
+        historyStatCard(icoFile, "Emitidas", emitidas.length, "aguardando", "var(--blue)") +
+        historyStatCard(icoCheck, "Vendidas", vendidas.length, vendidas.length ? fmtBRL(vendidoTotal)+" em vendas" : "nenhuma venda ainda", "var(--good)") +
+        historyStatCard(icoX, "Canceladas", canceladas.length, "sem efeito no estoque", "var(--danger)") +
+        historyStatCard(icoArchive, "Arquivadas", arquivadas.length, "fora da lista principal", "var(--ink-faint)") +
+      '</div>'
+    );
+  }
   function renderHistoryList(){
     var container = document.getElementById("history-list");
     var list = state.proposalHistory;
@@ -1233,6 +1272,7 @@
       return;
     }
     container.innerHTML =
+      historyStatsRow(list) +
       historySection(list, "emitida", "Emitidas", "Nenhuma proposta emitida pendente.") +
       historySection(list, "vendida", "Vendidas", "Nenhuma venda registrada ainda.") +
       historySection(list, "cancelada", "Canceladas", "Nenhuma proposta cancelada.") +
