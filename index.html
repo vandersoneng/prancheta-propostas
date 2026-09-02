@@ -899,12 +899,20 @@
     var m = /(\d+(?:,\d+)?)\s*mm/i.exec(desc||"");
     return m ? parseFloat(m[1].replace(",",".")) : null;
   }
+  function extractVoltageNumber(desc){
+    var m = /(\d+(?:[.,]\d+)?)\s*kV/i.exec(desc||"");
+    if(m) return parseFloat(m[1].replace(",",".")) * 1000;
+    m = /(\d+(?:[.,]\d+)?)\s*V\b/i.exec(desc||"");
+    return m ? parseFloat(m[1].replace(",",".")) : null;
+  }
   function catalogSortedIndices(){
     return state.cableCatalog
       .map(function(c,i){ return {c:c, i:i}; })
       .sort(function(a,b){
         var ga = extractGaugeNumber(a.c.desc), gb = extractGaugeNumber(b.c.desc);
         if(ga != null && gb != null && ga !== gb) return ga - gb;
+        var va = extractVoltageNumber(a.c.desc), vb = extractVoltageNumber(b.c.desc);
+        if(va != null && vb != null && va !== vb) return va - vb;
         var d = (a.c.desc||"").localeCompare(b.c.desc||"", "pt-BR");
         if(d !== 0) return d;
         return (a.c.detail||"").localeCompare(b.c.detail||"", "pt-BR");
