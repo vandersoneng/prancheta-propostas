@@ -2169,7 +2169,7 @@
     }
     function line(x1,y1,x2,y2,width,color){ ops.push({ page:page, t:"line", x1:x1,y1:y1,x2:x2,y2:y2, width:width||1, color:color||CV_LINE }); }
 
-    var colProd=210, colCor=90, colUnid=45, colEst=80, colPreco=65, colTotal=CW-colProd-colCor-colUnid-colEst-colPreco;
+    var colProd=175, colCor=68, colUnid=35, colEst=75, colPreco=68, colTotal=CW-colProd-colCor-colUnid-colEst-colPreco;
     var xProd=ML, xCor=xProd+colProd, xUnid=xCor+colCor, xEst=xUnid+colUnid, xPreco=xEst+colEst, xTotal=xPreco+colPreco;
 
     function drawTableHeader(){
@@ -2178,7 +2178,7 @@
       text({ x:xUnid+colUnid, y:y+8, text:"UN.", size:9, bold:true, color:CV_FAINT, align:"right" });
       text({ x:xEst+colEst, y:y+8, text:"ESTOQUE", size:9, bold:true, color:CV_FAINT, align:"right" });
       text({ x:xPreco+colPreco, y:y+8, text:"PREÇO", size:9, bold:true, color:CV_FAINT, align:"right" });
-      text({ x:xTotal+colTotal, y:y+8, text:"VALOR TOTAL", size:9, bold:true, color:CV_FAINT, align:"right" });
+      text({ x:xTotal+colTotal, y:y+8, text:"TOTAL", size:9, bold:true, color:CV_FAINT, align:"right" });
       y += 12;
       line(ML,y,LW-MR,y,1,CV_LINE_STRONG);
       y += 12;
@@ -2206,9 +2206,19 @@
 
     drawTableHeader();
 
+    function extractGaugeNumber(desc){
+      var m = /(\d+(?:,\d+)?)\s*mm/i.exec(desc||"");
+      return m ? parseFloat(m[1].replace(",",".")) : null;
+    }
     var sorted = state.cableCatalog.slice()
       .filter(function(c){ return (c.desc||"").trim(); })
-      .sort(function(a,b){ return (a.desc+a.detail).localeCompare(b.desc+b.detail, "pt-BR"); });
+      .sort(function(a,b){
+        var ga = extractGaugeNumber(a.desc), gb = extractGaugeNumber(b.desc);
+        if(ga != null && gb != null && ga !== gb) return ga - gb;
+        var d = (a.desc||"").localeCompare(b.desc||"", "pt-BR");
+        if(d !== 0) return d;
+        return (a.detail||"").localeCompare(b.detail||"", "pt-BR");
+      });
 
     var grandTotal = 0;
     sorted.forEach(function(c){
@@ -2233,9 +2243,9 @@
 
     ensureSpace(34);
     y += 6;
-    line(xPreco-2, y, LW-MR, y, 2, "#2B5876");
+    line(ML, y, LW-MR, y, 2, "#2B5876");
     y += 4;
-    text({ x:xPreco-2, y:y+11, text:"Valor total em estoque", size:12, bold:true, color:CV_INK });
+    text({ x:ML, y:y+11, text:"Valor total em estoque", size:12, bold:true, color:CV_INK });
     text({ x:xTotal+colTotal, y:y+11, text:fmtBRL(grandTotal), size:13, bold:true, mono:true, color:CV_INK, align:"right" });
     y += 26;
 
