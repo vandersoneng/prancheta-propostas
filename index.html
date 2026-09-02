@@ -577,6 +577,7 @@
         d.cableCatalog = parsed.cableCatalog.map(function(c){
           if(!c.id) c.id = genId();
           if(c.stock == null) c.stock = 0;
+          if(c.detail === "Azul") c.detail = "Azul claro"; // lista de cores ampliada, "Azul" virou "Azul claro"
           return c;
         });
       }
@@ -1113,23 +1114,29 @@
       e.preventDefault();
       card.classList.remove("drag-over");
       var targetIdx = parseInt(card.getAttribute("data-index"), 10);
-      var dragged = state.cableCatalog[dragIdx];
-      var target = state.cableCatalog[targetIdx];
+      var sourceIdx = dragIdx;
       dragIdx = null;
-      if(!dragged || !target || dragged===target) return;
       var rect = card.getBoundingClientRect();
       var dropBefore = (e.clientX - rect.left) < rect.width/2;
-      var neighbors = state.cableCatalog.filter(function(c){ return c!==dragged; }).sort(function(a,b){ return (a.pos||0)-(b.pos||0); });
-      var targetPos = neighbors.indexOf(target);
-      var beforePos = dropBefore ? (targetPos>0 ? neighbors[targetPos-1].pos : null) : target.pos;
-      var afterPos = dropBefore ? target.pos : (targetPos<neighbors.length-1 ? neighbors[targetPos+1].pos : null);
-      if(beforePos==null && afterPos==null) dragged.pos = CATALOG_POS_GAP;
-      else if(beforePos==null) dragged.pos = afterPos - CATALOG_POS_GAP;
-      else if(afterPos==null) dragged.pos = beforePos + CATALOG_POS_GAP;
-      else dragged.pos = (beforePos+afterPos)/2;
-      dragged._manualPos = true;
-      renderCatalogList();
-      scheduleSave();
+      // Espera o navegador terminar o "dragend" nativo antes de reconstruir a lista —
+      // trocar o innerHTML durante o drop ainda em andamento deixava um espaço vazio
+      // temporário no lugar do cartão de origem.
+      setTimeout(function(){
+        var dragged = state.cableCatalog[sourceIdx];
+        var target = state.cableCatalog[targetIdx];
+        if(!dragged || !target || dragged===target) return;
+        var neighbors = state.cableCatalog.filter(function(c){ return c!==dragged; }).sort(function(a,b){ return (a.pos||0)-(b.pos||0); });
+        var targetPos = neighbors.indexOf(target);
+        var beforePos = dropBefore ? (targetPos>0 ? neighbors[targetPos-1].pos : null) : target.pos;
+        var afterPos = dropBefore ? target.pos : (targetPos<neighbors.length-1 ? neighbors[targetPos+1].pos : null);
+        if(beforePos==null && afterPos==null) dragged.pos = CATALOG_POS_GAP;
+        else if(beforePos==null) dragged.pos = afterPos - CATALOG_POS_GAP;
+        else if(afterPos==null) dragged.pos = beforePos + CATALOG_POS_GAP;
+        else dragged.pos = (beforePos+afterPos)/2;
+        dragged._manualPos = true;
+        renderCatalogList();
+        scheduleSave();
+      }, 0);
     });
   }
   function renderCatalogPicker(){
