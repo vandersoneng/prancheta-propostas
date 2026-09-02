@@ -1045,6 +1045,10 @@
     if(!dr.number) return;
     var existing = state.proposalHistory.find(function(h){ return h.number === dr.number; });
     if(existing){
+      // Editing a proposal that's already marked "vendida" (via Abrir + Baixar de novo): keep stock
+      // accurate automatically by reversing the old quantities and applying the new ones, instead of
+      // requiring a manual Desfazer venda / Marcar vendida round-trip.
+      if(existing.status === "vendida") reconcileStockForEdit(existing.draft.items, dr.items);
       existing.draft = snapshotDraft(dr);
       existing.mode = state.mode;
       existing.savedAt = todayISO();
@@ -1095,6 +1099,32 @@
     }
     msg += "Ajuste o estoque manualmente para esses itens na aba Catálogo, se necessário.";
     alert(msg);
+  }
+
+  // Called when a proposal already marked "vendida" gets edited and re-downloaded: undoes the
+  // stock effect of the old item list, then applies the new one, so the net change matches exactly
+  // what changed in the proposal (no manual Desfazer venda / Marcar vendida round-trip needed).
+  function reconcileStockForEdit(oldItems, newItems){
+    var unmatched = [], ambiguous = [];
+    function apply(items, sign){
+      items.forEach(function(it){
+        var r = findCatalogEntryForItem(it);
+        if(!r.entry){ (r.reason==="ambiguous" ? ambiguous : unmatched).push(itemLabel(it)); return; }
+        if(sign > 0) it.catalogId = r.entry.id;
+        r.entry.stock = (Number(r.entry.stock)||0) + sign*(Number(it.qty)||0);
+      });
+    }
+    apply(oldItems, +1);
+    apply(newItems, -1);
+    renderCatalogList();
+    renderCatalogPicker();
+    var uniq = function(arr){ return arr.filter(function(v,i){ return arr.indexOf(v)===i; }); };
+    var unmatchedUniq = uniq(unmatched), ambiguousUniq = uniq(ambiguous);
+    if(unmatchedUniq.length || ambiguousUniq.length){
+      warnIfUnresolved(unmatchedUniq, ambiguousUniq);
+    } else {
+      toast("Estoque ajustado automaticamente pela edição");
+    }
   }
 
   function historySection(list, statusKey, title, emptyText){
@@ -1221,10 +1251,26 @@
   function deleteHistoryEntry(hid){
     var idx = state.proposalHistory.findIndex(function(h){ return h.id === hid; });
     if(idx<0) return;
-    if(!confirm("Excluir esta proposta do histórico? Isso não altera o estoque.")) return;
+    var h = state.proposalHistory[idx];
+    var wasSold = h.status === "vendida";
+    var confirmMsg = wasSold
+      ? 'Excluir a proposta '+h.number+'? Como ela está marcada como VENDIDA, a quantidade de cada item volta para o estoque automaticamente.'
+      : "Excluir esta proposta do histórico? Isso não altera o estoque.";
+    if(!confirm(confirmMsg)) return;
+    var unmatched = [], ambiguous = [];
+    if(wasSold){
+      h.draft.items.forEach(function(it){
+        var r = findCatalogEntryForItem(it);
+        if(!r.entry){ (r.reason==="ambiguous" ? ambiguous : unmatched).push(itemLabel(it)); return; }
+        r.entry.stock = (Number(r.entry.stock)||0) + (Number(it.qty)||0);
+      });
+    }
     state.proposalHistory.splice(idx,1);
     renderHistoryList();
+    if(wasSold){ renderCatalogList(); renderCatalogPicker(); }
     scheduleSave();
+    toast(wasSold ? "Proposta excluída — estoque restaurado" : "Proposta excluída do histórico");
+    warnIfUnresolved(unmatched, ambiguous);
   }
 
   function attachHistoryDelegation(){
