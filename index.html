@@ -1068,12 +1068,33 @@
   function findCatalogEntryForItem(it){
     if(it.catalogId){
       var byId = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
-      if(byId) return byId;
+      if(byId) return { entry:byId, reason:null };
     }
     var candidates = state.cableCatalog.filter(function(x){
       return (x.desc||"").trim() === (it.desc||"").trim() && (x.detail||"").trim() === (it.detail||"").trim();
     });
-    return candidates.length === 1 ? candidates[0] : null;
+    if(candidates.length === 1) return { entry:candidates[0], reason:null };
+    if(candidates.length > 1) return { entry:null, reason:"ambiguous" };
+    return { entry:null, reason:"missing" };
+  }
+
+  function itemLabel(it){
+    return (it.desc||"item sem descrição") + (it.detail ? " ("+it.detail+")" : "");
+  }
+
+  // Surfaces stock-matching failures with a blocking alert (not a toast that can be missed) — this
+  // is business-critical data (real inventory), so a silent/easy-to-miss warning isn't good enough.
+  function warnIfUnresolved(unmatched, ambiguous){
+    if(!unmatched.length && !ambiguous.length) return;
+    var msg = "Atenção: o estoque NÃO foi alterado para "+(unmatched.length+ambiguous.length)+" item(ns) desta proposta.\n\n";
+    if(ambiguous.length){
+      msg += "Existe mais de um produto igual (mesmo nome e cor) no catálogo, então não dá pra saber qual usar:\n- "+ambiguous.join("\n- ")+"\n\n";
+    }
+    if(unmatched.length){
+      msg += "Não encontrados no catálogo (produto pode ter sido apagado ou renomeado):\n- "+unmatched.join("\n- ")+"\n\n";
+    }
+    msg += "Ajuste o estoque manualmente para esses itens na aba Catálogo, se necessário.";
+    alert(msg);
   }
 
   function historySection(list, statusKey, title, emptyText){
@@ -1137,13 +1158,13 @@
     var h = findHistoryEntry(hid);
     if(!h) return;
     if(!confirm('Marcar a proposta '+h.number+' como vendida? Isso dá baixa no estoque dos itens que casarem com o catálogo.')) return;
-    var negativeCount = 0, unmatched = [];
+    var negativeCount = 0, unmatched = [], ambiguous = [];
     h.draft.items.forEach(function(it){
-      var c = findCatalogEntryForItem(it);
-      if(!c){ if(it.desc) unmatched.push(it.desc); return; }
-      it.catalogId = c.id;
-      c.stock = (Number(c.stock)||0) - (Number(it.qty)||0);
-      if(c.stock < 0) negativeCount++;
+      var r = findCatalogEntryForItem(it);
+      if(!r.entry){ (r.reason==="ambiguous" ? ambiguous : unmatched).push(itemLabel(it)); return; }
+      it.catalogId = r.entry.id;
+      r.entry.stock = (Number(r.entry.stock)||0) - (Number(it.qty)||0);
+      if(r.entry.stock < 0) negativeCount++;
     });
     h.status = "vendida";
     h.soldAt = todayISO();
@@ -1151,22 +1172,20 @@
     renderCatalogList();
     renderCatalogPicker();
     scheduleSave();
-    var msg = "Marcada como vendida";
-    if(negativeCount) msg += " — atenção: estoque negativo em "+negativeCount+" item(ns)";
-    if(unmatched.length) msg += " — "+unmatched.length+" item(ns) não encontrados no catálogo, estoque não alterado p/ eles";
-    toast(msg);
+    toast(negativeCount ? "Marcada como vendida — atenção: estoque negativo em "+negativeCount+" item(ns)" : "Marcada como vendida — estoque atualizado");
+    warnIfUnresolved(unmatched, ambiguous);
   }
 
   function unmarkSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
     if(!confirm('Desfazer a venda da proposta '+h.number+'? A quantidade volta para o estoque dos itens que casarem com o catálogo.')) return;
-    var unmatched = [];
+    var unmatched = [], ambiguous = [];
     h.draft.items.forEach(function(it){
-      var c = findCatalogEntryForItem(it);
-      if(!c){ if(it.desc) unmatched.push(it.desc); return; }
-      it.catalogId = c.id;
-      c.stock = (Number(c.stock)||0) + (Number(it.qty)||0);
+      var r = findCatalogEntryForItem(it);
+      if(!r.entry){ (r.reason==="ambiguous" ? ambiguous : unmatched).push(itemLabel(it)); return; }
+      it.catalogId = r.entry.id;
+      r.entry.stock = (Number(r.entry.stock)||0) + (Number(it.qty)||0);
     });
     h.status = "emitida";
     delete h.soldAt;
@@ -1174,7 +1193,8 @@
     renderCatalogList();
     renderCatalogPicker();
     scheduleSave();
-    toast(unmatched.length ? "Venda desfeita — "+unmatched.length+" item(ns) não encontrados no catálogo" : "Venda desfeita — estoque restaurado");
+    toast("Venda desfeita");
+    warnIfUnresolved(unmatched, ambiguous);
   }
 
   function cancelProposal(hid){
