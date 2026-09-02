@@ -212,6 +212,10 @@
   .item-grid{display:grid; grid-template-columns:1fr 1fr 1.2fr 1.2fr; gap:8px;}
   .item-grid .field label{font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .catalog-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px;}
+  .catalog-card{cursor:grab;}
+  .catalog-card.dragging{opacity:.4;}
+  .catalog-card.drag-over{outline:2px dashed var(--accent); outline-offset:2px;}
+  .drag-handle{color:var(--ink-faint); font-size:14px; line-height:1; padding:2px; user-select:none;}
 
   .tax-row{display:flex; gap:8px; align-items:flex-end;}
   .tax-row .field{flex:1;}
@@ -530,16 +534,19 @@
 
   function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 
-  var CABLE_COLORS = ["Preto","Azul","Verde","Vermelho","Branco"];
+  // Ordem também usada como prioridade de ordenação do catálogo (menor índice = aparece primeiro).
+  var CABLE_COLORS = ["Preto","Vermelho","Marrom","Azul claro","Verde","Verde/Amarelo","Amarelo","Branco"];
   var CABLE_GAUGES = ["1,5","2,5","4","6","10"];
   function defaultProductTemplates(){
     return CABLE_GAUGES.map(function(g){ return "Cabo de cobre flexível 750V 1x"+g+"mm²"; });
   }
   function defaultCableCatalog(){
     var list = [];
+    var pos = 0;
     CABLE_GAUGES.forEach(function(g){
       CABLE_COLORS.forEach(function(c){
-        list.push({ id:genId(), desc:"Cabo de cobre flexível 750V 1x"+g+"mm²", detail:c, unit:"m", price:0, stock:0 });
+        pos += 1000;
+        list.push({ id:genId(), desc:"Cabo de cobre flexível 750V 1x"+g+"mm²", detail:c, unit:"m", price:0, stock:0, pos:pos });
       });
     });
     return list;
@@ -573,6 +580,7 @@
           return c;
         });
       }
+      ensureCatalogPos(d.cableCatalog);
       if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
       if(Array.isArray(parsed.proposalHistory)){
         d.proposalHistory = parsed.proposalHistory.map(function(h){
@@ -895,6 +903,7 @@
   }
 
   // ---------- cable catalog ----------
+  var CATALOG_POS_GAP = 1000;
   function extractGaugeNumber(desc){
     var m = /(\d+(?:,\d+)?)\s*mm/i.exec(desc||"");
     return m ? parseFloat(m[1].replace(",",".")) : null;
@@ -905,18 +914,50 @@
     m = /(\d+(?:[.,]\d+)?)\s*V\b/i.exec(desc||"");
     return m ? parseFloat(m[1].replace(",",".")) : null;
   }
+  function colorPriority(color){
+    var idx = CABLE_COLORS.indexOf(color||"");
+    return idx === -1 ? 999 : idx;
+  }
+  // Comparador "de referência" (bitola > tensão > cor > texto) usado só para posicionar
+  // um item automaticamente — a ordem exibida de fato é sempre a de c.pos (ver abaixo),
+  // que o usuário pode alterar arrastando sem afetar os demais itens.
+  function catalogCompareAuto(a, b){
+    var ga = extractGaugeNumber(a.desc), gb = extractGaugeNumber(b.desc);
+    if(ga == null && gb != null) return 1;
+    if(ga != null && gb == null) return -1;
+    if(ga != null && gb != null && ga !== gb) return ga - gb;
+    var va = extractVoltageNumber(a.desc), vb = extractVoltageNumber(b.desc);
+    if(va != null && vb != null && va !== vb) return va - vb;
+    var pa = colorPriority(a.detail), pb = colorPriority(b.detail);
+    if(pa !== pb) return pa - pb;
+    var d = (a.desc||"").localeCompare(b.desc||"", "pt-BR");
+    if(d !== 0) return d;
+    return (a.detail||"").localeCompare(b.detail||"", "pt-BR");
+  }
+  function ensureCatalogPos(catalog){
+    var needsInit = catalog.some(function(c){ return c.pos == null; });
+    if(!needsInit) return;
+    catalog.slice().sort(catalogCompareAuto).forEach(function(c, i){
+      if(c.pos == null) c.pos = (i+1) * CATALOG_POS_GAP;
+    });
+  }
+  function assignCatalogAutoPos(entry){
+    var others = state.cableCatalog.filter(function(c){ return c !== entry; }).sort(function(a,b){ return (a.pos||0)-(b.pos||0); });
+    var insertAt = others.length;
+    for(var i=0;i<others.length;i++){
+      if(catalogCompareAuto(entry, others[i]) < 0){ insertAt = i; break; }
+    }
+    var before = insertAt>0 ? others[insertAt-1].pos : null;
+    var after = insertAt<others.length ? others[insertAt].pos : null;
+    if(before==null && after==null) entry.pos = CATALOG_POS_GAP;
+    else if(before==null) entry.pos = after - CATALOG_POS_GAP;
+    else if(after==null) entry.pos = before + CATALOG_POS_GAP;
+    else entry.pos = (before+after)/2;
+  }
   function catalogSortedIndices(){
     return state.cableCatalog
       .map(function(c,i){ return {c:c, i:i}; })
-      .sort(function(a,b){
-        var ga = extractGaugeNumber(a.c.desc), gb = extractGaugeNumber(b.c.desc);
-        if(ga != null && gb != null && ga !== gb) return ga - gb;
-        var va = extractVoltageNumber(a.c.desc), vb = extractVoltageNumber(b.c.desc);
-        if(va != null && vb != null && va !== vb) return va - vb;
-        var d = (a.c.desc||"").localeCompare(b.c.desc||"", "pt-BR");
-        if(d !== 0) return d;
-        return (a.c.detail||"").localeCompare(b.c.detail||"", "pt-BR");
-      });
+      .sort(function(a,b){ return (a.c.pos||0) - (b.c.pos||0); });
   }
   function renderCatalogList(){
     var container = document.getElementById("catalog-list");
@@ -932,8 +973,9 @@
         CABLE_COLORS.map(function(col){ return '<option value="'+col+'"'+(c.detail===col?' selected':'')+'>'+col+'</option>'; }).join("") +
         '<option value="Outra"'+(isCustomColor?' selected':'')+'>Outra…</option>';
       return (
-        '<div class="item-card" data-index="'+i+'">' +
+        '<div class="item-card catalog-card" draggable="true" data-index="'+i+'">' +
           '<div class="item-card-top">' +
+            '<span class="drag-handle" title="Arraste para reordenar" aria-hidden="true">⠿</span>' +
             '<div class="field"><label>Produto</label>' +
               '<select data-cfield="desc-select" data-index="'+i+'">'+descOpts+'</select></div>' +
             '<button type="button" class="btn-ghost btn-sm remove-catalog" data-index="'+i+'" title="Remover do catálogo">✕</button>' +
@@ -969,13 +1011,21 @@
       scheduleSave();
     });
     container.addEventListener("focusout", function(e){
-      if(e.target.getAttribute("data-cfield") !== "desc") return;
-      var val = (e.target.value||"").trim();
-      if(val && state.productTemplates.indexOf(val) === -1){
-        state.productTemplates.push(val);
+      var field = e.target.getAttribute("data-cfield");
+      if(field !== "desc" && field !== "detail") return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var c = state.cableCatalog[idx];
+      if(field === "desc"){
+        var val = (e.target.value||"").trim();
+        if(val && state.productTemplates.indexOf(val) === -1){
+          state.productTemplates.push(val);
+          toast('Produto "'+val+'" cadastrado na lista');
+        }
+      }
+      if(c && !c._manualPos){
+        assignCatalogAutoPos(c);
         renderCatalogList();
         scheduleSave();
-        toast('Produto "'+val+'" cadastrado na lista');
       }
     });
     container.addEventListener("change", function(e){
@@ -991,6 +1041,8 @@
         } else {
           c._customColor = false;
           c.detail = e.target.value;
+          if(!c._manualPos) assignCatalogAutoPos(c);
+          renderCatalogList();
           renderCatalogPicker();
         }
         scheduleSave();
@@ -1002,6 +1054,8 @@
         } else {
           c._customDesc = false;
           c.desc = e.target.value;
+          if(!c._manualPos) assignCatalogAutoPos(c);
+          renderCatalogList();
           renderCatalogPicker();
         }
         scheduleSave();
@@ -1017,9 +1071,64 @@
       scheduleSave();
     });
     document.getElementById("btn-add-catalog").addEventListener("click", function(){
-      state.cableCatalog.push({ id:genId(), desc:"", detail:"", unit:"m", price:0, stock:0 });
+      var entry = { id:genId(), desc:"", detail:"", unit:"m", price:0, stock:0 };
+      state.cableCatalog.push(entry);
+      assignCatalogAutoPos(entry);
       renderCatalogList();
       renderCatalogPicker();
+      scheduleSave();
+    });
+
+    // ---- arrastar para reordenar manualmente (não mexe na posição dos demais cartões) ----
+    var dragIdx = null;
+    container.addEventListener("dragstart", function(e){
+      var card = e.target.closest(".catalog-card");
+      if(!card) return;
+      dragIdx = parseInt(card.getAttribute("data-index"), 10);
+      card.classList.add("dragging");
+      if(e.dataTransfer){
+        e.dataTransfer.effectAllowed = "move";
+        try{ e.dataTransfer.setData("text/plain", String(dragIdx)); }catch(err){}
+      }
+    });
+    container.addEventListener("dragend", function(e){
+      var card = e.target.closest(".catalog-card");
+      if(card) card.classList.remove("dragging");
+      container.querySelectorAll(".catalog-card.drag-over").forEach(function(el){ el.classList.remove("drag-over"); });
+      dragIdx = null;
+    });
+    container.addEventListener("dragover", function(e){
+      if(dragIdx == null) return;
+      var card = e.target.closest(".catalog-card");
+      if(!card) return;
+      e.preventDefault();
+      if(e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      container.querySelectorAll(".catalog-card.drag-over").forEach(function(el){ if(el!==card) el.classList.remove("drag-over"); });
+      card.classList.add("drag-over");
+    });
+    container.addEventListener("drop", function(e){
+      if(dragIdx == null) return;
+      var card = e.target.closest(".catalog-card");
+      if(!card) return;
+      e.preventDefault();
+      card.classList.remove("drag-over");
+      var targetIdx = parseInt(card.getAttribute("data-index"), 10);
+      var dragged = state.cableCatalog[dragIdx];
+      var target = state.cableCatalog[targetIdx];
+      dragIdx = null;
+      if(!dragged || !target || dragged===target) return;
+      var rect = card.getBoundingClientRect();
+      var dropBefore = (e.clientX - rect.left) < rect.width/2;
+      var neighbors = state.cableCatalog.filter(function(c){ return c!==dragged; }).sort(function(a,b){ return (a.pos||0)-(b.pos||0); });
+      var targetPos = neighbors.indexOf(target);
+      var beforePos = dropBefore ? (targetPos>0 ? neighbors[targetPos-1].pos : null) : target.pos;
+      var afterPos = dropBefore ? target.pos : (targetPos<neighbors.length-1 ? neighbors[targetPos+1].pos : null);
+      if(beforePos==null && afterPos==null) dragged.pos = CATALOG_POS_GAP;
+      else if(beforePos==null) dragged.pos = afterPos - CATALOG_POS_GAP;
+      else if(afterPos==null) dragged.pos = beforePos + CATALOG_POS_GAP;
+      else dragged.pos = (beforePos+afterPos)/2;
+      dragged._manualPos = true;
+      renderCatalogList();
       scheduleSave();
     });
   }
