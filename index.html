@@ -1,4 +1,4 @@
-<title>Prancheta de Propostas</title>
+<title>OrçaVolt</title>
 <style>
   :root{
     --paper:#F3F5F4;
@@ -131,6 +131,9 @@
   .form-panel.collapsed{
     width:0; min-width:0; padding-left:0; padding-right:0; border-right:0; overflow:hidden;
   }
+  @media (min-width:901px){
+    .form-panel.wide{ width:760px; max-width:calc(100vw - 260px); }
+  }
 
   .panel-toggle-col{ position:relative; width:0; flex-shrink:0; overflow:visible; z-index:6; }
   .panel-toggle{
@@ -150,11 +153,12 @@
     overflow-y:auto;
   }
   .side-tab{
-    display:block; width:100%; text-align:left; background:transparent;
+    display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:transparent;
     border:none; border-left:3px solid transparent; border-radius:0 7px 7px 0;
     padding:11px 13px; font-size:13.5px; font-weight:600;
     color:var(--ink-soft); cursor:pointer;
   }
+  .side-tab-icon{width:17px; height:17px; flex-shrink:0;}
   .side-tab:hover{ background:var(--paper-raised); color:var(--ink); }
   .side-tab[aria-selected="true"]{
     background:var(--paper-raised); border-left-color:var(--accent);
@@ -196,6 +200,7 @@
   .item-card-top .field{flex:1;}
   .item-grid{display:grid; grid-template-columns:1fr 1fr 1.2fr 1.2fr; gap:8px;}
   .item-grid .field label{font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .catalog-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px;}
 
   .tax-row{display:flex; gap:8px; align-items:flex-end;}
   .tax-row .field{flex:1;}
@@ -304,7 +309,7 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">⚡</span>
       <div class="brand-text">
-        <span class="brand-title">Prancheta de Propostas</span>
+        <span class="brand-title">OrçaVolt</span>
         <span class="brand-sub">Propostas &amp; catálogo de cabos</span>
       </div>
     </div>
@@ -319,12 +324,12 @@
 
   <div class="workspace">
     <nav class="side-tabs" role="tablist" aria-label="Seções do formulário">
-      <button type="button" class="side-tab" id="tab-btn-proposta" data-tab="proposta" role="tab" aria-selected="true">Proposta</button>
-      <button type="button" class="side-tab" id="tab-btn-itens" data-tab="itens" role="tab" aria-selected="false">Itens</button>
-      <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false">Condições</button>
-      <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false">Catálogo</button>
-      <button type="button" class="side-tab" id="tab-btn-historico" data-tab="historico" role="tab" aria-selected="false">Histórico</button>
-      <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false">Empresa</button>
+      <button type="button" class="side-tab" id="tab-btn-proposta" data-tab="proposta" role="tab" aria-selected="true"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>Proposta</button>
+      <button type="button" class="side-tab" id="tab-btn-itens" data-tab="itens" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>Itens</button>
+      <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1V5a1 1 0 0 1 1-1z"/><path d="m9 13 2 2 4-4"/></svg>Condições</button>
+      <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>Catálogo</button>
+      <button type="button" class="side-tab" id="tab-btn-historico" data-tab="historico" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Histórico</button>
+      <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v18"/><path d="M14 9h5a1 1 0 0 1 1 1v12"/><path d="M8 6h.01M8 10h.01M8 14h.01M8 18h.01"/></svg>Empresa</button>
     </nav>
     <aside class="form-panel">
 
@@ -391,7 +396,7 @@
 
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
         <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
-        <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div id="catalog-list" class="catalog-grid"></div>
         <button type="button" class="btn btn-sm" id="btn-stock-report" style="align-self:flex-start;">Baixar relatório de estoque (PDF)</button>
       </div>
 
@@ -693,7 +698,10 @@
     });
     applyTabVisibility();
     var panel = document.querySelector(".form-panel");
-    if(panel) panel.scrollTop = 0;
+    if(panel){
+      panel.scrollTop = 0;
+      panel.classList.toggle("wide", tab==="catalogo" || tab==="historico");
+    }
   }
   function attachTabHandlers(){
     document.querySelectorAll(".side-tab").forEach(function(btn){
