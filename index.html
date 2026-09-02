@@ -134,6 +134,9 @@
   @media (min-width:901px){
     .form-panel.wide{ width:760px; max-width:calc(100vw - 260px); }
   }
+  .workspace.hide-preview .sheet-wrap,
+  .workspace.hide-preview .panel-toggle-col{ display:none; }
+  .workspace.hide-preview .form-panel.wide{ width:auto; max-width:none; flex:1; }
 
   .panel-toggle-col{ position:relative; width:0; flex-shrink:0; overflow:visible; z-index:6; }
   .panel-toggle{
@@ -697,11 +700,14 @@
       btn.setAttribute("aria-selected", btn.getAttribute("data-tab")===tab ? "true":"false");
     });
     applyTabVisibility();
+    var isManageTab = tab==="catalogo" || tab==="historico";
     var panel = document.querySelector(".form-panel");
     if(panel){
       panel.scrollTop = 0;
-      panel.classList.toggle("wide", tab==="catalogo" || tab==="historico");
+      panel.classList.toggle("wide", isManageTab);
     }
+    var workspace = document.querySelector(".workspace");
+    if(workspace) workspace.classList.toggle("hide-preview", isManageTab);
   }
   function attachTabHandlers(){
     document.querySelectorAll(".side-tab").forEach(function(btn){
