@@ -535,7 +535,7 @@
   function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 
   // Ordem também usada como prioridade de ordenação do catálogo (menor índice = aparece primeiro).
-  var CABLE_COLORS = ["Preto","Vermelho","Marrom","Azul claro","Verde","Verde/Amarelo","Amarelo","Branco"];
+  var CABLE_COLORS = ["Preto","Vermelho","Marrom","Azul","Verde","Verde/Amarelo","Amarelo","Branco"];
   var CABLE_GAUGES = ["1,5","2,5","4","6","10"];
   function defaultProductTemplates(){
     return CABLE_GAUGES.map(function(g){ return "Cabo de cobre flexível 750V 1x"+g+"mm²"; });
@@ -577,7 +577,7 @@
         d.cableCatalog = parsed.cableCatalog.map(function(c){
           if(!c.id) c.id = genId();
           if(c.stock == null) c.stock = 0;
-          if(c.detail === "Azul") c.detail = "Azul claro"; // lista de cores ampliada, "Azul" virou "Azul claro"
+          if(c.detail === "Azul claro") c.detail = "Azul"; // correção: não existe "azul claro", só "azul"
           return c;
         });
       }
