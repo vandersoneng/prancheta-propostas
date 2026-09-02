@@ -83,13 +83,16 @@
     background:var(--paper-raised);
     position:sticky; top:0; z-index:20;
   }
-  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto;}
+  .brand{display:flex; align-items:center; gap:12px; margin-right:auto;}
   .brand-mark{
-    font-family:var(--font-mono); font-size:12px; letter-spacing:.08em;
-    color:var(--accent); border:1px solid var(--line-strong); border-radius:4px;
-    padding:2px 6px;
+    width:34px; height:34px; border-radius:9px; flex-shrink:0;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px; box-shadow:var(--shadow);
   }
-  .brand-title{font-size:16px; font-weight:600; letter-spacing:.01em;}
+  .brand-text{display:flex; flex-direction:column; line-height:1.2;}
+  .brand-title{font-size:15.5px; font-weight:700; letter-spacing:-.01em;}
+  .brand-sub{font-size:11px; font-weight:600; letter-spacing:.02em; color:var(--ink-faint);}
 
   .mode-switch{display:flex; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden;}
   .mode-btn{
@@ -299,8 +302,11 @@
 <div class="app">
   <div class="topbar">
     <div class="brand">
-      <span class="brand-mark">⚡ ELÉTRICA</span>
-      <span class="brand-title">Prancheta de Propostas</span>
+      <span class="brand-mark" aria-hidden="true">⚡</span>
+      <div class="brand-text">
+        <span class="brand-title">Prancheta de Propostas</span>
+        <span class="brand-sub">Propostas &amp; catálogo de cabos</span>
+      </div>
     </div>
     <div class="mode-switch" role="group" aria-label="Tipo de proposta">
       <button type="button" class="mode-btn mode-btn--projeto" id="btn-mode-projeto" aria-pressed="true">Projeto &amp; Consultoria</button>
@@ -384,7 +390,7 @@
       </div>
 
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
-        <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="btn-ghost btn-sm" id="btn-reset-catalog" style="padding:0;" title="Adiciona os cabos padrão que ainda não estão no catálogo, sem apagar o que você já cadastrou">completar com padrão</button><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
+        <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
         <div id="catalog-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         <button type="button" class="btn btn-sm" id="btn-stock-report" style="align-self:flex-start;">Baixar relatório de estoque (PDF)</button>
       </div>
@@ -968,21 +974,6 @@
       renderCatalogList();
       renderCatalogPicker();
       scheduleSave();
-    });
-    document.getElementById("btn-reset-catalog").addEventListener("click", function(){
-      var defaults = defaultCableCatalog();
-      var existingKeys = state.cableCatalog.map(function(c){ return (c.desc||"")+"|"+(c.detail||""); });
-      var added = 0;
-      defaults.forEach(function(d){
-        if(existingKeys.indexOf(d.desc+"|"+d.detail) === -1){
-          state.cableCatalog.push(d);
-          added++;
-        }
-      });
-      renderCatalogList();
-      renderCatalogPicker();
-      scheduleSave();
-      toast(added ? added+" produto(s) padrão adicionado(s)" : "Todos os produtos padrão já estão no catálogo");
     });
   }
   function renderCatalogPicker(){
