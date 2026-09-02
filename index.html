@@ -508,7 +508,17 @@
   "use strict";
   var SUPABASE_URL = "https://cfnbmqtvuwxgjunprngh.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_B3mwMwP5pm7N8KNaU6_FbA__pl-EJia";
-  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var sb = null;
+  try{
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }catch(e){
+    // O script do Supabase (CDN externo) não carregou — sem ele não dá para logar nem
+    // sincronizar nada. Mostra um aviso direto no DOM em vez de travar a tela em branco.
+    document.addEventListener("DOMContentLoaded", function(){
+      var el = document.getElementById("auth-status");
+      if(el) el.textContent = "Não foi possível carregar o sistema de login (falha ao baixar um recurso externo). Verifique sua conexão e recarregue a página.";
+    });
+  }
   var LS_KEY = "prancheta-propostas-v1";
   var state = null;
   var saveTimer = null;
@@ -3029,6 +3039,10 @@
   }
 
   function boot(){
+    if(!sb){
+      setAuthStatus("Não foi possível carregar o sistema de login (falha ao baixar um recurso externo). Verifique sua conexão e recarregue a página.");
+      return;
+    }
     attachAuthForm();
     setAuthStatus("Verificando sessão…");
     sb.auth.getSession().then(function(res){
