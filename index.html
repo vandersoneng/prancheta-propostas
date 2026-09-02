@@ -555,6 +555,8 @@
       if(Array.isArray(parsed.proposalHistory)){
         d.proposalHistory = parsed.proposalHistory.map(function(h){
           if(h.status === "pendente") h.status = "emitida"; // rotulo antigo, mesmo significado
+          if(h.archived == null) h.archived = false;
+          if(!Array.isArray(h.archiveLog)) h.archiveLog = [];
           return h;
         });
       }
@@ -1055,7 +1057,8 @@
     } else {
       state.proposalHistory.unshift({
         id: genId(), number: dr.number, mode: state.mode, status: "emitida",
-        savedAt: todayISO(), draft: snapshotDraft(dr)
+        savedAt: todayISO(), draft: snapshotDraft(dr),
+        archived: false, archiveLog: []
       });
     }
     renderHistoryList();
@@ -1127,35 +1130,62 @@
     }
   }
 
-  function historySection(list, statusKey, title, emptyText){
-    var filtered = list.filter(function(h){ return h.status === statusKey; });
-    var rows = filtered.map(function(h){
-      var totals = calcTotals(h.draft);
-      var modeLabel = h.mode === "cabos" ? "Cabos" : "Projeto";
-      var actions = '<button type="button" class="btn btn-sm hist-open" data-hid="'+h.id+'">Abrir</button>';
-      if(statusKey === "emitida"){
+  function lastArchiveReason(h){
+    if(!h.archiveLog || !h.archiveLog.length) return null;
+    var last = h.archiveLog[h.archiveLog.length-1];
+    return last.action === "unarchived" ? last : null;
+  }
+
+  function historyCard(h, opts){
+    opts = opts || {};
+    var totals = calcTotals(h.draft);
+    var modeLabel = h.mode === "cabos" ? "Cabos" : "Projeto";
+    var statusLabel = { emitida:"Emitida", vendida:"Vendida", cancelada:"Cancelada" }[h.status] || h.status;
+    var actions = '<button type="button" class="btn btn-sm hist-open" data-hid="'+h.id+'">Abrir</button>';
+    if(opts.archived){
+      actions += '<button type="button" class="btn-ghost btn-sm hist-unarchive" data-hid="'+h.id+'">Desarquivar</button>';
+    } else {
+      if(h.status === "emitida"){
         actions += '<button type="button" class="btn btn-sm hist-sell" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Marcar vendida</button>';
         actions += '<button type="button" class="btn-ghost btn-sm hist-cancel" data-hid="'+h.id+'">Cancelar</button>';
-      } else if(statusKey === "vendida"){
+      } else if(h.status === "vendida"){
         actions += '<button type="button" class="btn-ghost btn-sm hist-unsell" data-hid="'+h.id+'">Desfazer venda</button>';
-      } else if(statusKey === "cancelada"){
+      } else if(h.status === "cancelada"){
         actions += '<button type="button" class="btn-ghost btn-sm hist-reopen" data-hid="'+h.id+'">Reabrir</button>';
       }
-      actions += '<button type="button" class="btn-ghost btn-sm hist-delete" data-hid="'+h.id+'">Excluir</button>';
-      return (
-        '<div class="item-card" data-hid="'+h.id+'">' +
-          '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
-            '<div style="font-size:12px; color:var(--ink-soft);">'+escapeHtml(h.draft.client.name||"Sem cliente")+'</div>' +
-            '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+'</div>' +
-          '</div>' +
-          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">'+actions+'</div>' +
-        '</div>'
-      );
-    }).join("");
+      actions += '<button type="button" class="btn-ghost btn-sm hist-archive" data-hid="'+h.id+'">Arquivar</button>';
+    }
+    var reasonEntry = !opts.archived ? lastArchiveReason(h) : null;
+    return (
+      '<div class="item-card" data-hid="'+h.id+'">' +
+        '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
+          '<div style="font-size:12px; color:var(--ink-soft);">'+escapeHtml(h.draft.client.name||"Sem cliente")+'</div>' +
+          '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+(opts.archived?" · "+statusLabel:"")+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+'</div>' +
+          (reasonEntry ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:4px; font-style:italic;">Desarquivada em '+dateBR(reasonEntry.at)+': "'+escapeHtml(reasonEntry.reason)+'"</div>' : '') +
+        '</div>' +
+        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">'+actions+'</div>' +
+      '</div>'
+    );
+  }
+
+  function historySection(list, statusKey, title, emptyText){
+    var filtered = list.filter(function(h){ return h.status === statusKey && !h.archived; });
+    var rows = filtered.map(function(h){ return historyCard(h, { archived:false }); }).join("");
     return (
       '<div>' +
         '<div class="sheet-label" style="margin:0 0 8px; color:var(--ink-faint);">'+title+' ('+filtered.length+')</div>' +
         (filtered.length ? '<div style="display:flex; flex-direction:column; gap:8px;">'+rows+'</div>' : '<div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">'+emptyText+'</div>') +
+      '</div>'
+    );
+  }
+
+  function archivedSection(list){
+    var filtered = list.filter(function(h){ return h.archived; });
+    var rows = filtered.map(function(h){ return historyCard(h, { archived:true }); }).join("");
+    return (
+      '<div>' +
+        '<div class="sheet-label" style="margin:0 0 8px; color:var(--ink-faint);">Arquivadas ('+filtered.length+')</div>' +
+        (filtered.length ? '<div style="display:flex; flex-direction:column; gap:8px;">'+rows+'</div>' : '<div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.</div>') +
       '</div>'
     );
   }
@@ -1170,7 +1200,8 @@
     container.innerHTML =
       historySection(list, "emitida", "Emitidas", "Nenhuma proposta emitida pendente.") +
       historySection(list, "vendida", "Vendidas", "Nenhuma venda registrada ainda.") +
-      historySection(list, "cancelada", "Canceladas", "Nenhuma proposta cancelada.");
+      historySection(list, "cancelada", "Canceladas", "Nenhuma proposta cancelada.") +
+      archivedSection(list);
   }
 
   function openHistoryEntry(hid){
@@ -1248,29 +1279,34 @@
     toast("Proposta reaberta como emitida");
   }
 
-  function deleteHistoryEntry(hid){
-    var idx = state.proposalHistory.findIndex(function(h){ return h.id === hid; });
-    if(idx<0) return;
-    var h = state.proposalHistory[idx];
-    var wasSold = h.status === "vendida";
-    var confirmMsg = wasSold
-      ? 'Excluir a proposta '+h.number+'? Como ela está marcada como VENDIDA, a quantidade de cada item volta para o estoque automaticamente.'
-      : "Excluir esta proposta do histórico? Isso não altera o estoque.";
-    if(!confirm(confirmMsg)) return;
-    var unmatched = [], ambiguous = [];
-    if(wasSold){
-      h.draft.items.forEach(function(it){
-        var r = findCatalogEntryForItem(it);
-        if(!r.entry){ (r.reason==="ambiguous" ? ambiguous : unmatched).push(itemLabel(it)); return; }
-        r.entry.stock = (Number(r.entry.stock)||0) + (Number(it.qty)||0);
-      });
-    }
-    state.proposalHistory.splice(idx,1);
+  // Archiving only ever hides a proposal from the main lists — it never touches stock (the
+  // underlying status like "vendida" stays exactly as it was) and it is never deletable.
+  // Bringing something back requires a written reason, kept forever in the record's archiveLog.
+  function archiveProposal(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    if(!confirm('Arquivar a proposta '+h.number+'? Ela sai da lista principal, mas o registro nunca é excluído — pode desarquivar quando quiser.')) return;
+    h.archived = true;
+    if(!h.archiveLog) h.archiveLog = [];
+    h.archiveLog.push({ action:"archived", at: todayISO(), reason:"" });
     renderHistoryList();
-    if(wasSold){ renderCatalogList(); renderCatalogPicker(); }
     scheduleSave();
-    toast(wasSold ? "Proposta excluída — estoque restaurado" : "Proposta excluída do histórico");
-    warnIfUnresolved(unmatched, ambiguous);
+    toast("Proposta arquivada");
+  }
+
+  function unarchiveProposal(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    var reason = prompt('Por que você está desarquivando a proposta '+h.number+'? (fica registrado junto com a proposta)');
+    if(reason === null) return; // cancelled
+    reason = reason.trim();
+    if(!reason){ toast("Desarquivamento cancelado — é preciso informar o motivo"); return; }
+    h.archived = false;
+    if(!h.archiveLog) h.archiveLog = [];
+    h.archiveLog.push({ action:"unarchived", at: todayISO(), reason: reason });
+    renderHistoryList();
+    scheduleSave();
+    toast("Proposta desarquivada");
   }
 
   function attachHistoryDelegation(){
@@ -1282,7 +1318,8 @@
       if((btn = e.target.closest(".hist-unsell"))) return unmarkSold(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-cancel"))) return cancelProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-reopen"))) return reopenProposal(btn.getAttribute("data-hid"));
-      if((btn = e.target.closest(".hist-delete"))) return deleteHistoryEntry(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-archive"))) return archiveProposal(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-unarchive"))) return unarchiveProposal(btn.getAttribute("data-hid"));
     });
   }
 
