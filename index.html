@@ -1168,26 +1168,54 @@
     );
   }
 
-  function historySection(list, statusKey, title, emptyText){
-    var filtered = list.filter(function(h){ return h.status === statusKey && !h.archived; });
-    var rows = filtered.map(function(h){ return historyCard(h, { archived:false }); }).join("");
+  // ---------- history section collapse + "show more" (pure UI state, not business data) ----------
+  var HISTORY_COLLAPSE_KEY = "prancheta-history-collapsed";
+  var historyCollapsed = { emitida:false, vendida:false, cancelada:false, arquivada:true };
+  var historyShowCount = { emitida:10, vendida:10, cancelada:10, arquivada:10 };
+  function loadHistoryCollapseState(){
+    try{
+      var raw = localStorage.getItem(HISTORY_COLLAPSE_KEY);
+      if(raw) Object.assign(historyCollapsed, JSON.parse(raw));
+    }catch(e){}
+  }
+  function saveHistoryCollapseState(){
+    try{ localStorage.setItem(HISTORY_COLLAPSE_KEY, JSON.stringify(historyCollapsed)); }catch(e){}
+  }
+
+  function renderSection(sectionKey, title, filtered, cardOpts, emptyText){
+    var collapsed = !!historyCollapsed[sectionKey];
+    var shown = historyShowCount[sectionKey] || 10;
+    var visible = filtered.slice(0, shown);
+    var remaining = filtered.length - visible.length;
+    var body = "";
+    if(!collapsed){
+      if(filtered.length){
+        var rows = visible.map(function(h){ return historyCard(h, cardOpts); }).join("");
+        body = '<div style="display:flex; flex-direction:column; gap:8px;">'+rows+'</div>' +
+          (remaining>0 ? '<button type="button" class="btn-ghost btn-sm hist-showmore" data-section="'+sectionKey+'" style="margin-top:8px;">Mostrar mais ('+remaining+' restantes)</button>' : '');
+      } else {
+        body = '<div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">'+emptyText+'</div>';
+      }
+    }
     return (
       '<div>' +
-        '<div class="sheet-label" style="margin:0 0 8px; color:var(--ink-faint);">'+title+' ('+filtered.length+')</div>' +
-        (filtered.length ? '<div style="display:flex; flex-direction:column; gap:8px;">'+rows+'</div>' : '<div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">'+emptyText+'</div>') +
+        '<div class="sheet-label hist-section-head" data-section="'+sectionKey+'" role="button" tabindex="0" ' +
+          'style="cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">' +
+          '<span style="display:inline-block; width:9px;">'+(collapsed?"▸":"▾")+'</span>'+title+' ('+filtered.length+')' +
+        '</div>' +
+        body +
       '</div>'
     );
   }
 
+  function historySection(list, statusKey, title, emptyText){
+    var filtered = list.filter(function(h){ return h.status === statusKey && !h.archived; });
+    return renderSection(statusKey, title, filtered, { archived:false }, emptyText);
+  }
+
   function archivedSection(list){
     var filtered = list.filter(function(h){ return h.archived; });
-    var rows = filtered.map(function(h){ return historyCard(h, { archived:true }); }).join("");
-    return (
-      '<div>' +
-        '<div class="sheet-label" style="margin:0 0 8px; color:var(--ink-faint);">Arquivadas ('+filtered.length+')</div>' +
-        (filtered.length ? '<div style="display:flex; flex-direction:column; gap:8px;">'+rows+'</div>' : '<div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.</div>') +
-      '</div>'
-    );
+    return renderSection("arquivada", "Arquivadas", filtered, { archived:true }, "Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.");
   }
 
   function renderHistoryList(){
@@ -1320,6 +1348,24 @@
       if((btn = e.target.closest(".hist-reopen"))) return reopenProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-archive"))) return archiveProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-unarchive"))) return unarchiveProposal(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-showmore"))){
+        var sec = btn.getAttribute("data-section");
+        historyShowCount[sec] = (historyShowCount[sec]||10) + 10;
+        return renderHistoryList();
+      }
+      if((btn = e.target.closest(".hist-section-head"))){
+        var key = btn.getAttribute("data-section");
+        historyCollapsed[key] = !historyCollapsed[key];
+        saveHistoryCollapseState();
+        return renderHistoryList();
+      }
+    });
+    container.addEventListener("keydown", function(e){
+      if(e.key !== "Enter" && e.key !== " ") return;
+      var head = e.target.closest(".hist-section-head");
+      if(!head) return;
+      e.preventDefault();
+      head.click();
     });
   }
 
@@ -2545,6 +2591,7 @@
 
   function init(){
     state = load();
+    loadHistoryCollapseState();
     attachBindings();
     attachItemsDelegation();
     attachTaxesDelegation();
