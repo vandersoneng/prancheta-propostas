@@ -704,7 +704,7 @@
   }
 
   // ---------- busca automática de dados por CNPJ ----------
-  var lastCnpjLookup = "";
+  var cnpjLookupSeq = 0;
   function formatCnpjPhone(raw){
     var d = (raw||"").replace(/\D/g,"");
     if(d.length === 11) return "("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);
@@ -722,44 +722,48 @@
     if(data.cep) parts.push("CEP "+data.cep);
     return parts.join(" - ");
   }
-  function fillClientField(fieldId, setter, value){
-    if(!value) return;
-    var el = document.getElementById(fieldId);
-    if(el) el.value = value;
-    setter(value);
-  }
-  function lookupCnpj(digits){
+  // targetClient é o cliente do draft ativo NO MOMENTO em que a busca começou — a resposta pode
+  // chegar depois de o usuário trocar de proposta/modo, então cada campo só é escrito na tela se
+  // esse draft ainda for o que está em exibição (o dado em si é sempre salvo em targetClient).
+  function lookupCnpj(digits, targetClient){
+    var seq = ++cnpjLookupSeq;
     toast("Buscando dados do CNPJ…");
     fetch("https://brasilapi.com.br/api/cnpj/v1/"+digits)
       .then(function(res){
         if(!res.ok){
-          toast(res.status===404 ? "CNPJ não encontrado" : "Não foi possível buscar o CNPJ agora");
+          if(seq === cnpjLookupSeq) toast(res.status===404 ? "CNPJ não encontrado" : "Não foi possível buscar o CNPJ agora");
           return null;
         }
         return res.json();
       })
       .then(function(data){
-        if(!data) return;
-        var cl = draft().client;
-        fillClientField("f-client-name", function(v){ cl.name=v; }, data.razao_social || data.nome_fantasia || "");
-        fillClientField("f-client-address", function(v){ cl.address=v; }, formatCnpjAddress(data));
-        fillClientField("f-client-phone", function(v){ cl.phone=v; }, formatCnpjPhone(data.ddd_telefone_1));
-        fillClientField("f-client-email", function(v){ cl.email=v; }, data.email || "");
+        if(!data || seq !== cnpjLookupSeq) return; // uma busca mais nova já assumiu (ou foi cancelada)
+        targetClient._cnpjLookupDone = digits;
+        var isCurrent = draft().client === targetClient;
+        function apply(fieldId, prop, value){
+          if(!value) return;
+          targetClient[prop] = value;
+          if(isCurrent){ var el = document.getElementById(fieldId); if(el) el.value = value; }
+        }
+        apply("f-client-name", "name", data.razao_social || data.nome_fantasia || "");
+        apply("f-client-address", "address", formatCnpjAddress(data));
+        apply("f-client-phone", "phone", formatCnpjPhone(data.ddd_telefone_1));
+        apply("f-client-email", "email", data.email || "");
+        if(isCurrent) renderPreview();
         scheduleSave();
-        renderPreview();
         var situacao = data.descricao_situacao_cadastral || "";
         toast(situacao && situacao.toUpperCase()!=="ATIVA" ? "Dados preenchidos — situação cadastral: "+situacao : "Dados do CNPJ preenchidos");
       })
       .catch(function(){
-        toast("Não foi possível buscar o CNPJ agora. Preencha manualmente.");
+        if(seq === cnpjLookupSeq) toast("Não foi possível buscar o CNPJ agora. Preencha manualmente.");
       });
   }
   function attachCnpjLookup(){
     document.getElementById("f-client-doc").addEventListener("focusout", function(e){
       var digits = (e.target.value||"").replace(/\D/g,"");
-      if(digits.length !== 14 || digits === lastCnpjLookup) return;
-      lastCnpjLookup = digits;
-      lookupCnpj(digits);
+      var cl = draft().client;
+      if(digits.length !== 14 || digits === cl._cnpjLookupDone) return;
+      lookupCnpj(digits, cl);
     });
   }
 
@@ -1212,9 +1216,7 @@
   }
   function renderCatalogPicker(){
     var select = document.getElementById("f-catalog-pick");
-    var catalog = state.cableCatalog;
-    var options = catalog
-      .map(function(c,i){ return {c:c, i:i}; })
+    var options = catalogSortedIndices()
       .filter(function(o){ return (o.c.desc||"").trim(); });
     if(!options.length){
       select.innerHTML = '<option value="">Nenhum produto cadastrado</option>';
@@ -1639,6 +1641,10 @@
   function renderTaxesList(){
     var container = document.getElementById("taxes-list");
     var taxes = draft().taxes;
+    if(!taxes.length){
+      container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint);">Nenhum imposto adicionado.</div>';
+      return;
+    }
     container.innerHTML = taxes.map(function(t,i){
       return (
         '<div class="tax-row" data-index="'+i+'">' +
@@ -1665,9 +1671,7 @@
       var btn = e.target.closest(".remove-tax");
       if(!btn) return;
       var idx = parseInt(btn.getAttribute("data-index"), 10);
-      var taxes = draft().taxes;
-      if(taxes.length>1) taxes.splice(idx,1);
-      else taxes[0] = { label:"", percent:0 };
+      draft().taxes.splice(idx,1);
       renderTaxesList();
       scheduleSave();
       renderPreview();
