@@ -867,12 +867,12 @@
     var container = document.getElementById("catalog-list");
     var catalog = state.cableCatalog;
     container.innerHTML = catalog.map(function(c,i){
-      var isCustomDesc = c._customDesc || (c.desc && state.productTemplates.indexOf(c.desc) === -1);
+      var isCustomDesc = c.desc ? (state.productTemplates.indexOf(c.desc) === -1) : !!c._customDesc;
       var descOpts = '<option value="">—</option>' +
         state.productTemplates.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(c.desc===t?' selected':'')+'>'+escapeHtml(t)+'</option>'; }).join("") +
         '<option value="Outro"'+(isCustomDesc?' selected':'')+'>Outro (cadastrar novo)…</option>';
 
-      var isCustomColor = c._customColor || (c.detail && CABLE_COLORS.indexOf(c.detail) === -1);
+      var isCustomColor = c.detail ? (CABLE_COLORS.indexOf(c.detail) === -1) : !!c._customColor;
       var colorOpts = '<option value="">—</option>' +
         CABLE_COLORS.map(function(col){ return '<option value="'+col+'"'+(c.detail===col?' selected':'')+'>'+col+'</option>'; }).join("") +
         '<option value="Outra"'+(isCustomColor?' selected':'')+'>Outra…</option>';
