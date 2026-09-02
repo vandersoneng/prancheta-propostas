@@ -814,6 +814,10 @@
     var mode = state.mode;
     var items = draft().items;
     var opts = unitOptions(mode);
+    if(!items.length){
+      container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint);">Nenhum item adicionado ainda.</div>';
+      return;
+    }
     container.innerHTML = items.map(function(it, i){
       var optHtml = opts.map(function(o){
         return '<option value="'+o+'"'+(it.unit===o?' selected':'')+'>'+o+'</option>';
@@ -869,9 +873,7 @@
       var btn = e.target.closest(".remove-item");
       if(!btn) return;
       var idx = parseInt(btn.getAttribute("data-index"), 10);
-      var items = draft().items;
-      if(items.length>1) items.splice(idx,1);
-      else items[0] = emptyItem(state.mode);
+      draft().items.splice(idx,1);
       renderItemsList();
       scheduleSave();
       renderPreview();
@@ -2581,7 +2583,7 @@
     state.counters[mode] = seq + 1;
     var d = mode==="cabos" ? demoCabosDraft(seq) : demoProjetoDraft(seq);
     d.client = emptyClient();
-    d.items = [ emptyItem(mode) ];
+    d.items = [];
     d.conditions = emptyConditions();
     d.discount = { type:"percent", value:0 };
     d.taxIncluded = (mode==="cabos");
