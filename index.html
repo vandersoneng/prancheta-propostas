@@ -298,6 +298,17 @@
     .toast{transition:opacity .25s ease;}
   }
 
+  .auth-gate{
+    position:fixed; inset:0; z-index:100; background:var(--paper);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .auth-card{
+    width:100%; max-width:340px; background:var(--paper-raised);
+    border:1px solid var(--line); border-radius:12px; padding:28px 26px;
+    display:flex; flex-direction:column; gap:14px; box-shadow:var(--shadow);
+  }
+  .auth-status{font-size:12.5px; color:var(--ink-faint); text-align:center;}
+
   @media (max-width:900px){
     .workspace{flex-direction:column;}
     .side-tabs{
@@ -319,7 +330,24 @@
   }
 </style>
 
-<div class="app">
+<div class="auth-gate" id="auth-gate">
+  <form class="auth-card" id="auth-form">
+    <div class="brand" style="margin-bottom:4px;">
+      <span class="brand-mark" aria-hidden="true">⚡</span>
+      <div class="brand-text">
+        <span class="brand-title">OrçaVolt</span>
+        <span class="brand-sub">Propostas &amp; catálogo de cabos</span>
+      </div>
+    </div>
+    <div class="field"><label for="auth-email">E-mail</label><input type="email" id="auth-email" autocomplete="username" required></div>
+    <div class="field"><label for="auth-password">Senha</label><input type="password" id="auth-password" autocomplete="current-password" required></div>
+    <div id="auth-error" style="font-size:12.5px; color:var(--danger); display:none;"></div>
+    <button type="submit" class="btn btn-primary" id="auth-submit" style="width:100%; justify-content:center; margin-top:6px;">Entrar</button>
+    <div class="auth-status" id="auth-status"></div>
+  </form>
+</div>
+
+<div class="app" id="app" hidden>
   <div class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">⚡</span>
@@ -451,7 +479,12 @@
         </div>
       </div>
 
-      <div class="save-hint"><span class="save-dot"></span> Dados salvos automaticamente neste navegador</div>
+      <div class="field-group" data-panel="empresa">
+        <legend>Conta</legend>
+        <button type="button" class="btn-ghost btn-sm" id="btn-sign-out" style="align-self:flex-start; padding:6px 0;">Sair da conta</button>
+      </div>
+
+      <div class="save-hint"><span class="save-dot"></span> Dados sincronizados na nuvem (Supabase) — também salvos neste navegador como cache</div>
       <div class="save-hint" style="align-items:flex-start;">Aberto fora do chat (arquivo salvo no seu computador), "Baixar proposta" gera o PDF direto. Dentro do chat, baixa um arquivo/imagem para você imprimir como PDF.</div>
     </aside>
 
@@ -467,9 +500,13 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 (function(){
   "use strict";
+  var SUPABASE_URL = "https://cfnbmqtvuwxgjunprngh.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_B3mwMwP5pm7N8KNaU6_FbA__pl-EJia";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   var LS_KEY = "prancheta-propostas-v1";
   var state = null;
   var saveTimer = null;
@@ -564,49 +601,87 @@
     };
   }
 
-  function load(){
+  // Normaliza um objeto de estado "cru" (vindo do localStorage OU da nuvem — mesmo formato)
+  // contra defaultState(), preenchendo campos ausentes e aplicando migrações antigas.
+  function normalizeState(parsed){
+    var d = defaultState();
+    if(!parsed) return d;
+    d.company = Object.assign(d.company, parsed.company||{});
+    d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
+    d.counters = Object.assign(d.counters, parsed.counters||{});
+    if(Array.isArray(parsed.cableCatalog)){
+      d.cableCatalog = parsed.cableCatalog.map(function(c){
+        if(!c.id) c.id = genId();
+        if(c.stock == null) c.stock = 0;
+        if(c.detail === "Azul claro") c.detail = "Azul"; // correção: não existe "azul claro", só "azul"
+        return c;
+      });
+    }
+    ensureCatalogPos(d.cableCatalog);
+    if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
+    if(Array.isArray(parsed.proposalHistory)){
+      d.proposalHistory = parsed.proposalHistory.map(function(h){
+        if(h.status === "pendente") h.status = "emitida"; // rotulo antigo, mesmo significado
+        if(h.archived == null) h.archived = false;
+        if(!Array.isArray(h.archiveLog)) h.archiveLog = [];
+        return h;
+      });
+    }
+    if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
+    if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
+    return d;
+  }
+  function loadLocalCache(){
     try{
       var raw = localStorage.getItem(LS_KEY);
-      if(!raw) return defaultState();
-      var parsed = JSON.parse(raw);
-      var d = defaultState();
-      d.company = Object.assign(d.company, parsed.company||{});
-      d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
-      d.counters = Object.assign(d.counters, parsed.counters||{});
-      if(Array.isArray(parsed.cableCatalog)){
-        d.cableCatalog = parsed.cableCatalog.map(function(c){
-          if(!c.id) c.id = genId();
-          if(c.stock == null) c.stock = 0;
-          if(c.detail === "Azul claro") c.detail = "Azul"; // correção: não existe "azul claro", só "azul"
-          return c;
-        });
-      }
-      ensureCatalogPos(d.cableCatalog);
-      if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
-      if(Array.isArray(parsed.proposalHistory)){
-        d.proposalHistory = parsed.proposalHistory.map(function(h){
-          if(h.status === "pendente") h.status = "emitida"; // rotulo antigo, mesmo significado
-          if(h.archived == null) h.archived = false;
-          if(!Array.isArray(h.archiveLog)) h.archiveLog = [];
-          return h;
-        });
-      }
-      if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = parsed.drafts.projeto;
-      if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
-      return d;
-    }catch(e){ return defaultState(); }
+      return raw ? normalizeState(JSON.parse(raw)) : null;
+    }catch(e){ return null; }
+  }
+  // Distingue "instalação nova, nunca usada" (igual a defaultState()) de dados reais do usuário —
+  // usado só na primeira sincronização para decidir se o cache local vira a semente da nuvem.
+  function hasRealData(d){
+    if(!d) return false;
+    if(d.proposalHistory && d.proposalHistory.length) return true;
+    if(d.company && d.company.name) return true;
+    if(Array.isArray(d.cableCatalog) && d.cableCatalog.some(function(c){ return (Number(c.stock)||0)>0 || (Number(c.price)||0)>0; })) return true;
+    return false;
   }
 
+  var APP_STATE_TABLE = "app_state";
+  var APP_STATE_ROW_ID = "singleton";
+  function loadFromCloud(){
+    return sb.from(APP_STATE_TABLE).select("data").eq("id", APP_STATE_ROW_ID).maybeSingle()
+      .then(function(res){
+        if(res.error) throw res.error;
+        return res.data ? normalizeState(res.data.data) : null;
+      });
+  }
+  function saveToCloud(s){
+    return sb.from(APP_STATE_TABLE).upsert({ id:APP_STATE_ROW_ID, data:s, updated_at:new Date().toISOString() });
+  }
+
+  function persistLocal(){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  }
+  function persistCloud(){
+    saveToCloud(state).then(function(res){
+      if(res && res.error) toast("Sem conexão com a nuvem — salvo só neste navegador");
+    }).catch(function(){
+      toast("Sem conexão com a nuvem — salvo só neste navegador");
+    });
+  }
   function scheduleSave(){
     if(saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      persistLocal();
+      persistCloud();
       toast("Salvo");
     }, 500);
   }
   function saveNow(){
     if(saveTimer) clearTimeout(saveTimer);
-    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    persistLocal();
+    persistCloud();
   }
 
   function toast(msg){
@@ -2849,8 +2924,84 @@
     toast("Nova proposta "+d.number+" criada");
   }
 
-  function init(){
-    state = load();
+  // ---------- login (Supabase Auth) ----------
+  function showAuthGate(){
+    document.getElementById("auth-gate").hidden = false;
+    document.getElementById("app").hidden = true;
+  }
+  function hideAuthGate(){
+    document.getElementById("auth-gate").hidden = true;
+    document.getElementById("app").hidden = false;
+  }
+  function setAuthStatus(msg){ document.getElementById("auth-status").textContent = msg || ""; }
+  function setAuthError(msg){
+    var el = document.getElementById("auth-error");
+    if(msg){ el.textContent = msg; el.style.display = ""; } else { el.textContent = ""; el.style.display = "none"; }
+  }
+  function attachAuthForm(){
+    document.getElementById("auth-form").addEventListener("submit", function(e){
+      e.preventDefault();
+      setAuthError("");
+      var email = document.getElementById("auth-email").value.trim();
+      var password = document.getElementById("auth-password").value;
+      var btn = document.getElementById("auth-submit");
+      btn.disabled = true;
+      setAuthStatus("Entrando…");
+      sb.auth.signInWithPassword({ email:email, password:password }).then(function(res){
+        if(res.error){
+          setAuthError(res.error.message === "Invalid login credentials" ? "E-mail ou senha incorretos." : res.error.message);
+          setAuthStatus("");
+          btn.disabled = false;
+          return;
+        }
+        bootstrapAfterAuth();
+      }).catch(function(){
+        setAuthError("Não foi possível entrar agora. Verifique sua conexão.");
+        setAuthStatus("");
+        btn.disabled = false;
+      });
+    });
+  }
+  function attachSignOut(){
+    var btn = document.getElementById("btn-sign-out");
+    if(!btn) return;
+    btn.addEventListener("click", function(){
+      if(!confirm("Sair da conta neste dispositivo?")) return;
+      sb.auth.signOut().then(function(){ location.reload(); }).catch(function(){ location.reload(); });
+    });
+  }
+
+  // Depois do login (novo ou sessão já existente), busca o estado na nuvem. Se ainda não existir
+  // linha lá (primeiro login de todos), sobe o que já está salvo neste navegador como semente —
+  // assim ninguém perde dados já cadastrados ao ligar a nuvem pela primeira vez.
+  function bootstrapAfterAuth(){
+    setAuthStatus("Carregando seus dados…");
+    loadFromCloud().then(function(cloudState){
+      if(cloudState){
+        state = cloudState;
+      } else {
+        var local = loadLocalCache();
+        state = hasRealData(local) ? local : defaultState();
+        persistCloud();
+      }
+      persistLocal();
+      finishInit();
+    }).catch(function(){
+      var local = loadLocalCache();
+      if(local){
+        state = local;
+        finishInit();
+        toast("Sem conexão com a nuvem — usando dados salvos neste navegador");
+      } else {
+        setAuthError("Não foi possível carregar seus dados. Verifique sua conexão e tente novamente.");
+        setAuthStatus("");
+        document.getElementById("auth-submit").disabled = false;
+      }
+    });
+  }
+
+  function finishInit(){
+    hideAuthGate();
     loadHistoryCollapseState();
     attachBindings();
     attachCnpjLookup();
@@ -2864,6 +3015,7 @@
     document.getElementById("btn-stock-report").addEventListener("click", exportStockReportPdf);
     attachTabHandlers();
     attachPanelToggle();
+    attachSignOut();
 
     document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
     document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
@@ -2874,10 +3026,19 @@
     syncFormFromState();
   }
 
+  function boot(){
+    attachAuthForm();
+    setAuthStatus("Verificando sessão…");
+    sb.auth.getSession().then(function(res){
+      var session = res && res.data && res.data.session;
+      if(session){ bootstrapAfterAuth(); } else { setAuthStatus(""); showAuthGate(); }
+    }).catch(function(){ setAuthStatus(""); showAuthGate(); });
+  }
+
   if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
-    init();
+    boot();
   }
 })();
 </script>
