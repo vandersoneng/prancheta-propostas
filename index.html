@@ -75,6 +75,7 @@
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 
   .app{display:flex; flex-direction:column; min-height:100vh;}
+  .app[hidden]{ display:none; }
 
   .topbar{
     display:flex; align-items:center; gap:16px; flex-wrap:wrap;
@@ -302,6 +303,7 @@
     position:fixed; inset:0; z-index:100; background:var(--paper);
     display:flex; align-items:center; justify-content:center; padding:24px;
   }
+  .auth-gate[hidden]{ display:none; }
   .auth-card{
     width:100%; max-width:340px; background:var(--paper-raised);
     border:1px solid var(--line); border-radius:12px; padding:28px 26px;
