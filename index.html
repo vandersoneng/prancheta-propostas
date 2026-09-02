@@ -1246,11 +1246,20 @@
     );
   }
   function historyStatsRow(list){
-    var emitidas = list.filter(function(h){ return h.status==="emitida" && !h.archived; });
-    var vendidas = list.filter(function(h){ return h.status==="vendida" && !h.archived; });
-    var canceladas = list.filter(function(h){ return h.status==="cancelada" && !h.archived; });
+    // Emitidas/Vendidas/Canceladas contam o total histórico (arquivada ou não) — arquivar
+    // só tira da lista ativa, não apaga o que de fato aconteceu com a proposta.
+    var emitidas = list.filter(function(h){ return h.status==="emitida"; });
+    var vendidas = list.filter(function(h){ return h.status==="vendida"; });
+    var canceladas = list.filter(function(h){ return h.status==="cancelada"; });
     var arquivadas = list.filter(function(h){ return h.archived; });
     var vendidoTotal = vendidas.reduce(function(s,h){ return s + calcTotals(h.draft).total; }, 0);
+    var archByStatus = { emitida:0, vendida:0, cancelada:0 };
+    arquivadas.forEach(function(h){ if(archByStatus[h.status]!=null) archByStatus[h.status]++; });
+    var archLabels = { emitida:["emitida","emitidas"], vendida:["vendida","vendidas"], cancelada:["cancelada","canceladas"] };
+    var archParts = ["vendida","emitida","cancelada"]
+      .filter(function(s){ return archByStatus[s] > 0; })
+      .map(function(s){ var n=archByStatus[s]; return n+" "+archLabels[s][n>1?1:0]; });
+    var arquivadasSub = archParts.length ? archParts.join(" · ") : "fora da lista principal";
     var icoFile = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
     var icoCheck = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>';
     var icoX = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9.5 9.5 5 5m0-5-5 5"/></svg>';
@@ -1260,7 +1269,7 @@
         historyStatCard(icoFile, "Emitidas", emitidas.length, "aguardando", "var(--blue)") +
         historyStatCard(icoCheck, "Vendidas", vendidas.length, vendidas.length ? fmtBRL(vendidoTotal)+" em vendas" : "nenhuma venda ainda", "var(--good)") +
         historyStatCard(icoX, "Canceladas", canceladas.length, "sem efeito no estoque", "var(--danger)") +
-        historyStatCard(icoArchive, "Arquivadas", arquivadas.length, "fora da lista principal", "var(--ink-faint)") +
+        historyStatCard(icoArchive, "Arquivadas", arquivadas.length, arquivadasSub, "var(--ink-faint)") +
       '</div>'
     );
   }
