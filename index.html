@@ -466,6 +466,13 @@
       </div>
 
       <div class="field-group" data-panel="empresa">
+        <legend>Pagamento via Pix</legend>
+        <div class="field"><label for="f-company-pix-key">Chave Pix</label><input id="f-company-pix-key" placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"></div>
+        <div class="field"><label for="f-company-pix-city">Cidade (para o Pix)</label><input id="f-company-pix-city" placeholder="Ex.: CAMETA" maxlength="15"></div>
+        <div style="font-size:11.5px; color:var(--ink-faint); line-height:1.4;">Preenchendo a chave, todo PDF de proposta passa a incluir um QR Code Pix com o valor total já preenchido. Deixe em branco para não incluir.</div>
+      </div>
+
+      <div class="field-group" data-panel="empresa">
         <legend>Salvamento automático</legend>
         <div id="folder-status" style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Verificando suporte do navegador…</div>
         <div class="field-row">
@@ -496,6 +503,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -596,7 +604,7 @@
 
   function defaultState(){
     return {
-      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"" },
+      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"", pixKey:"", pixCity:"" },
       mode:"projeto",
       counters:{ projeto:2, cabos:2 },
       cableCatalog: defaultCableCatalog(),
@@ -754,6 +762,8 @@
     ["f-company-address2", function(s){return s.company.address2;}, function(s,v){s.company.address2=v;}],
     ["f-company-email", function(s){return s.company.email;}, function(s,v){s.company.email=v;}],
     ["f-company-site", function(s){return s.company.site;}, function(s,v){s.company.site=v;}],
+    ["f-company-pix-key", function(s){return s.company.pixKey;}, function(s,v){s.company.pixKey=v;}],
+    ["f-company-pix-city", function(s){return s.company.pixCity;}, function(s,v){s.company.pixCity=v;}],
 
     ["f-meta-date", function(s){return draft().date;}, function(s,v){draft().date=v;}],
     ["f-meta-validade", function(s){return draft().validadeDias;}, function(s,v){draft().validadeDias=parseFloat(v)||0;}],
@@ -2256,6 +2266,70 @@
     return { width:w, height:h, bytes:rgb };
   }
 
+  // ---------- Pix BR Code (EMV QR Code) ----------
+  function crc16ccitt(str){
+    var crc = 0xFFFF;
+    for(var i=0;i<str.length;i++){
+      crc ^= (str.charCodeAt(i) << 8);
+      for(var b=0;b<8;b++){
+        crc = (crc & 0x8000) ? ((crc<<1) ^ 0x1021) & 0xFFFF : (crc<<1) & 0xFFFF;
+      }
+    }
+    var hex = crc.toString(16).toUpperCase();
+    while(hex.length<4) hex = "0"+hex;
+    return hex;
+  }
+  function pixStripAccents(s){
+    return String(s||"").normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]","g"),"");
+  }
+  function pixTlv(id, value){
+    var len = String(value).length;
+    return id + (len<10?"0"+len:String(len)) + value;
+  }
+  function pixPayloadString(amount){
+    var key = (state.company.pixKey||"").trim();
+    if(!key) return null;
+    var merchantName = pixStripAccents(state.company.name).toUpperCase().replace(/[^A-Z0-9 ]/g,"").trim().slice(0,25) || "RECEBEDOR";
+    var merchantCity = pixStripAccents(state.company.pixCity).toUpperCase().replace(/[^A-Z0-9 ]/g,"").trim().slice(0,15) || "BRASIL";
+    var mai = pixTlv("26", pixTlv("00","BR.GOV.BCB.PIX") + pixTlv("01", key));
+    var amountField = (amount>0) ? pixTlv("54", amount.toFixed(2)) : "";
+    var txid = pixTlv("62", pixTlv("05","***"));
+    var payload = pixTlv("00","01") + mai + pixTlv("52","0000") + pixTlv("53","986") + amountField + pixTlv("58","BR") + pixTlv("59", merchantName) + pixTlv("60", merchantCity) + txid + "6304";
+    return payload + crc16ccitt(payload);
+  }
+  function generateQrDataUrl(text){
+    return new Promise(function(resolve){
+      if(typeof QRCode === "undefined"){ resolve(null); return; }
+      var holder = null;
+      try{
+        holder = document.createElement("div");
+        holder.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+        document.body.appendChild(holder);
+        new QRCode(holder, { text:text, width:300, height:300, correctLevel: QRCode.CorrectLevel.M });
+        var canvas = holder.querySelector("canvas");
+        var dataUrl = canvas ? canvas.toDataURL("image/png") : null;
+        resolve(dataUrl);
+      }catch(e){
+        resolve(null);
+      }finally{
+        if(holder && holder.parentNode) holder.parentNode.removeChild(holder);
+      }
+    });
+  }
+  function buildPixQrImageData(amount){
+    var payload = pixPayloadString(amount);
+    if(!payload) return Promise.resolve(null);
+    return generateQrDataUrl(payload).then(function(dataUrl){
+      return dataUrl ? loadImage(dataUrl) : null;
+    }).then(function(img){
+      if(!img) return null;
+      var raw = imageToRawRGB(img);
+      return deflateZlib(raw.bytes).then(function(compressed){
+        return { width:raw.width, height:raw.height, bytes: compressed||raw.bytes, useFlate: !!compressed };
+      });
+    }).catch(function(){ return null; });
+  }
+
   // Builds the list of draw commands (text/line/rect) for the proposal, paginated onto fixed A4 sheets.
   // Coordinates are top-down and page-local; each op carries a .page index. y is flipped to PDF's
   // bottom-up space, per page, at emission time.
@@ -2275,6 +2349,8 @@
     var page = 0;
     var y = MT;
     var hasLogo = !!state.company.logo;
+    var hasPix = !!(state.company.pixKey||"").trim();
+    var pixBox = null;
     var itemsHeaderRedraw = null;
 
     function setFontFor(bold, size, mono){
@@ -2466,6 +2542,22 @@
       y += 8;
     }
 
+    if(hasPix){
+      sectionLabel("Pagamento via Pix");
+      var qrSize = 88;
+      ensureSpace(qrSize+8);
+      pixBox = { x:ML, y:y, w:qrSize, h:qrSize, page:page };
+      var pixTextX = ML + qrSize + 16, pixTextY = y;
+      text({ x:pixTextX, y:pixTextY+10, text:"Escaneie o QR Code para pagar via Pix", size:12, bold:true, color:CV_INK });
+      pixTextY += 22;
+      text({ x:pixTextX, y:pixTextY+9, text:"Chave: "+state.company.pixKey, size:11, color:CV_SOFT });
+      pixTextY += 16;
+      text({ x:pixTextX, y:pixTextY+9, text:"Valor: "+fmtBRL(totals.total), size:11, color:CV_SOFT });
+      pixTextY += 16;
+      text({ x:pixTextX, y:pixTextY+9, text:"Beneficiário: "+(state.company.name||"—"), size:11, color:CV_SOFT });
+      y += qrSize + 16;
+    }
+
     var footerH = 30;
     ensureSpace(30+40+footerH);
     y += 30;
@@ -2484,12 +2576,12 @@
     text({ x:LW-MR, y:y+19, text:"Página "+(page+1)+" de "+pageTotal+" · Gerado em "+dateBR(todayISO()), size:10, mono:true, color:CV_FAINT, align:"right" });
     y += footerH;
 
-    return { ops:ops, pageW:LW, pageH:LH, pageCount:page+1, logoBox:logoBox };
+    return { ops:ops, pageW:LW, pageH:LH, pageCount:page+1, logoBox:logoBox, pixBox:pixBox };
   }
 
   function fontResource(bold, mono){ return mono ? (bold?"/F4":"/F3") : (bold?"/F2":"/F1"); }
 
-  function opsToContentBytes(pageOps, pageH, logoBoxForThisPage){
+  function opsToContentBytes(pageOps, pageH, logoBoxForThisPage, pixBoxForThisPage){
     var encoder = new TextEncoder();
     function asciiBytes(s){ return encoder.encode(s); }
     var cparts = [], clength = 0;
@@ -2499,6 +2591,11 @@
       var lb = logoBoxForThisPage;
       var ly = pageH - lb.y - lb.h;
       cpush("q\n"+lb.w.toFixed(2)+" 0 0 "+lb.h.toFixed(2)+" "+lb.x.toFixed(2)+" "+ly.toFixed(2)+" cm\n/Im0 Do\nQ\n");
+    }
+    if(pixBoxForThisPage){
+      var pb = pixBoxForThisPage;
+      var py = pageH - pb.y - pb.h;
+      cpush("q\n"+pb.w.toFixed(2)+" 0 0 "+pb.h.toFixed(2)+" "+pb.x.toFixed(2)+" "+py.toFixed(2)+" cm\n/Im1 Do\nQ\n");
     }
 
     pageOps.forEach(function(op){
@@ -2522,19 +2619,22 @@
     return concatUint8(cparts);
   }
 
-  function buildVectorPdfBytes(layoutResult, logoData){
+  function buildVectorPdfBytes(layoutResult, logoData, pixData){
     var encoder = new TextEncoder();
     function asciiBytes(s){ return encoder.encode(s); }
 
     var pageW = layoutResult.pageW, pageH = layoutResult.pageH, pageCount = layoutResult.pageCount;
     var hasLogo = !!(layoutResult.logoBox && logoData);
+    var hasPix = !!(layoutResult.pixBox && pixData);
 
     var opsByPage = [];
     for(var p=0;p<pageCount;p++) opsByPage.push([]);
     layoutResult.ops.forEach(function(op){ if(opsByPage[op.page]) opsByPage[op.page].push(op); });
 
     var contentRawByPage = opsByPage.map(function(pageOps, idx){
-      return opsToContentBytes(pageOps, pageH, (idx===0 && hasLogo) ? layoutResult.logoBox : null);
+      var logoBoxHere = (idx===0 && hasLogo) ? layoutResult.logoBox : null;
+      var pixBoxHere = (hasPix && layoutResult.pixBox.page===idx) ? layoutResult.pixBox : null;
+      return opsToContentBytes(pageOps, pageH, logoBoxHere, pixBoxHere);
     });
 
     return Promise.all(contentRawByPage.map(function(raw){ return deflateZlib(raw); })).then(function(compressedList){
@@ -2542,9 +2642,10 @@
       function push(x){ var b=(typeof x==="string")?asciiBytes(x):x; parts.push(b); length+=b.length; }
       var offsets = {};
 
-      // object numbering: 1=Catalog 2=Pages 3-6=fonts [7=logo image] then per page: Page obj, Content obj
-      var logoObjNum = hasLogo ? 7 : null;
-      var nextObj = hasLogo ? 8 : 7;
+      // object numbering: 1=Catalog 2=Pages 3-6=fonts [logo image] [pix image] then per page: Page obj, Content obj
+      var nextObj = 7;
+      var logoObjNum = hasLogo ? nextObj++ : null;
+      var pixObjNum = hasPix ? nextObj++ : null;
       var pageObjNums = [], contentObjNums = [];
       for(var p2=0;p2<pageCount;p2++){ pageObjNums.push(nextObj++); contentObjNums.push(nextObj++); }
       var totalObjs = nextObj-1;
@@ -2564,10 +2665,19 @@
         push(logoData.bytes);
         push("\nendstream\nendobj\n");
       }
+      if(hasPix){
+        offsets[pixObjNum]=length;
+        push(pixObjNum+" 0 obj\n<< /Type /XObject /Subtype /Image /Width "+pixData.width+" /Height "+pixData.height+" /ColorSpace /DeviceRGB /BitsPerComponent 8"+(pixData.useFlate?" /Filter /FlateDecode":"")+" /Length "+pixData.bytes.length+" >>\nstream\n");
+        push(pixData.bytes);
+        push("\nendstream\nendobj\n");
+      }
 
       var resourceFonts = "/Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >>";
       for(var p3=0;p3<pageCount;p3++){
-        var resourceXObj = (p3===0 && hasLogo) ? (" /XObject << /Im0 "+logoObjNum+" 0 R >>") : "";
+        var xobjEntries = [];
+        if(p3===0 && hasLogo) xobjEntries.push("/Im0 "+logoObjNum+" 0 R");
+        if(hasPix && layoutResult.pixBox.page===p3) xobjEntries.push("/Im1 "+pixObjNum+" 0 R");
+        var resourceXObj = xobjEntries.length ? (" /XObject << "+xobjEntries.join(" ")+" >>") : "";
         offsets[pageObjNums[p3]]=length;
         push(pageObjNums[p3]+" 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+pageW.toFixed(2)+" "+pageH.toFixed(2)+"] /Resources << "+resourceFonts+resourceXObj+" >> /Contents "+contentObjNums[p3]+" 0 R >>\nendobj\n");
 
@@ -2834,9 +2944,10 @@
           return { width:raw.width, height:raw.height, bytes: compressed||raw.bytes, useFlate: !!compressed };
         });
       })() : Promise.resolve(null);
+      var pixDataPromise = layoutResult.pixBox ? buildPixQrImageData(calcTotals(draft()).total) : Promise.resolve(null);
 
-      logoDataPromise.then(function(logoData){
-        buildVectorPdfBytes(layoutResult, logoData).then(function(pdfBytes){
+      Promise.all([logoDataPromise, pixDataPromise]).then(function(results){
+        buildVectorPdfBytes(layoutResult, results[0], results[1]).then(function(pdfBytes){
           deliverPdf(pdfBytes, (draft().number || "proposta") + ".pdf");
         }).catch(function(){
           toast("Falha ao gerar o PDF");
