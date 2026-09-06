@@ -236,7 +236,7 @@
   }
   .sheet, .sheet *{color:#182129;}
   .sheet-head{display:flex; justify-content:space-between; gap:24px; padding-bottom:18px; border-bottom:2px solid var(--mode-accent, #2B5876);}
-  .sheet-company{display:flex; gap:12px; align-items:flex-start;}
+  .sheet-company{display:flex; gap:12px; align-items:center;}
   .sheet-logo{width:56px; height:56px; object-fit:contain; flex-shrink:0;}
   .sheet-company-name{font-weight:700; font-size:16px;}
   .sheet-company-meta{font-size:11.5px; color:#57646D; line-height:1.5; margin-top:2px;}
@@ -2205,26 +2205,32 @@
       // header
       var companyX = ML;
       var yCompany = y;
-      if(logoImg && draw) ctx.drawImage(logoImg, ML, y, 52, 52);
       if(logoImg) companyX = ML+52+12;
       ctx.textAlign = "left";
       var headerLeftMaxW = (LW-MR-210) - companyX;
       ctx.font = "700 15px "+CV_SANS;
       var nameLines = wrapText(ctx, state.company.name||"Sua empresa", headerLeftMaxW);
-      nameLines.forEach(function(l){
-        if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(l, companyX, yCompany+13); }
-        yCompany += 18;
-      });
-      yCompany += 4;
       var metaLines = [];
       if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
       if(state.company.address) metaLines.push(state.company.address);
       if(state.company.address2) metaLines.push(state.company.address2);
       var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
       if(contactLine) metaLines.push(contactLine);
-      metaLines.forEach(function(line){
-        ctx.font = "11px "+CV_SANS;
-        var wrapped = wrapText(ctx, line, headerLeftMaxW);
+      ctx.font = "11px "+CV_SANS;
+      var metaWrapped = metaLines.map(function(line){ return wrapText(ctx, line, headerLeftMaxW); });
+      var metaLineCount = metaWrapped.reduce(function(s,arr){ return s+arr.length; }, 0);
+      // Centraliza a logo verticalmente junto ao bloco de texto em vez de deixá-la grudada no topo
+      // — com várias linhas de endereço a logo "flutuava" acima do texto.
+      var textBlockHeight = nameLines.length*18 + 4 + metaLineCount*15;
+      if(logoImg && draw) ctx.drawImage(logoImg, ML, y+Math.max(0,(textBlockHeight-52)/2), 52, 52);
+      ctx.font = "700 15px "+CV_SANS;
+      nameLines.forEach(function(l){
+        if(draw){ ctx.fillStyle=CV_INK; ctx.fillText(l, companyX, yCompany+13); }
+        yCompany += 18;
+      });
+      yCompany += 4;
+      ctx.font = "11px "+CV_SANS;
+      metaWrapped.forEach(function(wrapped){
         wrapped.forEach(function(l){
           if(draw){ ctx.fillStyle=CV_SOFT; ctx.fillText(l, companyX, yCompany+9); }
           yCompany += 15;
@@ -2631,6 +2637,9 @@
         yCompany += 15;
       });
     });
+    // Centraliza a logo verticalmente junto ao bloco de texto (nome+CNPJ+endereço+contato) em vez
+    // de deixá-la grudada no topo — com várias linhas de endereço a logo "flutuava" acima do texto.
+    if(logoBox) logoBox.y = y + Math.max(0, ((yCompany-y) - logoBox.h)/2);
     var leftBottom = Math.max(yCompany, y+(hasLogo?52:0));
 
     var yDoc = y;
