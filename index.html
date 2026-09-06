@@ -732,6 +732,11 @@
   function fmtBRL(n){
     return (Number(n)||0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
   }
+  // Impede valor negativo em campos numéricos (desconto, imposto, quantidade/preço de item,
+  // preço/estoque do catálogo) — digitar "-10" por engano não deve inflar o total silenciosamente.
+  function nonNeg(v){
+    return Math.max(0, parseFloat(v)||0);
+  }
   function fmtNum(n, dec){
     return (Number(n)||0).toLocaleString("pt-BR", { minimumFractionDigits:dec||0, maximumFractionDigits:dec||2 });
   }
@@ -807,7 +812,7 @@
     ["f-client-email", function(s){return draft().client.email;}, function(s,v){draft().client.email=v;}],
 
     ["f-disc-type", function(s){return draft().discount.type;}, function(s,v){draft().discount.type=v;}],
-    ["f-disc-value", function(s){return draft().discount.value;}, function(s,v){draft().discount.value=parseFloat(v)||0;}],
+    ["f-disc-value", function(s){return draft().discount.value;}, function(s,v){draft().discount.value=nonNeg(v);}],
 
     ["f-cond-pagamento", function(s){return draft().conditions.pagamento;}, function(s,v){draft().conditions.pagamento=v;}],
     ["f-cond-prazo", function(s){return draft().conditions.prazo;}, function(s,v){draft().conditions.prazo=v;}],
@@ -829,6 +834,11 @@
       draft().taxIncluded = e.target.checked;
       scheduleSave();
       renderPreview();
+    });
+    // Corrige o número exibido só ao sair do campo — se digitou um valor negativo, ele já foi
+    // bloqueado no state (nonNeg), mas o campo ainda mostrava o que foi digitado.
+    document.getElementById("f-disc-value").addEventListener("focusout", function(e){
+      e.target.value = draft().discount.value;
     });
   }
 
@@ -1133,7 +1143,7 @@
       var it = draft().items[idx];
       if(!it) return;
       if(field==="qty" || field==="price"){
-        it[field] = parseFloat(e.target.value) || 0;
+        it[field] = nonNeg(e.target.value);
         var row = e.target.closest(".item-card");
         var totalInput = row.querySelector('.item-grid .field:last-child input');
         totalInput.value = fmtBRL((Number(it.qty)||0)*(Number(it.price)||0));
@@ -1157,6 +1167,15 @@
         scheduleSave();
         renderPreview();
       }
+    });
+    // Corrige o número exibido só ao sair do campo (não a cada tecla) — se o usuário digitou um
+    // valor negativo, ele foi bloqueado no state, mas o campo ainda mostrava o que foi digitado.
+    container.addEventListener("focusout", function(e){
+      var field = e.target.getAttribute("data-field");
+      if(field!=="qty" && field!=="price") return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var it = draft().items[idx];
+      if(it) e.target.value = it[field];
     });
     container.addEventListener("click", function(e){
       var btn = e.target.closest(".remove-item");
@@ -1275,7 +1294,7 @@
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
-      c[field] = (field==="price"||field==="stock") ? (parseFloat(e.target.value)||0) : e.target.value;
+      c[field] = (field==="price"||field==="stock") ? nonNeg(e.target.value) : e.target.value;
       if(field==="stock"){
         var low = (Number(c.stock)||0) <= 0;
         e.target.style.borderColor = low ? "var(--danger)" : "";
@@ -1286,6 +1305,12 @@
     });
     container.addEventListener("focusout", function(e){
       var field = e.target.getAttribute("data-cfield");
+      if(field==="price" || field==="stock"){
+        var idxNum = parseInt(e.target.getAttribute("data-index"), 10);
+        var cNum = state.cableCatalog[idxNum];
+        if(cNum) e.target.value = cNum[field];
+        return;
+      }
       if(field !== "desc" && field !== "detail") return;
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
@@ -1949,9 +1974,16 @@
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var t = draft().taxes[idx];
       if(!t) return;
-      t[field] = field==="percent" ? (parseFloat(e.target.value)||0) : e.target.value;
+      t[field] = field==="percent" ? nonNeg(e.target.value) : e.target.value;
       scheduleSave();
       renderPreview();
+    });
+    container.addEventListener("focusout", function(e){
+      var field = e.target.getAttribute("data-tfield");
+      if(field!=="percent") return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10);
+      var t = draft().taxes[idx];
+      if(t) e.target.value = t.percent;
     });
     container.addEventListener("click", function(e){
       var btn = e.target.closest(".remove-tax");
