@@ -3278,20 +3278,38 @@
     }
     return ((b<<16) | a) >>> 0;
   }
-  // Um teste real revelou que a compressão pode, numa condição rara ainda não identificada,
-  // produzir um stream zlib com o checksum Adler-32 final errado — o conteúdo comprimido em si
-  // parecia certo (e até "descomprimia de volta" certo usando a própria API do navegador), mas
-  // leitores de PDF mais rigorosos (que conferem o checksum de verdade) paravam de renderizar no
-  // meio da página por causa disso. Por isso a verificação aqui é feita calculando o Adler-32 dos
-  // bytes originais em JS puro, sem depender do DecompressionStream (que aceitou o mesmo stream
-  // ruim de volta, então não serve como verificação independente) — se o checksum não bater, usa
-  // os bytes sem compressão (PDF um pouco maior, nunca corrompido).
+  function inflateZlib(bytes){
+    if(typeof DecompressionStream === "undefined") return Promise.resolve(null);
+    try{
+      var ds = new DecompressionStream("deflate");
+      var writer = ds.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      return new Response(ds.readable).arrayBuffer().then(function(ab){ return new Uint8Array(ab); }).catch(function(){ return null; });
+    }catch(e){ return Promise.resolve(null); }
+  }
+  function sameBytes(a, b){
+    if(!a || !b || a.length!==b.length) return false;
+    for(var i=0;i<a.length;i++) if(a[i]!==b[i]) return false;
+    return true;
+  }
+  // Testes revelaram que a compressão pode, numa condição rara ainda não identificada (parece ligada
+  // a várias compressões acontecendo na mesma exportação — logo + QR Pix + várias páginas), devolver
+  // um stream zlib com o conteúdo genuinamente truncado/errado, não só um checksum estranho. Por isso
+  // a verificação aqui é em duas camadas: (1) o Adler-32 dos bytes originais, calculado em JS puro
+  // (não depende do navegador); e (2) descomprimir o resultado de volta (mesma API do navegador) e
+  // comparar byte a byte com o original — captura truncamento de conteúdo que só o checksum poderia
+  // deixar passar. Se qualquer uma das duas falhar, usa os bytes sem compressão (PDF um pouco maior,
+  // mas nunca corrompido).
   function deflateZlibVerified(bytes){
     return deflateZlib(bytes).then(function(compressed){
       if(!compressed || compressed.length<6) return null;
       var trailer = compressed.subarray(compressed.length-4);
       var actual = ((trailer[0]<<24) | (trailer[1]<<16) | (trailer[2]<<8) | trailer[3]) >>> 0;
-      return actual === adler32(bytes) ? compressed : null;
+      if(actual !== adler32(bytes)) return null;
+      return inflateZlib(compressed).then(function(roundtrip){
+        return sameBytes(roundtrip, bytes) ? compressed : null;
+      });
     });
   }
 
