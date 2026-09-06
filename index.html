@@ -772,6 +772,18 @@
     return { subtotal:subtotal, discountAmount:discountAmount, base:base, taxAmount:taxAmount, taxPercentTotal:taxPercentTotal, total:total };
   }
 
+  // "Desconto (5%)" — se o desconto foi digitado como valor fixo (R$), calcula o percentual
+  // equivalente sobre o subtotal só pra exibição, sem alterar como o desconto é armazenado.
+  function discountLabel(dr, totals){
+    if(!(totals.discountAmount>0)) return "Desconto";
+    var pct = dr.discount.type==="percent"
+      ? (Number(dr.discount.value)||0)
+      : (totals.subtotal>0 ? (totals.discountAmount/totals.subtotal*100) : 0);
+    var rounded = Math.round(pct*10)/10;
+    var dec = (rounded % 1 === 0) ? 0 : 1;
+    return "Desconto ("+fmtNum(rounded,dec)+"%)";
+  }
+
   // ---------- bindings for simple fields ----------
   var bindings = [
     ["f-company-name", function(s){return s.company.name;}, function(s,v){s.company.name=v;}],
@@ -2040,7 +2052,7 @@
     var totalsHtml =
       '<div class="totals">' +
         '<div class="totals-row muted"><span>Subtotal</span><span>'+fmtBRL(totals.subtotal)+'</span></div>' +
-        (totals.discountAmount>0 ? '<div class="totals-row muted"><span>Desconto</span><span>-'+fmtBRL(totals.discountAmount)+'</span></div>' : '') +
+        (totals.discountAmount>0 ? '<div class="totals-row muted"><span>'+escapeHtml(discountLabel(dr,totals))+'</span><span>-'+fmtBRL(totals.discountAmount)+'</span></div>' : '') +
         (taxLines ? (
           dr.taxIncluded
           ? '<div class="totals-row muted"><span>Impostos ('+taxLines+')</span><span>inclusos</span></div>'
@@ -2312,7 +2324,7 @@
         y += big ? 24 : 18;
       }
       totalsRow("Subtotal", fmtBRL(totals.subtotal));
-      if(totals.discountAmount>0) totalsRow("Desconto", "-"+fmtBRL(totals.discountAmount));
+      if(totals.discountAmount>0) totalsRow(discountLabel(dr,totals), "-"+fmtBRL(totals.discountAmount));
       var taxLines = dr.taxes.filter(function(t){return t.label||t.percent;}).map(function(t){
         return (t.label||"Imposto")+" "+fmtNum(t.percent,2)+"%";
       }).join(" + ");
@@ -2503,7 +2515,7 @@
     }).then(function(img){
       if(!img) return null;
       var raw = imageToRawRGB(img);
-      return deflateZlib(raw.bytes).then(function(compressed){
+      return deflateZlibVerified(raw.bytes).then(function(compressed){
         return { width:raw.width, height:raw.height, bytes: compressed||raw.bytes, useFlate: !!compressed };
       });
     }).catch(function(){ return null; });
@@ -2693,7 +2705,7 @@
       y += big ? 24 : 18;
     }
     totalsRow("Subtotal", fmtBRL(totals.subtotal));
-    if(totals.discountAmount>0) totalsRow("Desconto", "-"+fmtBRL(totals.discountAmount));
+    if(totals.discountAmount>0) totalsRow(discountLabel(dr,totals), "-"+fmtBRL(totals.discountAmount));
     var taxLines = dr.taxes.filter(function(t){return t.label||t.percent;}).map(function(t){
       return (t.label||"Imposto")+" "+fmtNum(t.percent,2)+"%";
     }).join(" + ");
@@ -2816,7 +2828,7 @@
       return opsToContentBytes(pageOps, pageH, logoBoxHere, pixBoxHere);
     });
 
-    return Promise.all(contentRawByPage.map(function(raw){ return deflateZlib(raw); })).then(function(compressedList){
+    return Promise.all(contentRawByPage.map(function(raw){ return deflateZlibVerified(raw); })).then(function(compressedList){
       var parts = [], length = 0;
       function push(x){ var b=(typeof x==="string")?asciiBytes(x):x; parts.push(b); length+=b.length; }
       var offsets = {};
@@ -3121,7 +3133,7 @@
       }
       var logoDataPromise = (logoImg && layoutResult.logoBox) ? (function(){
         var raw = imageToRawRGB(logoImg);
-        return deflateZlib(raw.bytes).then(function(compressed){
+        return deflateZlibVerified(raw.bytes).then(function(compressed){
           return { width:raw.width, height:raw.height, bytes: compressed||raw.bytes, useFlate: !!compressed };
         });
       })() : Promise.resolve(null);
@@ -3231,15 +3243,47 @@
     }
   }
 
+  // Serializa as chamadas (nunca duas CompressionStream ativas ao mesmo tempo) — documentos de
+  // várias páginas comprimem cada página em paralelo, e a logo/QR Pix ao mesmo tempo também.
+  var _deflateQueue = Promise.resolve();
   function deflateZlib(bytes){
     if(typeof CompressionStream === "undefined") return Promise.resolve(null);
-    try{
-      var cs = new CompressionStream("deflate");
-      var writer = cs.writable.getWriter();
-      writer.write(bytes);
-      writer.close();
-      return new Response(cs.readable).arrayBuffer().then(function(ab){ return new Uint8Array(ab); }).catch(function(){ return null; });
-    }catch(e){ return Promise.resolve(null); }
+    var run = function(){
+      try{
+        var cs = new CompressionStream("deflate");
+        var writer = cs.writable.getWriter();
+        writer.write(bytes);
+        writer.close();
+        return new Response(cs.readable).arrayBuffer().then(function(ab){ return new Uint8Array(ab); }).catch(function(){ return null; });
+      }catch(e){ return Promise.resolve(null); }
+    };
+    var result = _deflateQueue.then(run);
+    _deflateQueue = result.then(function(){}, function(){});
+    return result;
+  }
+  function adler32(bytes){
+    var MOD = 65521, a = 1, b = 0;
+    for(var i=0;i<bytes.length;i++){
+      a = (a + bytes[i]) % MOD;
+      b = (b + a) % MOD;
+    }
+    return ((b<<16) | a) >>> 0;
+  }
+  // Um teste real revelou que a compressão pode, numa condição rara ainda não identificada,
+  // produzir um stream zlib com o checksum Adler-32 final errado — o conteúdo comprimido em si
+  // parecia certo (e até "descomprimia de volta" certo usando a própria API do navegador), mas
+  // leitores de PDF mais rigorosos (que conferem o checksum de verdade) paravam de renderizar no
+  // meio da página por causa disso. Por isso a verificação aqui é feita calculando o Adler-32 dos
+  // bytes originais em JS puro, sem depender do DecompressionStream (que aceitou o mesmo stream
+  // ruim de volta, então não serve como verificação independente) — se o checksum não bater, usa
+  // os bytes sem compressão (PDF um pouco maior, nunca corrompido).
+  function deflateZlibVerified(bytes){
+    return deflateZlib(bytes).then(function(compressed){
+      if(!compressed || compressed.length<6) return null;
+      var trailer = compressed.subarray(compressed.length-4);
+      var actual = ((trailer[0]<<24) | (trailer[1]<<16) | (trailer[2]<<8) | trailer[3]) >>> 0;
+      return actual === adler32(bytes) ? compressed : null;
+    });
   }
 
   function concatUint8(arrays){
