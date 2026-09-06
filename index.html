@@ -110,6 +110,7 @@
     background:var(--paper-raised); color:var(--ink); cursor:pointer;
     font-size:13px; font-weight:600;
   }
+  .btn[hidden]{ display:none; }
   .btn:hover{border-color:var(--accent);}
   .btn-primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
   .btn-primary:hover{filter:brightness(1.05);}
@@ -356,6 +357,7 @@
       <button type="button" class="mode-btn mode-btn--cabos" id="btn-mode-cabos" aria-pressed="false">Venda de Cabos</button>
     </div>
     <button type="button" class="btn btn-pill" id="btn-new"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova proposta</button>
+    <button type="button" class="btn btn-pill" id="btn-share" hidden><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>Compartilhar</button>
     <button type="button" class="btn btn-primary btn-pill" id="btn-download"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>Baixar proposta</button>
   </div>
 
@@ -381,7 +383,8 @@
 
       <div class="field-group" data-panel="proposta">
         <legend>Cliente</legend>
-        <div class="field"><label for="f-client-name">Nome / Razão social</label><input id="f-client-name" placeholder="Nome do cliente"></div>
+        <div class="field"><label for="f-client-name">Nome / Razão social</label><input id="f-client-name" list="client-history-list" placeholder="Nome do cliente" title="Clientes de propostas anteriores aparecem como sugestão"></div>
+        <datalist id="client-history-list"></datalist>
         <div class="field-row">
           <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc" placeholder="Digite o CNPJ para buscar os dados" title="Para CNPJ, os dados da empresa são buscados automaticamente ao sair do campo"></div>
           <div class="field"><label for="f-client-phone">Telefone</label><input id="f-client-phone"></div>
@@ -421,6 +424,18 @@
         <legend>Impostos <button type="button" class="add-row-btn" id="btn-add-tax">+ imposto</button></legend>
         <div id="taxes-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         <label class="checkbox-field"><input type="checkbox" id="f-tax-included"> Preço dos itens já inclui os impostos acima</label>
+      </div>
+
+      <div class="field-group" data-panel="condicoes">
+        <legend>Modelos de condições</legend>
+        <div class="field"><label for="f-cond-template">Aplicar modelo salvo</label>
+          <select id="f-cond-template"><option value="">Selecione um modelo…</option></select>
+        </div>
+        <div class="field-row">
+          <button type="button" class="btn btn-sm" id="btn-apply-cond-template" style="flex:1;">Aplicar</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-delete-cond-template" style="flex:1;">Remover modelo</button>
+        </div>
+        <button type="button" class="btn-ghost btn-sm" id="btn-save-cond-template" style="align-self:flex-start; padding:0;">+ salvar condições atuais como modelo</button>
       </div>
 
       <div class="field-group" data-panel="condicoes">
@@ -607,8 +622,10 @@
       company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"", pixKey:"", pixCity:"" },
       mode:"projeto",
       counters:{ projeto:2, cabos:2 },
+      counterYears:{ projeto: new Date().getFullYear(), cabos: new Date().getFullYear() },
       cableCatalog: defaultCableCatalog(),
       productTemplates: defaultProductTemplates(),
+      conditionTemplates: [],
       proposalHistory: [],
       drafts:{ projeto: demoProjetoDraft(1), cabos: demoCabosDraft(1) }
     };
@@ -622,6 +639,7 @@
     d.company = Object.assign(d.company, parsed.company||{});
     d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
     d.counters = Object.assign(d.counters, parsed.counters||{});
+    d.counterYears = Object.assign(d.counterYears, parsed.counterYears||{});
     if(Array.isArray(parsed.cableCatalog)){
       d.cableCatalog = parsed.cableCatalog.map(function(c){
         if(!c.id) c.id = genId();
@@ -632,6 +650,7 @@
     }
     ensureCatalogPos(d.cableCatalog);
     if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
+    if(Array.isArray(parsed.conditionTemplates)) d.conditionTemplates = parsed.conditionTemplates;
     if(Array.isArray(parsed.proposalHistory)){
       d.proposalHistory = parsed.proposalHistory.map(function(h){
         if(h.status === "pendente") h.status = "emitida"; // rotulo antigo, mesmo significado
@@ -865,6 +884,51 @@
     });
   }
 
+  // ---------- clientes recorrentes (sugestão a partir do histórico) ----------
+  function renderClientHistoryDatalist(){
+    var dl = document.getElementById("client-history-list");
+    var seen = {};
+    var options = "";
+    state.proposalHistory.forEach(function(h){
+      var name = (h.draft.client.name||"").trim();
+      var key = name.toLowerCase();
+      if(name && !seen[key]){ seen[key] = true; options += '<option value="'+escapeHtml(name)+'"></option>'; }
+    });
+    dl.innerHTML = options;
+  }
+  // proposalHistory fica sempre em ordem "mais recente primeiro" (unshift ao salvar), então o
+  // primeiro registro que bater o nome já é o mais recente — sem precisar ordenar por data.
+  function findMostRecentClientByName(name){
+    var q = (name||"").trim().toLowerCase();
+    if(!q) return null;
+    for(var i=0;i<state.proposalHistory.length;i++){
+      var c = state.proposalHistory[i].draft.client;
+      if((c.name||"").trim().toLowerCase() === q) return c;
+    }
+    return null;
+  }
+  function attachClientAutocomplete(){
+    document.getElementById("f-client-name").addEventListener("focusout", function(){
+      var cl = draft().client;
+      var match = findMostRecentClientByName(cl.name);
+      if(!match) return;
+      var changed = false;
+      ["doc","phone","address","contact","email"].forEach(function(prop){
+        if(cl[prop] || !match[prop]) return; // nunca sobrescreve o que o usuário já preencheu
+        cl[prop] = match[prop];
+        changed = true;
+        var fieldId = { doc:"f-client-doc", phone:"f-client-phone", address:"f-client-address", contact:"f-client-contact", email:"f-client-email" }[prop];
+        var el = document.getElementById(fieldId);
+        if(el) el.value = match[prop];
+      });
+      if(changed){
+        scheduleSave();
+        renderPreview();
+        toast("Dados preenchidos a partir de uma proposta anterior desse cliente");
+      }
+    });
+  }
+
   // ---------- side tabs ----------
   function applyTabVisibility(){
     document.querySelectorAll("[data-panel]").forEach(function(el){
@@ -948,6 +1012,8 @@
     renderTaxesList();
     renderCatalogList();
     renderCatalogPicker();
+    renderConditionTemplateOptions();
+    renderClientHistoryDatalist();
     renderHistoryList();
     renderPreview();
   }
@@ -999,6 +1065,20 @@
   function unitOptions(mode){
     return mode==="cabos" ? ["m","rolo","cx","un"] : ["verba","h","un","mês","visita","etapa"];
   }
+  // Compara a quantidade pedida (somando todas as linhas que usam o mesmo produto do catálogo)
+  // contra o estoque disponível — só um aviso, não bloqueia (o estoque só é debitado de fato quando
+  // a proposta é marcada "Vendida").
+  function stockWarningHtml(it){
+    if(state.mode !== "cabos" || !it.catalogId) return "";
+    var c = state.cableCatalog.find(function(x){ return x.id === it.catalogId; });
+    if(!c) return "";
+    var totalReq = draft().items.filter(function(x){ return x.catalogId === it.catalogId; })
+      .reduce(function(s,x){ return s + (Number(x.qty)||0); }, 0);
+    var available = Number(c.stock)||0;
+    if(totalReq <= available) return "";
+    var dec = it.unit==="m" ? 0 : 2;
+    return '<div style="font-size:11px; color:var(--danger); margin-top:2px;">Estoque disponível: '+fmtNum(available,dec)+' '+it.unit+' — quantidade pedida excede em '+fmtNum(totalReq-available,dec)+' '+it.unit+'</div>';
+  }
   function renderItemsList(){
     var container = document.getElementById("items-list");
     var mode = state.mode;
@@ -1027,6 +1107,7 @@
             '<div class="field"><label>Valor (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+it.price+'"></div>' +
             '<div class="field"><label>Total</label><input value="'+fmtBRL((Number(it.qty)||0)*(Number(it.price)||0))+'" readonly style="color:var(--ink-soft);"></div>' +
           '</div>' +
+          '<div class="item-stock-slot" data-index="'+i+'">'+stockWarningHtml(it)+'</div>' +
         '</div>'
       );
     }).join("");
@@ -1044,6 +1125,12 @@
         var row = e.target.closest(".item-card");
         var totalInput = row.querySelector('.item-grid .field:last-child input');
         totalInput.value = fmtBRL((Number(it.qty)||0)*(Number(it.price)||0));
+        if(field==="qty" && it.catalogId){
+          container.querySelectorAll(".item-stock-slot").forEach(function(slot){
+            var it2 = draft().items[parseInt(slot.getAttribute("data-index"),10)];
+            if(it2 && it2.catalogId === it.catalogId) slot.innerHTML = stockWarningHtml(it2);
+          });
+        }
       } else {
         it[field] = e.target.value;
       }
@@ -1365,6 +1452,21 @@
         && (a.doc||"").trim() === (b.doc||"").trim();
   }
 
+  // Gera o próximo número de proposta do modo dado, reiniciando a sequência em 001 sempre que
+  // o ano mudar — sem isso o contador crescia pra sempre e o ano no número (ex.: CAB-2027-015)
+  // ficava inconsistente com o padrão esperado (sequência reiniciando por ano).
+  function nextProposalNumber(mode, forDate){
+    var year = new Date(forDate ? forDate+"T00:00:00" : Date.now()).getFullYear();
+    if(state.counterYears[mode] !== year){
+      state.counterYears[mode] = year;
+      state.counters[mode] = 1;
+    }
+    var seq = state.counters[mode];
+    state.counters[mode] = seq + 1;
+    var prefix = mode === "cabos" ? "CAB" : "PRJ";
+    return prefix + "-" + year + "-" + String(seq).padStart(3,"0");
+  }
+
   // If the current number was already saved to history under a DIFFERENT client, this isn't a
   // revision — it's a new proposal that never got a fresh number (user didn't click "Nova proposta").
   // Auto-assign a new number so the previous one in history is never silently overwritten.
@@ -1374,12 +1476,8 @@
     var existing = state.proposalHistory.find(function(h){ return h.number === dr.number; });
     if(!existing) return;
     if(sameClient(existing.draft.client, dr.client)) return;
-    var seq = state.counters[mode];
-    state.counters[mode] = seq + 1;
-    var prefix = mode === "cabos" ? "CAB" : "PRJ";
-    var year = new Date(dr.date ? dr.date+"T00:00:00" : Date.now()).getFullYear();
     var oldNumber = dr.number;
-    dr.number = prefix + "-" + year + "-" + String(seq).padStart(3,"0");
+    dr.number = nextProposalNumber(mode, dr.date);
     var numberField = document.getElementById("f-meta-number");
     if(numberField) numberField.value = dr.number;
     toast("Novo cliente detectado — número atualizado para "+dr.number+" ("+oldNumber+" continua no histórico)");
@@ -1405,6 +1503,7 @@
       });
     }
     renderHistoryList();
+    renderClientHistoryDatalist();
   }
 
   function findHistoryEntry(hid){
@@ -1485,6 +1584,7 @@
     var modeLabel = h.mode === "cabos" ? "Cabos" : "Projeto";
     var statusLabel = { emitida:"Emitida", vendida:"Vendida", cancelada:"Cancelada" }[h.status] || h.status;
     var actions = '<button type="button" class="btn btn-sm hist-open" data-hid="'+h.id+'">Abrir</button>';
+    actions += '<button type="button" class="btn-ghost btn-sm hist-duplicate" data-hid="'+h.id+'" title="Cria uma proposta nova com os mesmos itens e condições, número novo e cliente em branco">Duplicar</button>';
     if(opts.archived){
       actions += '<button type="button" class="btn-ghost btn-sm hist-unarchive" data-hid="'+h.id+'">Desarquivar</button>';
     } else {
@@ -1654,6 +1754,31 @@
     toast("Proposta "+h.number+" carregada");
   }
 
+  // Cria uma proposta nova a partir de uma do histórico: mantém itens e condições (útil pra mandar
+  // algo parecido pra outro cliente), mas sempre com número novo e cliente em branco — nunca reaproveita
+  // o registro antigo, então o original no histórico não é alterado.
+  function duplicateFromHistory(hid){
+    var h = findHistoryEntry(hid);
+    if(!h) return;
+    var mode = h.mode;
+    var current = state.drafts[mode];
+    var isSameProposal = current && current.number === h.number;
+    if(!isSameProposal && draftHasContent(current)){
+      var label = current.number + (current.client.name ? " — "+current.client.name : "");
+      if(!confirm('Você tem uma proposta em andamento nesse modo ('+label+'). Duplicar "'+h.number+'" vai substituir o que está sendo editado agora — não dá para desfazer. Continuar?')) return;
+    }
+    var copy = snapshotDraft(h.draft);
+    copy.number = nextProposalNumber(mode);
+    copy.date = todayISO();
+    copy.client = emptyClient();
+    state.mode = mode;
+    state.drafts[mode] = copy;
+    syncFormFromState();
+    setActiveTab("proposta");
+    saveNow();
+    toast("Proposta duplicada como "+copy.number+" — preencha o cliente");
+  }
+
   function markSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
@@ -1758,6 +1883,7 @@
     container.addEventListener("click", function(e){
       var btn;
       if((btn = e.target.closest(".hist-open"))) return openHistoryEntry(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-duplicate"))) return duplicateFromHistory(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-sell"))) return markSold(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-unsell"))) return unmarkSold(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-cancel"))) return cancelProposal(btn.getAttribute("data-hid"));
@@ -1830,6 +1956,59 @@
       scheduleSave();
       renderPreview();
     });
+  }
+
+  // ---------- modelos de condições comerciais ----------
+  function renderConditionTemplateOptions(){
+    var select = document.getElementById("f-cond-template");
+    var current = select.value;
+    select.innerHTML = '<option value="">Selecione um modelo…</option>' +
+      state.conditionTemplates.map(function(t){
+        return '<option value="'+t.id+'">'+escapeHtml(t.name)+'</option>';
+      }).join("");
+    if(state.conditionTemplates.some(function(t){ return t.id===current; })) select.value = current;
+  }
+  function applyConditionTemplate(){
+    var select = document.getElementById("f-cond-template");
+    var t = state.conditionTemplates.find(function(x){ return x.id === select.value; });
+    if(!t){ toast("Selecione um modelo primeiro"); return; }
+    var dr = draft();
+    dr.conditions.pagamento = t.pagamento;
+    dr.conditions.prazo = t.prazo;
+    dr.conditions.garantia = t.garantia;
+    dr.conditions.obs = t.obs;
+    syncFormFromState();
+    scheduleSave();
+    renderPreview();
+    toast('Modelo "'+t.name+'" aplicado');
+  }
+  function saveConditionTemplateFromCurrent(){
+    var name = prompt("Nome do modelo (ex.: \"Padrão à vista\", \"30 dias fatura\"):");
+    if(!name || !name.trim()) return;
+    var dr = draft();
+    state.conditionTemplates.push({
+      id: genId(), name: name.trim(),
+      pagamento: dr.conditions.pagamento, prazo: dr.conditions.prazo,
+      garantia: dr.conditions.garantia, obs: dr.conditions.obs
+    });
+    renderConditionTemplateOptions();
+    scheduleSave();
+    toast('Modelo "'+name.trim()+'" salvo');
+  }
+  function deleteSelectedConditionTemplate(){
+    var select = document.getElementById("f-cond-template");
+    var t = state.conditionTemplates.find(function(x){ return x.id === select.value; });
+    if(!t){ toast("Selecione um modelo primeiro"); return; }
+    if(!confirm('Remover o modelo "'+t.name+'"? Isso não afeta propostas que já usam esse texto.')) return;
+    state.conditionTemplates = state.conditionTemplates.filter(function(x){ return x.id !== t.id; });
+    renderConditionTemplateOptions();
+    scheduleSave();
+    toast("Modelo removido");
+  }
+  function attachConditionTemplateHandlers(){
+    document.getElementById("btn-apply-cond-template").addEventListener("click", applyConditionTemplate);
+    document.getElementById("btn-save-cond-template").addEventListener("click", saveConditionTemplateFromCurrent);
+    document.getElementById("btn-delete-cond-template").addEventListener("click", deleteSelectedConditionTemplate);
   }
 
   // ---------- preview ----------
@@ -2928,15 +3107,17 @@
     });
   }
 
-  function exportRealPdf(){
+  // Monta os bytes do PDF da proposta atual (logo + QR Pix, se houver) — usado tanto pelo
+  // download normal quanto pelo compartilhamento direto, pra não duplicar essa lógica.
+  // Rejeita com {stage:"layout"} se a montagem falhar, ou sem stage se a geração do PDF falhar.
+  function buildFullProposalPdfBytes(){
     var logoSrc = state.company.logo;
-    (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
+    return (logoSrc ? loadImage(logoSrc) : Promise.resolve(null)).then(function(logoImg){
       var layoutResult;
       try{
         layoutResult = buildProposalOps();
       }catch(e){
-        toast("Falha ao montar a proposta");
-        return;
+        return Promise.reject({ stage:"layout" });
       }
       var logoDataPromise = (logoImg && layoutResult.logoBox) ? (function(){
         var raw = imageToRawRGB(logoImg);
@@ -2946,13 +3127,52 @@
       })() : Promise.resolve(null);
       var pixDataPromise = layoutResult.pixBox ? buildPixQrImageData(calcTotals(draft()).total) : Promise.resolve(null);
 
-      Promise.all([logoDataPromise, pixDataPromise]).then(function(results){
-        buildVectorPdfBytes(layoutResult, results[0], results[1]).then(function(pdfBytes){
-          deliverPdf(pdfBytes, (draft().number || "proposta") + ".pdf");
-        }).catch(function(){
-          toast("Falha ao gerar o PDF");
-        });
+      return Promise.all([logoDataPromise, pixDataPromise]).then(function(results){
+        return buildVectorPdfBytes(layoutResult, results[0], results[1]);
       });
+    });
+  }
+
+  function exportRealPdf(){
+    buildFullProposalPdfBytes().then(function(pdfBytes){
+      deliverPdf(pdfBytes, (draft().number || "proposta") + ".pdf");
+    }).catch(function(err){
+      toast(err && err.stage==="layout" ? "Falha ao montar a proposta" : "Falha ao gerar o PDF");
+    });
+  }
+
+  // ---------- compartilhar direto (Web Share API) ----------
+  function canShareFiles(){
+    return !!(navigator.share && navigator.canShare);
+  }
+  function shareProposalPdf(){
+    if(!canShareFiles()){
+      toast("Compartilhamento não é suportado neste navegador — baixe e anexe manualmente");
+      return;
+    }
+    var dr = draft();
+    var missing = [];
+    if(!dr.client.name || !dr.client.name.trim()) missing.push("sem o nome do cliente");
+    if(!dr.items.length) missing.push("sem nenhum item adicionado");
+    if(missing.length){
+      if(!confirm("Essa proposta está "+missing.join(" e ")+". Compartilhar mesmo assim?")) return;
+    }
+    ensureFreshNumberIfNeeded();
+    saveToHistory();
+    scheduleSave();
+    buildFullProposalPdfBytes().then(function(pdfBytes){
+      var filename = (draft().number || "proposta") + ".pdf";
+      var file = new File([pdfBytes], filename, { type:"application/pdf" });
+      if(!navigator.canShare({ files:[file] })){
+        toast("Este navegador não permite compartilhar arquivos — baixe e anexe manualmente");
+        return;
+      }
+      navigator.share({ files:[file], title:"Proposta "+filename }).catch(function(err){
+        if(err && err.name === "AbortError") return; // usuário cancelou o compartilhamento
+        toast("Não foi possível abrir o compartilhamento — baixe e anexe manualmente");
+      });
+    }).catch(function(err){
+      toast(err && err.stage==="layout" ? "Falha ao montar a proposta" : "Falha ao gerar o PDF");
     });
   }
 
@@ -3117,9 +3337,8 @@
 
   function newProposal(){
     var mode = state.mode;
-    var seq = state.counters[mode];
-    state.counters[mode] = seq + 1;
-    var d = mode==="cabos" ? demoCabosDraft(seq) : demoProjetoDraft(seq);
+    var d = mode==="cabos" ? demoCabosDraft(1) : demoProjetoDraft(1);
+    d.number = nextProposalNumber(mode);
     d.client = emptyClient();
     d.items = [];
     d.conditions = emptyConditions();
@@ -3222,6 +3441,8 @@
     attachCatalogPickerHandler();
     attachHistoryDelegation();
     attachFolderHandlers();
+    attachConditionTemplateHandlers();
+    attachClientAutocomplete();
     document.getElementById("btn-stock-report").addEventListener("click", exportStockReportPdf);
     attachTabHandlers();
     attachPanelToggle();
@@ -3231,6 +3452,10 @@
     document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
     document.getElementById("btn-new").addEventListener("click", newProposal);
     document.getElementById("btn-download").addEventListener("click", exportProposalImage);
+    if(canShareFiles()){
+      document.getElementById("btn-share").hidden = false;
+      document.getElementById("btn-share").addEventListener("click", shareProposalPdf);
+    }
 
     syncFormFromState();
   }
