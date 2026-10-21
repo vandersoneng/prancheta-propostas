@@ -372,7 +372,7 @@
       <span class="brand-mark" aria-hidden="true">⚡</span>
       <div class="brand-text">
         <span class="brand-title">OrçaVolt</span>
-        <span class="brand-sub">Propostas &amp; catálogo de cabos</span>
+        <span class="brand-sub" id="brand-sub">Propostas &amp; catálogo de cabos</span>
       </div>
     </div>
     <div class="mode-switch" role="group" aria-label="Tipo de proposta">
@@ -579,7 +579,7 @@
       </div>
 
       <div class="field-group" data-panel="historico">
-        <legend>Histórico de propostas <button type="button" class="btn-ghost btn-sm" id="btn-export-history-csv">Exportar (CSV)</button></legend>
+        <legend><span id="lbl-history-legend">Histórico de propostas</span> <button type="button" class="btn-ghost btn-sm" id="btn-export-history-csv">Exportar (CSV)</button></legend>
         <input id="history-search" placeholder="Buscar por cliente ou número..." style="padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink); margin-bottom:4px;">
         <div id="history-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
@@ -1342,11 +1342,16 @@
   }
 
   // ---------- clientes recorrentes (sugestão a partir do histórico) ----------
+  // Histórico, estatísticas, sugestão de clientes e CSV mostram só o tipo de proposta que está
+  // aberto (projeto ou cabos) — as duas frentes não se misturam.
+  function historyForMode(){
+    return state.proposalHistory.filter(function(h){ return h.mode === state.mode; });
+  }
   function renderClientHistoryDatalist(){
     var dl = document.getElementById("client-history-list");
     var seen = {};
     var options = "";
-    state.proposalHistory.forEach(function(h){
+    historyForMode().forEach(function(h){
       var name = (h.draft.client.name||"").trim();
       var key = name.toLowerCase();
       if(name && !seen[key]){ seen[key] = true; options += '<option value="'+escapeHtml(name)+'"></option>'; }
@@ -1358,8 +1363,9 @@
   function findMostRecentClientByName(name){
     var q = (name||"").trim().toLowerCase();
     if(!q) return null;
-    for(var i=0;i<state.proposalHistory.length;i++){
-      var c = state.proposalHistory[i].draft.client;
+    var scoped = historyForMode();
+    for(var i=0;i<scoped.length;i++){
+      var c = scoped[i].draft.client;
       if((c.name||"").trim().toLowerCase() === q) return c;
     }
     return null;
@@ -1655,6 +1661,7 @@
   function renderProjetoPanels(){
     var dr = pj();
     var isProj = state.mode === "projeto";
+    document.getElementById("brand-sub").textContent = isProj ? "Propostas de projeto & consultoria" : "Propostas & catálogo de cabos";
     document.getElementById("lbl-client-contact").textContent = isProj ? "Aos cuidados de" : "Contato";
     document.getElementById("lbl-items-legend").textContent = isProj ? "Outros itens (ex.: ART, visitas)" : "Itens";
     document.getElementById("tab-btn-modelos").style.display = isProj ? "" : "none";
@@ -2657,16 +2664,17 @@
       '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin-bottom:20px;">' +
         historyStatCard(icoFile, "Emitidas", emitidas.length, emitidasSub, emitidasVencidas ? "var(--danger)" : "var(--blue)") +
         historyStatCard(icoCheck, "Vendidas", vendidas.length, vendidas.length ? fmtBRL(vendidoTotal)+" em vendas" : "nenhuma venda ainda", "var(--good)") +
-        historyStatCard(icoX, "Canceladas", canceladas.length, "sem efeito no estoque", "var(--danger)") +
+        historyStatCard(icoX, "Canceladas", canceladas.length, state.mode==="cabos" ? "sem efeito no estoque" : "sem efeito", "var(--danger)") +
         historyStatCard(icoArchive, "Arquivadas", arquivadas.length, arquivadasSub, "var(--ink-faint)") +
       '</div>'
     );
   }
   function renderHistoryList(){
     var container = document.getElementById("history-list");
-    var list = state.proposalHistory;
+    var list = historyForMode();
+    document.getElementById("lbl-history-legend").textContent = state.mode==="cabos" ? "Histórico — venda de cabos" : "Histórico — projetos e consultoria";
     if(!list.length){
-      container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint); line-height:1.5;">Nenhuma proposta salva ainda. Toda vez que você clicar em "Baixar proposta", ela é registrada aqui automaticamente.</div>';
+      container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint); line-height:1.5;">Nenhuma proposta de '+(state.mode==="cabos" ? "cabos" : "projeto")+' salva ainda. Toda vez que você clicar em "Baixar proposta", ela é registrada aqui automaticamente.</div>';
       return;
     }
     container.innerHTML =
@@ -2737,7 +2745,7 @@
   function markSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
-    if(!confirm('Marcar a proposta '+h.number+' como vendida? Isso dá baixa no estoque dos itens que casarem com o catálogo.')) return;
+    if(!confirm('Marcar a proposta '+h.number+(h.mode==="cabos" ? ' como vendida? Isso dá baixa no estoque dos itens que casarem com o catálogo.' : ' como vendida (fechada)?'))) return;
     var negativeCount = 0, unmatched = [], ambiguous = [];
     (h.mode === "cabos" ? h.draft.items : []).forEach(function(it){
       var r = findCatalogEntryForItem(it);
@@ -2752,14 +2760,14 @@
     renderCatalogList();
     renderCatalogPicker();
     scheduleSave();
-    toast(negativeCount ? "Marcada como vendida — atenção: estoque negativo em "+negativeCount+" item(ns)" : "Marcada como vendida — estoque atualizado");
+    toast(h.mode!=="cabos" ? "Marcada como vendida" : (negativeCount ? "Marcada como vendida — atenção: estoque negativo em "+negativeCount+" item(ns)" : "Marcada como vendida — estoque atualizado"));
     warnIfUnresolved(unmatched, ambiguous);
   }
 
   function unmarkSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
-    if(!confirm('Desfazer a venda da proposta '+h.number+'? A quantidade volta para o estoque dos itens que casarem com o catálogo.')) return;
+    if(!confirm('Desfazer a venda da proposta '+h.number+(h.mode==="cabos" ? '? A quantidade volta para o estoque dos itens que casarem com o catálogo.' : '?'))) return;
     var unmatched = [], ambiguous = [];
     (h.mode === "cabos" ? h.draft.items : []).forEach(function(it){
       var r = findCatalogEntryForItem(it);
@@ -2780,7 +2788,7 @@
   function cancelProposal(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
-    if(!confirm('Marcar a proposta '+h.number+' como cancelada? O estoque não é alterado.')) return;
+    if(!confirm('Marcar a proposta '+h.number+' como cancelada?'+(h.mode==="cabos" ? ' O estoque não é alterado.' : ''))) return;
     h.status = "cancelada";
     h.canceledAt = todayISO();
     renderHistoryList();
@@ -4634,10 +4642,11 @@
     return s;
   }
   function exportHistoryCsv(){
-    if(!state.proposalHistory.length){ toast("Nenhuma proposta no histórico ainda"); return; }
+    var scoped = historyForMode();
+    if(!scoped.length){ toast("Nenhuma proposta de "+(state.mode==="cabos" ? "cabos" : "projeto")+" no histórico ainda"); return; }
     var statusLabel = { emitida:"Emitida", vendida:"Vendida", cancelada:"Cancelada" };
     var rows = [["Número","Cliente","Modo","Status","Vencida","Data","Válida até","Total (R$)","Arquivada"]];
-    state.proposalHistory.forEach(function(h){
+    scoped.forEach(function(h){
       var totals = calcTotals(h.draft);
       rows.push([
         h.number,
@@ -4653,7 +4662,7 @@
     });
     var csv = rows.map(function(r){ return r.map(csvCell).join(";"); }).join("\r\n");
     var blob = new Blob(["﻿"+csv], { type:"text/csv;charset=utf-8" });
-    downloadBlob(blob, "historico-propostas-"+todayISO()+".csv");
+    downloadBlob(blob, "historico-"+(state.mode==="cabos" ? "cabos" : "projetos")+"-"+todayISO()+".csv");
     toast("Histórico exportado");
   }
 
