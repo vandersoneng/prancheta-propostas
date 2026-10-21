@@ -3785,7 +3785,8 @@
     var mode = state.mode;
     var totals = calcTotals(dr);
     var modeColor = mode==="cabos" ? "#B5652E" : "#2B5876";
-    var LW = 595.28, LH = 841.89, ML = 42, MR = 42, MT = 40, MB = 40, CW = LW-ML-MR;
+    var P = (mode === "projeto");
+    var LW = 595.28, LH = 841.89, ML = P ? 46 : 42, MR = P ? 46 : 42, MT = P ? 44 : 40, MB = P ? 44 : 40, CW = LW-ML-MR;
     var ctx = measureScratch();
     var ops = [];
     var page = 0;
@@ -3865,6 +3866,29 @@
     }
 
     // header (only on page 1)
+    var logoBox = null;
+    if(P){
+      // Cabeçalho enxuto: nome 13pt, dados 9pt, bloco do documento em 8/10,5/9pt e um único fio fino.
+      var lg = hasLogo ? 40 : 0, companyX = ML, yy = y;
+      if(hasLogo){ logoBox = { x:ML, y:y, w:lg, h:lg, page:0 }; companyX = ML+lg+10; }
+      var maxW = (LW-MR-190) - companyX;
+      setFontFor(true,13,false);
+      wrapText(ctx, info.name, maxW).forEach(function(l){ text({ x:companyX, y:yy+11, text:l, size:13, bold:true, color:CV_INK }); yy += 16; });
+      yy += 2;
+      info.meta.forEach(function(ln){
+        setFontFor(false,9,false);
+        wrapText(ctx, ln, maxW).forEach(function(l){ text({ x:companyX, y:yy+8, text:l, size:9, color:CV_SOFT }); yy += 12; });
+      });
+      if(logoBox) logoBox.y = y + Math.max(0, ((yy-y) - lg)/2);
+      var yd = y;
+      text({ x:LW-MR, y:yd+9, text:"Nº "+dr.number+" · "+revLabel(dr), size:10.5, bold:true, color:CV_INK, align:"right" }); yd += 15;
+      text({ x:LW-MR, y:yd+8, text:"Emitida em "+dateBR(dr.date), size:9, color:CV_SOFT, align:"right" }); yd += 12;
+      text({ x:LW-MR, y:yd+8, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:9, color:CV_SOFT, align:"right" }); yd += 12;
+      y = Math.max(yy, y+lg, yd) + 10;
+      line(ML,y,LW-MR,y,0.75,CV_LINE_STRONG);
+      y += 16;
+    } else {
+    // header (only on page 1)
     var companyX = ML, yCompany = y;
     var logoBox = hasLogo ? { x:ML, y:y, w:52, h:52, page:0 } : null;
     if(hasLogo) companyX = ML+52+12;
@@ -3903,116 +3927,152 @@
     y = Math.max(leftBottom, yDoc) + 12;
     line(ML,y,LW-MR,y,2,modeColor);
     y += 24;
+    }
 
-    // Corpo da proposta de projeto (estilo carta): mesma folha, cabeçalho e rodapé das demais,
-    // mas com texto corrido, tabela de escopo e seções (prazo, pagamento, cláusulas, assinatura).
+    // Corpo da proposta de projeto (estilo carta). Escala tipográfica única: texto 10,5pt, apoio 9–9,5pt,
+    // rótulos 8–8,5pt, título 15pt. Sem sublinhados nas seções; fio fino só no cabeçalho e na tabela.
     function projetoBody(){
       var doc = projetoDoc(dr);
+      var BODY = 10.5, PITCH = 14.5, ACCENT = modeColor;
+      var HAIR = "#E4E8E7";
+      function bl(s, p){ return (p - s)/2 + s*0.8 - 1; }
       function para(str, o){
         o = o||{};
-        var size = o.size||12;
+        var size = o.size||BODY, pitch = o.pitch||PITCH;
         setFontFor(!!o.bold, size, false);
         var lines = wrapText(ctx, str, CW);
-        if(lines.length) ensureSpace(Math.min(lines.length,2)*15+2);
+        if(lines.length) ensureSpace(Math.min(lines.length,2)*pitch+2);
         lines.forEach(function(l, li){
-          ensureSpace(15);
-          text({ x:ML, y:y+10, text:l, size:size, bold:!!o.bold, color:o.color||CV_INK, just: li < lines.length-1 ? CW : 0 });
-          y += 15;
+          ensureSpace(pitch);
+          text({ x:ML, y:y+bl(size,pitch), text:l, size:size, bold:!!o.bold, color:o.color||CV_INK, just: (o.left || li >= lines.length-1) ? 0 : CW });
+          y += pitch;
         });
-        y += (o.after != null ? o.after : 6);
+        y += (o.after != null ? o.after : 5);
       }
       function bulletItem(str){
-        setFontFor(false,12,false);
+        setFontFor(false,BODY,false);
         var lines = wrapText(ctx, str, CW-14);
-        if(lines.length) ensureSpace(Math.min(lines.length,2)*15+2);
+        if(lines.length) ensureSpace(Math.min(lines.length,2)*PITCH+2);
         lines.forEach(function(l, i){
-          ensureSpace(15);
-          if(i === 0) text({ x:ML, y:y+10, text:"•", size:12, color:CV_SOFT });
-          text({ x:ML+14, y:y+10, text:l, size:12, color:CV_INK, just: i < lines.length-1 ? CW-14 : 0 });
-          y += 15;
+          ensureSpace(PITCH);
+          if(i === 0) text({ x:ML+2, y:y+bl(BODY,PITCH), text:"•", size:BODY, color:CV_SOFT });
+          text({ x:ML+14, y:y+bl(BODY,PITCH), text:l, size:BODY, color:CV_INK, just: i < lines.length-1 ? CW-14 : 0 });
+          y += PITCH;
         });
         y += 2;
       }
-      function heading(label){ ensureSpace(80); y += 8; sectionLabel(label); }
+      function heading(label){
+        ensureSpace(64);
+        y += 12;
+        text({ x:ML, y:y+8, text:label.toUpperCase(), size:8.5, bold:true, color:ACCENT, tc:0.7 });
+        y += 18;
+      }
+      function nz(s){ return String(s||"").trim(); }
 
-      ensureSpace(24);
-      text({ x:ML, y:y+10, text:doc.dateLine, size:12, color:CV_SOFT });
-      y += 26;
-      text({ x:ML, y:y+14, text:"Proposta Comercial", size:18, bold:true, color:CV_INK });
-      y += 30;
+      // título + data na mesma linha
+      ensureSpace(30);
+      text({ x:ML, y:y+13, text:"Proposta Comercial", size:15, bold:true, color:CV_INK });
+      text({ x:LW-MR, y:y+12, text:doc.dateLine, size:9.5, color:CV_SOFT, align:"right" });
+      y += 28;
 
-      sectionLabel("Cliente");
-      fieldGrid([
-        ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", dr.client.doc],
-        ["Endereço", dr.client.address], ["Aos cuidados de", dr.client.contact],
-        ["Telefone", dr.client.phone], ["E-mail", dr.client.email]
-      ]);
+      // dados do cliente, compactos
+      var c = dr.client;
+      var contactBits = [nz(c.contact), nz(c.phone), nz(c.email)].filter(Boolean);
+      {
+        var rows = [];
+        rows.push({ k:"Cliente", name:nz(c.name)||"—", rest: nz(c.doc) ? "   ·   "+nz(c.doc) : "" });
+        if(nz(c.address)) rows.push({ k:"Endereço", rest:nz(c.address) });
+        if(contactBits.length) rows.push({ k:"A/C", rest:contactBits.join("   ·   ") });
+        var valX = ML+12+62, valW = CW-12-62-12, prepared = [], boxH = 14;
+        rows.forEach(function(r){
+          setFontFor(false,9.5,false);
+          var full = (r.name ? r.name+" " : "") + r.rest;
+          var n = wrapText(ctx, full, valW).length || 1;
+          prepared.push(n); boxH += n*13;
+        });
+        ensureSpace(boxH+8);
+        rect(ML, y, CW, boxH, "#F3F5F4");
+        var ry = y+7;
+        rows.forEach(function(r, i){
+          text({ x:ML+12, y:ry+9, text:r.k.toUpperCase(), size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
+          if(r.name){
+            var nw = text({ x:valX, y:ry+9.5, text:r.name, size:10, bold:true, color:CV_INK });
+            if(r.rest) text({ x:valX+nw, y:ry+9.5, text:r.rest, size:9.5, color:CV_SOFT });
+          } else {
+            setFontFor(false,9.5,false);
+            wrapText(ctx, r.rest, valW).forEach(function(l, li){ text({ x:valX, y:ry+9.5+li*13, text:l, size:9.5, color:CV_INK }); });
+          }
+          ry += prepared[i]*13;
+        });
+        y += boxH + 12;
+      }
 
-      if(doc.subject) para("Assunto: "+doc.subject, { bold:true, after:8 });
-      if(doc.greeting) para(doc.greeting, { after:8 });
-      doc.intro.forEach(function(s){ para(s, { after:8 }); });
+      if(doc.subject) para("Assunto: "+doc.subject, { bold:true, after:7, left:true });
+      if(doc.greeting) para(doc.greeting, { after:7, left:true });
+      doc.intro.forEach(function(s){ para(s, { after:7 }); });
 
       // Tabela 1 — escopo
-      ensureSpace(64);
-      text({ x:ML, y:y+9, text:"Tabela 1 — Descrição dos serviços", size:11, bold:true, color:CV_SOFT });
-      y += 20;
-      var colItem = 40, colVal = 112, xDesc = ML+colItem, colDesc = CW-colItem-colVal-8;
-      text({ x:ML, y:y+8, text:"ITEM", size:9.5, bold:true, color:CV_FAINT });
-      text({ x:xDesc, y:y+8, text:"DESCRIÇÃO", size:9.5, bold:true, color:CV_FAINT });
-      text({ x:LW-MR, y:y+8, text:"VALOR (R$)", size:9.5, bold:true, color:CV_FAINT, align:"right" });
-      y += 12;
-      line(ML,y,LW-MR,y,1,CV_LINE_STRONG);
-      y += 12;
+      ensureSpace(60);
+      y += 4;
+      text({ x:ML, y:y+8, text:"Tabela 1 — Descrição dos serviços", size:9, bold:true, color:CV_SOFT });
+      y += 18;
+      var colItem = 32, colVal = 80, xDesc = ML+colItem, colDesc = CW-colItem-colVal-8;
+      text({ x:ML, y:y+7, text:"ITEM", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
+      text({ x:xDesc, y:y+7, text:"DESCRIÇÃO", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
+      text({ x:LW-MR, y:y+7, text:"VALOR (R$)", size:7.5, bold:true, color:CV_FAINT, align:"right" });
+      y += 11;
+      line(ML,y,LW-MR,y,0.6,CV_LINE_STRONG);
+      y += 9;
+      var RP = 13.5;
       function rowLines(str, o){
         o = o||{};
-        var size = o.size||12, ind = o.indent||0;
+        var size = o.size||BODY, ind = o.indent||0;
         setFontFor(!!o.bold, size, false);
         var rl = wrapText(ctx, str, colDesc-ind);
         rl.forEach(function(l, i){
-          ensureSpace(15);
-          if(o.bullet && i === 0) text({ x:xDesc+ind-12, y:y+11, text:"•", size:size, color:CV_SOFT });
-          text({ x:xDesc+ind, y:y+11, text:l, size:size, bold:!!o.bold, color:CV_INK, just: i < rl.length-1 ? colDesc-ind : 0 });
-          y += 15;
+          ensureSpace(RP);
+          if(o.bullet && i === 0) text({ x:xDesc+ind-11, y:y+bl(size,RP), text:"•", size:size, color:CV_SOFT });
+          text({ x:xDesc+ind, y:y+bl(size,RP), text:l, size:size, bold:!!o.bold, color:CV_INK, just: i < rl.length-1 ? colDesc-ind : 0 });
+          y += RP;
         });
       }
       if(!doc.rows.length) para("Nenhum serviço selecionado.", { color:CV_FAINT });
-      doc.rows.forEach(function(r){
+      doc.rows.forEach(function(r, ri){
         ensureSpace(34);
-        text({ x:ML, y:y+11, text:String(r.n), size:12, mono:true, color:CV_INK });
-        text({ x:LW-MR, y:y+11, text:r.value, size:12, mono:true, color:CV_INK, align:"right" });
+        text({ x:ML, y:y+bl(BODY,RP), text:String(r.n), size:BODY, color:CV_SOFT });
+        text({ x:LW-MR, y:y+bl(BODY,RP), text:r.value, size:BODY, color:CV_INK, align:"right" });
         if(r.blocks){
           r.blocks.forEach(function(b){
-            ensureSpace(48);
+            ensureSpace(46);
             rowLines(b.title, { bold:true });
-            b.acts.forEach(function(a, i){ rowLines(a+(i < b.acts.length-1 ? ";" : "."), { bullet:true, indent:16, size:11.5 }); });
-            y += 6;
+            b.acts.forEach(function(a, i){ rowLines(a+(i < b.acts.length-1 ? ";" : "."), { bullet:true, indent:14, size:10 }); });
+            y += 5;
           });
         } else {
           rowLines(r.desc);
         }
-        y += 2;
-        line(ML,y,LW-MR,y,1,CV_LINE);
-        y += 10;
+        y += 3;
+        if(ri < doc.rows.length-1){ line(ML,y,LW-MR,y,0.5,HAIR); y += 8; }
       });
 
-      y += 4;
-      var tW = 240, tX = LW-MR-tW;
+      // totais: linhas de apoio discretas e uma faixa clara para o TOTAL
+      y += 8;
+      var tW = 230, tX = LW-MR-tW;
       doc.totalRows.forEach(function(t){
         if(t.strong){
-          ensureSpace(40);
-          line(tX, y+4, tX+tW, y+4, 2, modeColor);
-          y += 16;
-          text({ x:tX, y:y+12, text:t.label, size:16, bold:true, color:CV_INK });
-          text({ x:tX+tW, y:y+12, text:t.value, size:16, bold:true, mono:true, color:CV_INK, align:"right" });
-          y += 24;
+          ensureSpace(36);
+          y += 2;
+          rect(tX-10, y, tW+10, 24, "#EEF2F1");
+          text({ x:tX, y:y+16, text:"TOTAL", size:10.5, bold:true, color:CV_INK });
+          text({ x:tX+tW-8, y:y+16, text:t.value, size:12, bold:true, color:CV_INK, align:"right" });
+          y += 30;
         } else {
-          ensureSpace(18);
-          text({ x:tX, y:y+9, text:t.label, size:12.5, color:CV_SOFT });
-          text({ x:tX+tW, y:y+9, text:t.value, size:12, mono:true, color:CV_SOFT, align:"right" });
-          y += 18;
+          ensureSpace(16);
+          text({ x:tX, y:y+10, text:t.label, size:9.5, color:CV_SOFT });
+          text({ x:tX+tW-8, y:y+10, text:t.value, size:9.5, color:CV_SOFT, align:"right" });
+          y += 15;
         }
       });
-      y += 10;
 
       if(doc.deadline.length){
         heading("Prazo de entrega");
@@ -4023,23 +4083,23 @@
       if(pay.lines.length || pay.notes.length || pay.pix){
         heading("Condição de pagamento");
         pay.lines.forEach(bulletItem);
-        y += 4;
-        pay.notes.forEach(function(n){ para(n, { size:11.5, color:CV_SOFT }); });
+        y += 3;
+        pay.notes.forEach(function(n){ para(n, { size:9.5, pitch:13, color:CV_SOFT }); });
         if(pay.pix){
           para(pay.pix.intro);
-          var qr = 88, tx = hasPix ? ML+qr+16 : ML;
-          ensureSpace(qr+10);
+          var qr = 64, tx = hasPix ? ML+qr+14 : ML;
+          ensureSpace(qr+8);
           if(hasPix) pixBox = { x:ML, y:y, w:qr, h:qr, page:page };
           var ty = y;
-          setFontFor(false,12,false);
+          setFontFor(false,10,false);
           pay.pix.lines.forEach(function(l){
-            wrapText(ctx, l, CW-(tx-ML)).forEach(function(w){ text({ x:tx, y:ty+10, text:w, size:12, color:CV_INK }); ty += 16; });
+            wrapText(ctx, l, CW-(tx-ML)).forEach(function(w){ text({ x:tx, y:ty+10, text:w, size:10, color:CV_INK }); ty += 14; });
           });
           if(hasPix && pay.pix.amount > 0){
-            text({ x:tx, y:ty+10, text:"QR Code Pix — "+(pay.pix.isParcel ? "valor da 1ª parcela: " : "valor total: ")+fmtBRL(pay.pix.amount), size:11, color:CV_SOFT });
-            ty += 16;
+            text({ x:tx, y:ty+9, text:"QR Code Pix — "+(pay.pix.isParcel ? "valor da 1ª parcela: " : "valor total: ")+fmtBRL(pay.pix.amount), size:9, color:CV_SOFT });
+            ty += 14;
           }
-          y += Math.max(qr, ty-y) + 8;
+          y += Math.max(qr, ty-y) + 6;
         }
       }
 
@@ -4051,54 +4111,55 @@
       if(doc.clauses.length || doc.obs){
         heading("Considerações finais");
         doc.clauses.forEach(function(g){
-          para(g.group, { bold:true, size:11, color:CV_SOFT, after:2 });
+          ensureSpace(48);
+          para(g.group, { bold:true, size:9.5, color:CV_SOFT, after:2, left:true });
           g.items.forEach(bulletItem);
           y += 4;
         });
         if(doc.obs) para(doc.obs);
       }
 
-      // assinatura do emitente; com aceite, o espaço do cliente fica ao lado (uma coluna cada)
-      var colW = doc.accept ? (CW-30)/2 : 240;
+      // assinatura do emitente; com aceite, o espaço do cliente fica ao lado
+      var colW = doc.accept ? (CW-30)/2 : 220;
       var sigX = doc.accept ? ML : (LW-colW)/2;
       var sigRows = [];
-      setFontFor(false,11.5,false);
       info.sig.forEach(function(l){
         if(!l.t){ sigRows.push({ t:"" }); return; }
-        setFontFor(!!l.b,11.5,false);
+        setFontFor(!!l.b,10,false);
         wrapText(ctx, l.t, doc.accept ? colW : CW).forEach(function(w){ sigRows.push({ t:w, b:l.b }); });
       });
-      ensureSpace(sigRows.length*15 + 76);
-      y += 40;
+      ensureSpace(sigRows.length*13 + 70);
+      y += 36;
       var sigTop = y;
-      line(sigX, y, sigX+colW, y, 1, CV_LINE_STRONG);
-      var yy = y + 8;
+      line(sigX, y, sigX+colW, y, 0.75, CV_LINE_STRONG);
+      var yy2 = y + 7;
       sigRows.forEach(function(l){
-        if(l.t) text({ x:sigX+colW/2, y:yy+10, text:l.t, size:11.5, bold:!!l.b, color:l.b ? CV_INK : CV_SOFT, align:"center" });
-        yy += 15;
+        if(l.t) text({ x:sigX+colW/2, y:yy2+9, text:l.t, size:10, bold:!!l.b, color:l.b ? CV_INK : CV_SOFT, align:"center" });
+        yy2 += 13;
       });
       if(doc.accept){
         var x2 = ML+colW+30;
-        text({ x:x2, y:sigTop-12, text:"ACEITE DA PROPOSTA — DE ACORDO", size:9.5, bold:true, color:CV_FAINT, tc:0.4 });
-        line(x2, sigTop, x2+colW, sigTop, 1, CV_LINE_STRONG);
-        setFontFor(false,11.5,false);
-        var cy = sigTop + 8;
+        text({ x:x2, y:sigTop-10, text:"ACEITE DA PROPOSTA — DE ACORDO", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
+        line(x2, sigTop, x2+colW, sigTop, 0.75, CV_LINE_STRONG);
+        setFontFor(false,10,false);
+        var cy = sigTop + 7;
         wrapText(ctx, dr.client.name||"Contratante", colW).forEach(function(w){
-          text({ x:x2+colW/2, y:cy+10, text:w, size:11.5, color:CV_INK, align:"center" });
-          cy += 15;
+          text({ x:x2+colW/2, y:cy+9, text:w, size:10, color:CV_INK, align:"center" });
+          cy += 13;
         });
-        text({ x:x2+colW/2, y:cy+10, text:"Data: ____/____/________", size:11.5, color:CV_SOFT, align:"center" });
-        cy += 15;
-        yy = Math.max(yy, cy);
+        cy += 8;
+        text({ x:x2+colW/2, y:cy+9, text:"Data: ____/____/________", size:10, color:CV_SOFT, align:"center" });
+        cy += 13;
+        yy2 = Math.max(yy2, cy);
       }
-      y = yy;
+      y = yy2;
 
       if(doc.annex){
         newPage();
-        text({ x:ML, y:y+14, text:"ANEXO I", size:16, bold:true, color:CV_INK });
-        y += 24;
-        text({ x:ML, y:y+10, text:"QUALIFICAÇÃO TÉCNICA DO PROFISSIONAL", size:12, bold:true, color:CV_SOFT });
-        y += 26;
+        text({ x:ML, y:y+13, text:"ANEXO I", size:13, bold:true, color:CV_INK });
+        y += 20;
+        text({ x:ML, y:y+9, text:"QUALIFICAÇÃO TÉCNICA DO PROFISSIONAL", size:9.5, bold:true, color:CV_SOFT });
+        y += 14;
         if(doc.annex.intro.length){ heading("Apresentação do profissional"); doc.annex.intro.forEach(function(s){ para(s); }); }
         if(doc.annex.formation.length){ heading("Formação e registro profissional"); doc.annex.formation.forEach(bulletItem); }
         if(doc.annex.portfolio.length){ heading("Portfólio técnico (experiência profissional selecionada)"); doc.annex.portfolio.forEach(bulletItem); }
@@ -4229,9 +4290,9 @@
 
     rect(0, y, LW, footerH, "#F3F5F4");
     line(0, y, LW, y, 1, CV_LINE);
-    text({ x:ML, y:y+19, text:dr.number, size:10, mono:true, color:CV_FAINT });
+    text({ x:ML, y:y+19, text:dr.number, size:P?8.5:10, mono:!P, color:CV_FAINT });
     var pageTotal = totalPagesHint || (page+1);
-    text({ x:LW-MR, y:y+19, text:"Página "+(page+1)+" de "+pageTotal+" · Gerado em "+dateBR(todayISO()), size:10, mono:true, color:CV_FAINT, align:"right" });
+    text({ x:LW-MR, y:y+19, text:"Página "+(page+1)+" de "+pageTotal+" · Gerado em "+dateBR(todayISO()), size:P?8.5:10, mono:!P, color:CV_FAINT, align:"right" });
     y += footerH;
 
     return { ops:ops, pageW:LW, pageH:LH, pageCount:page+1, logoBox:logoBox, pixBox:pixBox };
