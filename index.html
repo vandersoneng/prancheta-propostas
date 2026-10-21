@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OrçaVolt</title>
 <style>
   :root{
@@ -328,22 +330,65 @@
   }
   .auth-status{font-size:12.5px; color:var(--ink-faint); text-align:center;}
 
+  /* folhas A4 da prévia (SVG gerado pela mesma diagramação do PDF) */
+  .sheet.paged{background:transparent; border:none; box-shadow:none; padding:0; max-width:794px;}
+  .pdf-page{background:#fff; border:1px solid #BAC4C1; box-shadow:var(--shadow); line-height:0;}
+  .pdf-page svg{display:block; width:100%; height:auto;}
+  .pdf-page-label{text-align:center; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint); margin:8px 0 22px;}
+
+  .mobile-bar{display:none;}
+
   @media (max-width:900px){
+    .topbar{position:static; padding:10px 12px; gap:8px 10px;}
+    .brand{width:100%; margin-right:0;}
+    .mode-switch{width:100%;}
+    .mode-btn{flex:1; padding:10px 8px;}
+    .topbar .btn-pill{flex:1; justify-content:center; padding:10px 8px;}
+    #btn-download{display:none;}
     .workspace{flex-direction:column;}
     .side-tabs{
-      width:100%; flex-direction:row; flex-wrap:wrap; overflow-y:visible;
-      border-right:0; border-bottom:1px solid var(--line); padding:10px 12px; gap:4px;
+      width:100%; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+      border-right:0; border-bottom:1px solid var(--line); padding:6px 8px 0; gap:2px;
+      position:sticky; top:0; z-index:15; -webkit-overflow-scrolling:touch;
     }
-    .side-tab{ flex:0 0 auto; border-left:none; border-bottom:3px solid transparent; border-radius:7px 7px 0 0; }
+    .side-tab{ flex:0 0 auto; width:auto; white-space:nowrap; border-left:none; border-bottom:3px solid transparent; border-radius:7px 7px 0 0; padding:11px 12px; }
     .side-tab[aria-selected="true"]{ border-left-color:transparent; border-bottom-color:var(--accent); }
-    .form-panel{width:100%; max-width:none; border-right:0; border-bottom:1px solid var(--line);}
+    .form-panel, .form-panel.collapsed{
+      width:100% !important; min-width:0 !important; max-width:none !important;
+      padding:14px 14px 96px !important; overflow:visible !important;
+      border-right:0; border-bottom:1px solid var(--line);
+    }
+    .panel-toggle-col{display:none;}
+    .field input, .field select, .field textarea, #history-search{font-size:16px;}
+    .btn, .btn-sm{min-height:38px;}
     .item-grid{grid-template-columns:1fr 1fr;}
+    .field-row{flex-wrap:wrap;}
+    .field-row > .field{min-width:130px;}
+    .sheet-wrap{padding:12px 10px 96px;}
+    /* celular: um painel por vez (Editar ou Prévia), alternados pela barra de baixo */
+    .workspace .sheet-wrap{display:none;}
+    .workspace.show-preview-m .sheet-wrap{display:flex;}
+    .workspace.show-preview-m .form-panel{display:none !important;}
+    .mobile-bar{
+      display:flex; gap:8px; position:fixed; left:0; right:0; bottom:0; z-index:30;
+      padding:8px 12px calc(8px + env(safe-area-inset-bottom)); background:var(--paper-raised);
+      border-top:1px solid var(--line); box-shadow:0 -4px 16px rgba(24,33,41,.08);
+    }
+    .mb-btn{flex:1; padding:11px 8px; border-radius:9px; border:1px solid var(--line-strong); background:var(--paper); color:var(--ink-soft); font-size:14px; font-weight:700; cursor:pointer;}
+    .mb-btn[aria-pressed="true"]{background:var(--blue); border-color:var(--blue); color:#fff;}
+    .mb-btn.mb-primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+    .mobile-bar.no-preview #mb-preview{display:none;}
+    .toast{bottom:84px;}
+    .auth-card{padding:24px 20px;}
   }
 
   @media print{
-    .topbar, .side-tabs, .form-panel, .panel-toggle-col, .toast{display:none !important;}
-    .sheet-wrap{padding:0; display:block;}
+    @page{size:A4; margin:0;}
+    .topbar, .side-tabs, .form-panel, .panel-toggle-col, .toast, .mobile-bar, .pdf-page-label{display:none !important;}
+    .sheet-wrap{padding:0; display:block !important;}
     .sheet{box-shadow:none; border:none; max-width:none; width:100%; padding:0 6mm;}
+    .sheet.paged{padding:0;}
+    .pdf-page{border:none; box-shadow:none; margin:0; width:210mm; height:297mm; break-after:page; page-break-after:always;}
     .sheet-footer{background:transparent;}
     body{background:#fff;}
   }
@@ -672,6 +717,12 @@
       <div class="sheet" id="sheet"></div>
     </main>
   </div>
+</div>
+
+<div class="mobile-bar" id="mobile-bar">
+  <button type="button" class="mb-btn" id="mb-edit" aria-pressed="true">Editar</button>
+  <button type="button" class="mb-btn" id="mb-preview" aria-pressed="false">Prévia</button>
+  <button type="button" class="mb-btn mb-primary" id="mb-download">Baixar PDF</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1440,11 +1491,27 @@
     }
     var workspace = document.querySelector(".workspace");
     if(workspace) workspace.classList.toggle("hide-preview", isManageTab);
+    var mbar = document.getElementById("mobile-bar");
+    if(mbar){
+      mbar.classList.toggle("no-preview", isManageTab);
+      if(isManageTab && workspace) workspace.classList.remove("show-preview-m");
+    }
   }
   function attachTabHandlers(){
     document.querySelectorAll(".side-tab").forEach(function(btn){
-      btn.addEventListener("click", function(){ setActiveTab(btn.getAttribute("data-tab")); });
+      btn.addEventListener("click", function(){ setActiveTab(btn.getAttribute("data-tab")); setMobileView(false); });
     });
+    document.getElementById("mb-edit").addEventListener("click", function(){ setMobileView(false); });
+    document.getElementById("mb-preview").addEventListener("click", function(){ setMobileView(true); });
+    document.getElementById("mb-download").addEventListener("click", function(){ document.getElementById("btn-download").click(); });
+  }
+  // Celular: alterna entre o formulário e a prévia (no computador as duas ficam lado a lado).
+  function setMobileView(showPreview){
+    var ws = document.querySelector(".workspace");
+    ws.classList.toggle("show-preview-m", !!showPreview);
+    document.getElementById("mb-edit").setAttribute("aria-pressed", showPreview ? "false" : "true");
+    document.getElementById("mb-preview").setAttribute("aria-pressed", showPreview ? "true" : "false");
+    window.scrollTo(0, 0);
   }
 
   var PANEL_COLLAPSED_KEY = "prancheta-panel-collapsed";
@@ -3095,121 +3162,75 @@
   }
 
   // ---------- preview ----------
-  function renderPreviewProjeto(sheet, dr){
-    var doc = projetoDoc(dr), info = doc.info;
-    sheet.style.setProperty("--mode-accent", "#2B5876");
-    var logoHtml = info.logo ? '<img class="sheet-logo" src="'+info.logo+'" alt="">' : "";
-    var e = escapeHtml;
-
-    var rowsHtml = doc.rows.map(function(r){
-      var desc;
-      if(r.blocks){
-        desc = r.blocks.map(function(b){
-          return '<div class="scope-title">'+e(b.title)+'</div>' +
-            (b.acts.length ? '<ul class="scope-acts">'+b.acts.map(function(a, i){
-              return '<li>'+e(a)+(i < b.acts.length-1 ? ";" : ".")+'</li>';
-            }).join("")+'</ul>' : '');
-        }).join("");
-      } else {
-        desc = e(r.desc);
+  // ---------- prévia em folhas A4 ----------
+  // A prévia usa a MESMA diagramação do PDF (layoutPass): cada página vira um SVG A4, com as mesmas
+  // quebras de folha, texto justificado e QR Code. O que aparece na tela é o que sai no arquivo.
+  var pixPreviewCache = {}, pixPreviewPending = false;
+  function pagesSvgHtml(lay, dr){
+    var info = issuerInfo(dr), qr = "";
+    if(lay.pixBox){
+      var payload = pixPayloadString(pixAmountFor(dr), info.pix);
+      if(payload){
+        if(pixPreviewCache[payload] === undefined){
+          if(!pixPreviewPending){
+            pixPreviewPending = true;
+            generateQrDataUrl(payload).then(function(url){
+              if(Object.keys(pixPreviewCache).length > 20) pixPreviewCache = {};
+              pixPreviewCache[payload] = url || "";
+              pixPreviewPending = false;
+              renderPreview();
+            });
+          }
+        } else {
+          qr = pixPreviewCache[payload];
+        }
       }
-      return '<tr><td style="width:44px;">'+r.n+'</td><td>'+desc+'</td><td class="num" style="width:120px;">'+e(r.value)+'</td></tr>';
-    }).join("");
-
-    var totalsHtml = '<div class="totals">' + doc.totalRows.map(function(t){
-      return t.strong
-        ? '<div class="totals-row total"><span>'+e(t.label)+'</span><span class="amt">'+e(t.value)+'</span></div>'
-        : '<div class="totals-row muted"><span>'+e(t.label)+'</span><span>'+e(t.value)+'</span></div>';
-    }).join("") + '</div>';
-
-    function para(list){ return list.map(function(s){ return '<p class="p-para">'+e(s)+'</p>'; }).join(""); }
-    function section(label, inner){ return inner ? '<div class="sheet-label">'+e(label)+'</div>'+inner : ""; }
-
-    var payHtml = '';
-    if(doc.pay.lines.length) payHtml += '<ul class="p-list">'+doc.pay.lines.map(function(l){ return '<li>'+e(l)+'</li>'; }).join("")+'</ul>';
-    payHtml += para(doc.pay.notes);
-    if(doc.pay.pix){
-      payHtml += '<p class="p-para">'+e(doc.pay.pix.intro)+'</p><div class="p-para" style="line-height:1.6;">'+
-        doc.pay.pix.lines.map(e).join("<br>")+'</div>';
     }
-
-    var clausesHtml = doc.clauses.map(function(g){
-      return '<div class="p-group">'+e(g.group)+'</div><ul class="p-list">'+g.items.map(function(t){ return '<li>'+e(t)+'</li>'; }).join("")+'</ul>';
-    }).join("");
-
-    var sigInner = info.sig.map(function(l){
-      return l.t ? (l.b ? '<div><b>'+e(l.t)+'</b></div>' : '<div>'+e(l.t)+'</div>') : '<div>&nbsp;</div>';
-    }).join("");
-    var closingHtml;
-    if(doc.accept){
-      closingHtml = '<div style="display:flex; gap:30px; align-items:flex-start; margin-top:30px;">' +
-        '<div class="sig-block" style="flex:1; margin-top:0;"><div style="height:16px;"></div><div class="sig-rule" style="width:auto;"></div>'+sigInner+'</div>' +
-        '<div class="sig-block" style="flex:1; margin-top:0;"><div style="height:16px; font-size:9.5px; letter-spacing:.05em; font-weight:700; color:#8A959B;">ACEITE DA PROPOSTA — DE ACORDO</div><div class="sig-rule" style="width:auto;"></div>' +
-        '<div>'+e(dr.client.name||"Contratante")+'</div><div>Data: ____/____/________</div></div></div>';
-    } else {
-      closingHtml = '<div class="sig-block"><div class="sig-rule"></div>'+sigInner+'</div>';
+    var out = [];
+    for(var p = 0; p < lay.pageCount; p++){
+      var s = '<div class="pdf-page"><svg viewBox="0 0 '+lay.pageW+' '+lay.pageH+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Folha '+(p+1)+' de '+lay.pageCount+'">' +
+        '<rect width="'+lay.pageW+'" height="'+lay.pageH+'" fill="#ffffff"/>';
+      if(p === 0 && lay.logoBox && info.logo){
+        s += '<image href="'+escapeHtml(info.logo)+'" x="'+lay.logoBox.x+'" y="'+lay.logoBox.y+'" width="'+lay.logoBox.w+'" height="'+lay.logoBox.h+'" preserveAspectRatio="none"/>';
+      }
+      if(lay.pixBox && lay.pixBox.page === p){
+        var pb = lay.pixBox;
+        s += qr ? '<image href="'+qr+'" x="'+pb.x+'" y="'+pb.y+'" width="'+pb.w+'" height="'+pb.h+'"/>'
+                : '<rect x="'+pb.x+'" y="'+pb.y+'" width="'+pb.w+'" height="'+pb.h+'" fill="#F3F5F4" stroke="#D7DEDC"/>';
+      }
+      lay.ops.forEach(function(op){
+        if(op.page !== p) return;
+        if(op.t === "line"){
+          s += '<line x1="'+op.x1+'" y1="'+op.y1+'" x2="'+op.x2+'" y2="'+op.y2+'" stroke="'+op.color+'" stroke-width="'+op.width+'"/>';
+        } else if(op.t === "rect"){
+          s += '<rect x="'+op.x+'" y="'+op.y+'" width="'+op.w+'" height="'+op.h+'" fill="'+op.color+'"/>';
+        } else if(op.t === "text"){
+          s += '<text x="'+op.x+'" y="'+op.y+'" fill="'+op.color+'" style="font-family:'+(op.mono ? "'Courier New',Consolas,monospace" : "Arial,Helvetica,sans-serif")+';font-size:'+op.size+'px;'+(op.bold ? 'font-weight:700;' : '')+'white-space:pre;"'+
+            (op.tc ? ' letter-spacing="'+op.tc+'"' : '')+(op.ws ? ' word-spacing="'+op.ws.toFixed(3)+'"' : '')+'>'+escapeHtml(op.text)+'</text>';
+        }
+      });
+      out.push(s + '</svg></div><div class="pdf-page-label">Folha '+(p+1)+' de '+lay.pageCount+' · A4</div>');
     }
-
-    var annexHtml = '';
-    if(doc.annex){
-      annexHtml = '<div class="annex-break">ANEXO I — QUALIFICAÇÃO TÉCNICA DO PROFISSIONAL</div>' +
-        section("Apresentação do profissional", para(doc.annex.intro)) +
-        section("Formação e registro profissional", doc.annex.formation.length ? '<ul class="p-list">'+doc.annex.formation.map(function(t){ return '<li>'+e(t)+'</li>'; }).join("")+'</ul>' : "") +
-        section("Portfólio técnico (experiência profissional selecionada)", doc.annex.portfolio.length ? '<ul class="p-list">'+doc.annex.portfolio.map(function(t){ return '<li>'+e(t)+'</li>'; }).join("")+'</ul>' : "");
-    }
-
-    sheet.innerHTML =
-      '<div class="sheet-head">' +
-        '<div class="sheet-company">' + logoHtml +
-          '<div><div class="sheet-company-name">'+e(info.name)+'</div>' +
-          '<div class="sheet-company-meta">'+info.meta.map(e).join("<br>")+'</div></div>' +
-        '</div>' +
-        '<div class="sheet-doc-meta">' +
-          '<div class="doc-kind">Proposta comercial</div>' +
-          '<div class="doc-number">Nº '+e(dr.number)+' · '+doc.rev+'</div>' +
-          '<div>Data '+dateBR(dr.date)+'</div>' +
-          '<div>Válida até '+doc.validUntil+'</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="p-dateline">'+e(doc.dateLine)+'</div>' +
-      '<div class="sheet-title">Proposta Comercial</div>' +
-
-      '<div class="sheet-label">Cliente</div>' +
-      '<div class="client-grid">' +
-        '<div><span>Nome / Razão social</span>'+e(dr.client.name||"—")+'</div>' +
-        '<div><span>CNPJ/CPF</span>'+e(dr.client.doc||"—")+'</div>' +
-        '<div><span>Endereço</span>'+e(dr.client.address||"—")+'</div>' +
-        '<div><span>Aos cuidados de</span>'+e(dr.client.contact||"—")+'</div>' +
-        '<div><span>Telefone</span>'+e(dr.client.phone||"—")+'</div>' +
-        '<div><span>E-mail</span>'+e(dr.client.email||"—")+'</div>' +
-      '</div>' +
-
-      (doc.subject ? '<div class="p-subject"><b>Assunto:</b> '+e(doc.subject)+'</div>' : '') +
-      (doc.greeting ? '<p class="p-para">'+e(doc.greeting)+'</p>' : '') +
-      para(doc.intro) +
-      '<div class="p-caption">Tabela 1 — Descrição dos serviços</div>' +
-      '<div style="overflow-x:auto;"><table class="items-table"><thead><tr><th>Item</th><th>Descrição</th><th class="num">Valor (R$)</th></tr></thead><tbody>'+
-        (rowsHtml || '<tr><td colspan="3" style="color:#8A959B;">Nenhum serviço selecionado ainda.</td></tr>') +
-      '</tbody></table></div>' +
-      totalsHtml +
-
-      section("Prazo de entrega", para(doc.deadline)) +
-      section("Condição de pagamento", payHtml) +
-      section("Validade da proposta", para([doc.validity])) +
-      section("Garantia", doc.garantia ? para([doc.garantia]) : "") +
-      section("Considerações finais", clausesHtml + para(doc.obs ? [doc.obs] : [])) +
-      closingHtml + annexHtml +
-      '<div class="sheet-footer"><span>'+e(dr.number)+' · '+doc.rev+'</span><span>Gerado em '+dateBR(todayISO())+'</span></div>';
+    return out.join("");
   }
 
   function renderPreview(){
     var dr = draft();
     var mode = state.mode;
     var sheet = document.getElementById("sheet");
-    if(mode === "projeto"){
-      renderPreviewProjeto(sheet, dr);
-      refreshProjetoLive();
+    try{
+      var lay = buildProposalOps();
+      sheet.classList.add("paged");
+      sheet.innerHTML = pagesSvgHtml(lay, dr);
+      if(mode === "projeto") refreshProjetoLive();
       return;
+    }catch(e){
+      sheet.classList.remove("paged");
+      if(mode === "projeto"){
+        sheet.textContent = "Não foi possível montar a prévia agora. Você ainda pode baixar a proposta.";
+        return;
+      }
+      // cabos: se a diagramação falhar, cai na prévia em HTML corrido abaixo
     }
     var totals = calcTotals(dr);
     sheet.style.setProperty("--mode-accent", mode==="cabos" ? "#B5652E" : "#2B5876");
@@ -3785,7 +3806,14 @@
       var x = o.x;
       if(align==="right") x -= w;
       else if(align==="center") x -= w/2;
-      ops.push({ page:page, t:"text", x:x, y:o.y, text:o.text, size:o.size, bold:bold, mono:mono, color:o.color||CV_INK, tc:o.tc||0 });
+      // Texto justificado: reparte a sobra da linha entre os espaços (o.just = largura da coluna).
+      // A última linha de cada parágrafo não passa por aqui; o teto evita buracos enormes.
+      var ws = 0;
+      if(o.just && align==="left" && o.just > w){
+        var gaps = (o.text.match(/ /g)||[]).length;
+        if(gaps > 0) ws = Math.min((o.just - w)/gaps, 10);
+      }
+      ops.push({ page:page, t:"text", x:x, y:o.y, text:o.text, size:o.size, bold:bold, mono:mono, color:o.color||CV_INK, tc:o.tc||0, ws:ws });
       return w;
     }
     function line(x1,y1,x2,y2,width,color){ ops.push({ page:page, t:"line", x1:x1,y1:y1,x2:x2,y2:y2, width:width||1, color:color||CV_LINE }); }
@@ -3886,9 +3914,9 @@
         setFontFor(!!o.bold, size, false);
         var lines = wrapText(ctx, str, CW);
         if(lines.length) ensureSpace(Math.min(lines.length,2)*15+2);
-        lines.forEach(function(l){
+        lines.forEach(function(l, li){
           ensureSpace(15);
-          text({ x:ML, y:y+10, text:l, size:size, bold:!!o.bold, color:o.color||CV_INK });
+          text({ x:ML, y:y+10, text:l, size:size, bold:!!o.bold, color:o.color||CV_INK, just: li < lines.length-1 ? CW : 0 });
           y += 15;
         });
         y += (o.after != null ? o.after : 6);
@@ -3900,7 +3928,7 @@
         lines.forEach(function(l, i){
           ensureSpace(15);
           if(i === 0) text({ x:ML, y:y+10, text:"•", size:12, color:CV_SOFT });
-          text({ x:ML+14, y:y+10, text:l, size:12, color:CV_INK });
+          text({ x:ML+14, y:y+10, text:l, size:12, color:CV_INK, just: i < lines.length-1 ? CW-14 : 0 });
           y += 15;
         });
         y += 2;
@@ -3939,10 +3967,11 @@
         o = o||{};
         var size = o.size||12, ind = o.indent||0;
         setFontFor(!!o.bold, size, false);
-        wrapText(ctx, str, colDesc-ind).forEach(function(l, i){
+        var rl = wrapText(ctx, str, colDesc-ind);
+        rl.forEach(function(l, i){
           ensureSpace(15);
           if(o.bullet && i === 0) text({ x:xDesc+ind-12, y:y+11, text:"•", size:size, color:CV_SOFT });
-          text({ x:xDesc+ind, y:y+11, text:l, size:size, bold:!!o.bold, color:CV_INK });
+          text({ x:xDesc+ind, y:y+11, text:l, size:size, bold:!!o.bold, color:CV_INK, just: i < rl.length-1 ? colDesc-ind : 0 });
           y += 15;
         });
       }
@@ -4239,7 +4268,7 @@
       } else if(op.t==="text"){
         var rgb3 = hex01(op.color);
         var yPdf = pageH-op.y;
-        cpush(rgb3[0].toFixed(3)+" "+rgb3[1].toFixed(3)+" "+rgb3[2].toFixed(3)+" rg\nBT\n"+fontResource(op.bold,op.mono)+" "+op.size.toFixed(2)+" Tf\n"+(op.tc?op.tc.toFixed(2):"0")+" Tc\n"+op.x.toFixed(2)+" "+yPdf.toFixed(2)+" Td\n");
+        cpush(rgb3[0].toFixed(3)+" "+rgb3[1].toFixed(3)+" "+rgb3[2].toFixed(3)+" rg\nBT\n"+fontResource(op.bold,op.mono)+" "+op.size.toFixed(2)+" Tf\n"+(op.tc?op.tc.toFixed(2):"0")+" Tc\n"+(op.ws?op.ws.toFixed(3):"0")+" Tw\n"+op.x.toFixed(2)+" "+yPdf.toFixed(2)+" Td\n");
         cpush(pdfStr(op.text));
         cpush(" Tj\nET\n");
       }
