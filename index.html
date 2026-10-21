@@ -485,6 +485,11 @@
         <div class="field"><label for="f-obra-floors">Pavimentos</label><input id="f-obra-floors" placeholder="Ex.: pavimento térreo e três pavimentos superiores"></div>
         <div class="field"><label for="f-obra-area">Área construída (m²)</label><input type="number" min="0" step="0.01" id="f-obra-area"></div>
         <div class="field"><label for="f-intro">Texto de abertura (opcional)</label><textarea id="f-intro" placeholder="Em branco: o texto é montado sozinho com os dados acima."></textarea></div>
+        <div class="hint" id="intro-hint"></div>
+        <div style="display:flex; gap:14px; flex-wrap:wrap;">
+          <button type="button" class="btn-ghost btn-sm" id="btn-intro-auto" style="padding:0;">Voltar ao texto automático</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-intro-template" style="padding:0;">Gerar texto para editar</button>
+        </div>
       </div>
 
       <div class="field-group" data-panel="itens" data-mode="projeto">
@@ -1707,6 +1712,18 @@
         : dr.nf.mode === "included" ? "O total já inclui +"+fmtNum(totals.nfPercent,0)+"% ("+fmtBRL(totals.nfAmount)+") de nota fiscal."
         : "A proposta não menciona nota fiscal.";
     }
+    var ih = document.getElementById("intro-hint");
+    if(ih){
+      var custom = !!(dr.intro && dr.intro.trim());
+      var pend = unresolvedIntroTokens(dr);
+      ih.style.color = pend.length ? "var(--danger)" : "";
+      ih.textContent = !custom
+        ? "Texto automático: montado com endereço, pavimentos e área acima."
+        : pend.length
+          ? "Faltam dados para "+pend.join(", ")+": preencha o campo correspondente acima."
+          : "Texto personalizado em uso. Endereço, pavimentos e área acima só aparecem se você escrever {endereco}, {pavimentos} e {area} no texto.";
+      document.getElementById("btn-intro-auto").style.display = custom ? "" : "none";
+    }
     var ah = document.getElementById("annex-hint");
     if(ah){
       var p = state.profissional;
@@ -1805,6 +1822,19 @@
       toast("Emitente alterado — impostos, nota fiscal e anexo ajustados ao perfil");
     });
     document.getElementById("btn-new-revision").addEventListener("click", newRevision);
+    document.getElementById("btn-intro-auto").addEventListener("click", function(){
+      pj().intro = "";
+      var el = document.getElementById("f-intro"); el.value = "";
+      scheduleSave(); renderPreview();
+      toast("Texto de abertura automático");
+    });
+    document.getElementById("btn-intro-template").addEventListener("click", function(){
+      if(pj().intro && pj().intro.trim() && !confirm("Substituir o texto de abertura atual por um modelo com os marcadores {endereco}, {pavimentos} e {area}?")) return;
+      pj().intro = introTemplateText();
+      var el = document.getElementById("f-intro"); el.value = pj().intro;
+      scheduleSave(); renderPreview();
+      toast("Modelo inserido — edite à vontade, mantendo os marcadores");
+    });
     document.querySelector(".form-panel").addEventListener("input", function(e){
       if(e.target.matches && e.target.matches(GROW_SEL)) growOne(e.target);
     });
@@ -3049,8 +3079,37 @@
   }
 
   // ---------- conteúdo da proposta de projeto (usado pela prévia e pelo PDF) ----------
+  // Texto de abertura personalizado: {endereco}, {pavimentos}, {area} e {cliente} puxam os dados da
+  // proposta. Marcador com campo vazio fica visível no texto (e o download avisa) para não sair em branco.
+  var INTRO_TOKEN_RE = /\{(endere[cç]o|pavimentos|area|área|cliente)\}/gi;
+  function introTokenValues(dr){
+    var o = dr.obra, clean = function(s){ return String(s||"").trim().replace(/[.,;\s]+$/,""); };
+    return {
+      endereco: clean(o.address), pavimentos: clean(o.floors),
+      area: (Number(o.area)||0) > 0 ? fmtNum(o.area,2)+" m²" : "", cliente: clean(dr.client.name)
+    };
+  }
+  function fillIntroTokens(txt, dr){
+    var vals = introTokenValues(dr);
+    return txt.replace(INTRO_TOKEN_RE, function(m, k){
+      var key = k.toLowerCase().replace("ç","c").replace("á","a");
+      return vals[key] ? vals[key] : m;
+    });
+  }
+  function unresolvedIntroTokens(dr){
+    if(!dr.intro || !dr.intro.trim()) return [];
+    var vals = introTokenValues(dr), out = [];
+    (dr.intro.match(INTRO_TOKEN_RE) || []).forEach(function(m){
+      var key = m.slice(1,-1).toLowerCase().replace("ç","c").replace("á","a");
+      if(!vals[key] && out.indexOf(m) < 0) out.push(m);
+    });
+    return out;
+  }
+  function introTemplateText(){
+    return "Em atenção à solicitação recebida, apresenta-se a presente proposta comercial para a elaboração dos projetos elétricos da edificação situada em {endereco}, composta por {pavimentos}, com área total construída de {area}.\n\nOs serviços foram estruturados conforme o detalhamento apresentado na Tabela 1 a seguir:";
+  }
   function projetoIntro(dr){
-    if(dr.intro && dr.intro.trim()) return dr.intro.trim().split(/\n+/).map(function(s){ return s.trim(); }).filter(Boolean);
+    if(dr.intro && dr.intro.trim()) return fillIntroTokens(dr.intro, dr).trim().split(/\n+/).map(function(s){ return s.trim(); }).filter(Boolean);
     var o = dr.obra;
     var p1 = "Em atenção à solicitação recebida, apresenta-se a presente proposta comercial para a elaboração dos projetos elétricos";
     if(o.address && o.address.trim()) p1 += " da edificação situada em "+o.address.trim().replace(/[.,;\s]+$/,"");
@@ -4903,6 +4962,10 @@
     var hasLines = dr.items.length || (state.mode==="projeto" && ((dr.scope && dr.scope.length) || (Number(dr.scopePrice)||0) > 0));
     if(!hasLines) missing.push("sem nenhum item adicionado");
     if(state.mode==="projeto" && dr.issuer==="pf" && !(state.profissional.name||"").trim()) missing.push("sem o nome do profissional (aba Empresa)");
+    if(state.mode==="projeto"){
+      var tk = unresolvedIntroTokens(dr);
+      if(tk.length) missing.push("com o texto de abertura usando "+tk.join(", ")+" mas o campo correspondente está vazio");
+    }
     return missing;
   }
 
