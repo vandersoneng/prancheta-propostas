@@ -3786,6 +3786,7 @@
     var totals = calcTotals(dr);
     var modeColor = mode==="cabos" ? "#B5652E" : "#2B5876";
     var P = (mode === "projeto");
+    var HEAD_PT = 14; // nome do emitente e título "Proposta Comercial" usam o mesmo corpo
     var LW = 595.28, LH = 841.89, ML = P ? 46 : 42, MR = P ? 46 : 42, MT = P ? 44 : 40, MB = P ? 44 : 40, CW = LW-ML-MR;
     var ctx = measureScratch();
     var ops = [];
@@ -3868,23 +3869,39 @@
     // header (only on page 1)
     var logoBox = null;
     if(P){
-      // Cabeçalho enxuto: nome 13pt, dados 9pt, bloco do documento em 8/10,5/9pt e um único fio fino.
+      // Cabeçalho em grade de 3 linhas: nome (mesmo corpo do título) + 2 linhas de apoio à esquerda;
+      // número, emissão e validade à direita, cada um na mesma linha de base da linha da esquerda.
       var lg = hasLogo ? 40 : 0, companyX = ML, yy = y;
       if(hasLogo){ logoBox = { x:ML, y:y, w:lg, h:lg, page:0 }; companyX = ML+lg+10; }
-      var maxW = (LW-MR-190) - companyX;
-      setFontFor(true,13,false);
-      wrapText(ctx, info.name, maxW).forEach(function(l){ text({ x:companyX, y:yy+11, text:l, size:13, bold:true, color:CV_INK }); yy += 16; });
-      yy += 2;
-      info.meta.forEach(function(ln){
-        setFontFor(false,9,false);
-        wrapText(ctx, ln, maxW).forEach(function(l){ text({ x:companyX, y:yy+8, text:l, size:9, color:CV_SOFT }); yy += 12; });
+      var maxW = (LW-MR-150) - companyX;
+      var metaRows = info.meta.slice();
+      if(metaRows.length > 2){ var lastMeta = metaRows.pop(); metaRows = [metaRows.join("   ·   "), lastMeta]; }
+      var nameBase = null, metaBases = [];
+      setFontFor(true,HEAD_PT,false);
+      wrapText(ctx, info.name, maxW).forEach(function(l){
+        var by = yy + HEAD_PT*0.8 + 1;
+        if(nameBase === null) nameBase = by;
+        text({ x:companyX, y:by, text:l, size:HEAD_PT, bold:true, color:CV_INK });
+        yy += HEAD_PT + 4;
       });
+      yy += 1;
+      metaRows.forEach(function(ln){
+        setFontFor(false,9,false);
+        wrapText(ctx, ln, maxW).forEach(function(l){
+          metaBases.push(yy+8);
+          text({ x:companyX, y:yy+8, text:l, size:9, color:CV_SOFT });
+          yy += 12;
+        });
+      });
+      if(nameBase === null) nameBase = y + HEAD_PT;
       if(logoBox) logoBox.y = y + Math.max(0, ((yy-y) - lg)/2);
-      var yd = y;
-      text({ x:LW-MR, y:yd+9, text:"Nº "+dr.number+" · "+revLabel(dr), size:10.5, bold:true, color:CV_INK, align:"right" }); yd += 15;
-      text({ x:LW-MR, y:yd+8, text:"Emitida em "+dateBR(dr.date), size:9, color:CV_SOFT, align:"right" }); yd += 12;
-      text({ x:LW-MR, y:yd+8, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:9, color:CV_SOFT, align:"right" }); yd += 12;
-      y = Math.max(yy, y+lg, yd) + 10;
+      var rb0 = nameBase;
+      var rb1 = metaBases.length > 0 ? metaBases[0] : rb0 + 14;
+      var rb2 = metaBases.length > 1 ? metaBases[1] : rb1 + 12;
+      text({ x:LW-MR, y:rb0, text:"Nº "+dr.number+" · "+revLabel(dr), size:10.5, bold:true, color:CV_INK, align:"right" });
+      text({ x:LW-MR, y:rb1, text:"Emitida em "+dateBR(dr.date), size:9, color:CV_SOFT, align:"right" });
+      text({ x:LW-MR, y:rb2, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:9, color:CV_SOFT, align:"right" });
+      y = Math.max(yy, y+lg, rb2+4) + 10;
       line(ML,y,LW-MR,y,0.75,CV_LINE_STRONG);
       y += 16;
     } else {
@@ -3971,7 +3988,7 @@
 
       // título + data na mesma linha
       ensureSpace(30);
-      text({ x:ML, y:y+13, text:"Proposta Comercial", size:15, bold:true, color:CV_INK });
+      text({ x:ML, y:y+HEAD_PT*0.8+1, text:"Proposta Comercial", size:HEAD_PT, bold:true, color:CV_INK });
       text({ x:LW-MR, y:y+12, text:doc.dateLine, size:9.5, color:CV_SOFT, align:"right" });
       y += 28;
 
