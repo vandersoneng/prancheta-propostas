@@ -4410,8 +4410,8 @@
 
     // header (only on page 1)
     var logoBox = null;
-    if(P){
-      // Cabeçalho em grade de 3 linhas: nome (mesmo corpo do título) + 2 linhas de apoio à esquerda;
+    {
+      // Cabeçalho em grade de 3 linhas (proposta de projeto e de cabos): nome (mesmo corpo do título) + 2 linhas de apoio à esquerda;
       // número, emissão e validade à direita, cada um na mesma linha de base da linha da esquerda.
       var lg = hasLogo ? 40 : 0, companyX = ML, yy = y;
       if(hasLogo){ logoBox = { x:ML, y:y, w:lg, h:lg, page:0 }; companyX = ML+lg+10; }
@@ -4440,52 +4440,12 @@
       var rb0 = nameBase;
       var rb1 = metaBases.length > 0 ? metaBases[0] : rb0 + 14;
       var rb2 = metaBases.length > 1 ? metaBases[1] : rb1 + 12;
-      text({ x:LW-MR, y:rb0, text:"Nº "+dr.number+" · "+revLabel(dr), size:10.5, bold:true, color:CV_INK, align:"right" });
+      text({ x:LW-MR, y:rb0, text:"Nº "+dr.number+(P ? " · "+revLabel(dr) : ""), size:10.5, bold:true, color:CV_INK, align:"right" });
       text({ x:LW-MR, y:rb1, text:"Emitida em "+dateBR(dr.date), size:9, color:CV_SOFT, align:"right" });
       text({ x:LW-MR, y:rb2, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:9, color:CV_SOFT, align:"right" });
       y = Math.max(yy, y+lg, rb2+4) + 10;
       line(ML,y,LW-MR,y,0.75,CV_LINE_STRONG);
       y += 16;
-    } else {
-    // header (only on page 1)
-    var companyX = ML, yCompany = y;
-    var logoBox = hasLogo ? { x:ML, y:y, w:52, h:52, page:0 } : null;
-    if(hasLogo) companyX = ML+52+12;
-    var headerLeftMaxW = (LW-MR-210) - companyX;
-    setFontFor(true,15,false);
-    var nameLines = wrapText(ctx, info.name, headerLeftMaxW);
-    nameLines.forEach(function(l){
-      text({ x:companyX, y:yCompany+13, text:l, size:15, bold:true, color:CV_INK });
-      yCompany += 18;
-    });
-    yCompany += 4;
-    var metaLines = info.meta;
-    metaLines.forEach(function(line){
-      setFontFor(false,11,false);
-      var wrapped = wrapText(ctx, line, headerLeftMaxW);
-      wrapped.forEach(function(l){
-        text({ x:companyX, y:yCompany+9, text:l, size:11, color:CV_SOFT });
-        yCompany += 15;
-      });
-    });
-    // Centraliza a logo verticalmente junto ao bloco de texto (nome+CNPJ+endereço+contato) em vez
-    // de deixá-la grudada no topo — com várias linhas de endereço a logo "flutuava" acima do texto.
-    if(logoBox) logoBox.y = y + Math.max(0, ((yCompany-y) - logoBox.h)/2);
-    var leftBottom = Math.max(yCompany, y+(hasLogo?52:0));
-
-    var yDoc = y;
-    text({ x:LW-MR, y:yDoc+9, text:(mode==="cabos"?"PROPOSTA DE FORNECIMENTO":(mode==="projeto"?"PROPOSTA COMERCIAL":"PROPOSTA DE SERVIÇO")), size:10, bold:true, color:modeColor, align:"right" });
-    yDoc += 17;
-    text({ x:LW-MR, y:yDoc+11, text:"Nº "+dr.number+(mode==="projeto" ? " · "+revLabel(dr) : ""), size:14, bold:true, color:CV_INK, align:"right" });
-    yDoc += 19;
-    text({ x:LW-MR, y:yDoc+9, text:"Data "+dateBR(dr.date), size:11, color:CV_SOFT, align:"right" });
-    yDoc += 15;
-    text({ x:LW-MR, y:yDoc+9, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:11, color:CV_SOFT, align:"right" });
-    yDoc += 15;
-
-    y = Math.max(leftBottom, yDoc) + 12;
-    line(ML,y,LW-MR,y,2,modeColor);
-    y += 24;
     }
 
     // Corpo da proposta de projeto (estilo carta). Escala tipográfica única: texto 10,5pt, apoio 9–9,5pt,
@@ -4726,7 +4686,7 @@
     if(mode === "projeto"){
       projetoBody();
     } else {
-    text({ x:ML, y:y+14, text:"Proposta Comercial", size:18, bold:true, color:CV_INK });
+    text({ x:ML, y:y+HEAD_PT*0.8+1, text:"Proposta Comercial", size:HEAD_PT, bold:true, color:CV_INK });
     y += 24;
     text({ x:ML, y:y+9, text:(mode==="cabos"?"Fornecimento de materiais elétricos":"Projeto elétrico e consultoria técnica"), size:12, color:CV_SOFT });
     y += 26;
@@ -4814,7 +4774,7 @@
 
     if(hasPix){
       sectionLabel("Pagamento via Pix");
-      var qrSize = 88;
+      var qrSize = 64;
       ensureSpace(qrSize+8);
       pixBox = { x:ML, y:y, w:qrSize, h:qrSize, page:page };
       var pixTextX = ML + qrSize + 16, pixTextY = y;
