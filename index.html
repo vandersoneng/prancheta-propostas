@@ -227,6 +227,10 @@
   .pay-amt{grid-column:1 / -1; font-family:var(--font-mono); font-size:11.5px; color:var(--ink-soft); white-space:nowrap;}
   .pay-amt:not(:empty)::before{content:"→ ";}
   .lib-actions{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .scope-cat{border:1px solid var(--line); border-radius:8px; padding:4px 10px 8px; background:var(--paper);}
+  .scope-cat > summary{cursor:pointer; font-weight:700; font-size:12.5px; color:var(--ink-soft); padding:6px 0;}
+  .scope-cat[open] > summary{margin-bottom:6px;}
+  .scope-cat-body{display:flex; flex-direction:column; gap:8px;}
   textarea[data-cl-text], textarea[data-scope-acttext], textarea[data-ls-acts], textarea[data-lc-text], textarea[data-tg-text], textarea[data-pay-label]{overflow:hidden; resize:none; line-height:1.4;}
 
   .add-row-btn{
@@ -495,6 +499,7 @@
       <div class="field-group" data-panel="itens" data-mode="projeto">
         <legend>Escopo dos projetos <button type="button" class="add-row-btn" id="btn-edit-models">editar modelos</button></legend>
         <div class="hint">Marque os serviços e desmarque as atividades que não se aplicam. Só o que estiver marcado aparece na proposta.</div>
+        <div class="field"><input type="search" id="scope-search" placeholder="Buscar serviço ou atividade…" aria-label="Buscar serviço"></div>
         <div id="scope-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         <div class="field"><label for="f-scope-price">Valor global dos projetos (R$)</label><input type="number" min="0" step="0.01" id="f-scope-price"></div>
         <div class="hint" id="scope-hint"></div>
@@ -861,42 +866,309 @@
              annexIntro:"", annexFormation:"", annexPortfolio:"" };
   }
 
+  // Categorias do catálogo de serviços (ordem usada na tela e na tabela da proposta).
+  var SERVICE_CATEGORIES = ["Baixa tensão e entrada de energia","Proteção, aterramento e SPDA","Média tensão e subestações","Energia e geração","Infraestrutura","Concessionária","Laudos e consultoria","Obra e pós-projeto"];
+  var SERVICE_OTHER = "Outros";
+  // Base de cobrança: só referência interna por enquanto (não altera a proposta nem os totais).
+  var BILLING_OPTIONS = [["global","Valor global"],["m2","Por m²"],["kwp","Por kWp"],["visita","Por visita"],["hora","Por hora técnica"]];
+  var LIBRARY_VERSION = 2;
+
+  // Cada serviço tem uma chave fixa (key): é por ela que o catálogo novo é acrescentado às bibliotecas
+  // já existentes sem duplicar e sem mexer no texto que o usuário editou.
+  function defaultServiceCatalog(){
+    function s(key, cat, title, billing, top, acts){
+      return { id:genId(), key:key, category:SERVICE_CATEGORIES[cat], title:title, billing:billing, top:!!top, acts:acts };
+    }
+    return [
+      // A — Baixa tensão e entrada de energia
+      s("bt", 0, "Projeto de instalações elétricas em baixa tensão", "m2", true, [
+        "Levantamento métrico e atualização simplificada da planta baixa",
+        "Levantamento e avaliação das instalações elétricas existentes e das possibilidades de aproveitamento",
+        "Levantamento das cargas e cálculo da demanda da edificação",
+        "Projeto de iluminação, tomadas de uso geral e específico, ar-condicionado e cargas especiais",
+        "Projeto do QGBT, dos quadros por pavimento e da prumada elétrica",
+        "Dimensionamento de circuitos, alimentadores, condutores, eletrodutos e eletrocalhas",
+        "Cálculos de queda de tensão e curto-circuito",
+        "Dimensionamento, coordenação e seletividade das proteções, incluindo disjuntores, DR e DPS",
+        "Projeto de aterramento e equipotencialização",
+        "Diagramas unifilares e quadros de cargas",
+        "Lista de materiais"
+      ]),
+      s("padrao_entrada", 0, "Padrão de entrada em baixa tensão (ligação nova ou aumento de carga)", "global", false, [
+        "Levantamento da carga instalada e cálculo da demanda",
+        "Definição da categoria de atendimento, do ramal de entrada e da proteção geral",
+        "Projeto do padrão de entrada e da caixa de medição conforme a norma técnica da concessionária",
+        "Dimensionamento de condutores, eletrodutos e aterramento da entrada",
+        "Diagrama unifilar, memorial descritivo e lista de materiais",
+        "Elaboração dos documentos para a solicitação de ligação ou de aumento de carga"
+      ]),
+      s("padrao_provisorio", 0, "Padrão de entrada provisório de obra (canteiro)", "global", false, [
+        "Dimensionamento da demanda provisória do canteiro de obras",
+        "Projeto do padrão de entrada provisório e do quadro de distribuição do canteiro",
+        "Diagrama unifilar e memorial descritivo",
+        "Elaboração dos documentos e solicitação de ligação provisória junto à concessionária"
+      ]),
+      s("quadros", 0, "Projeto de quadros e painéis elétricos", "global", false, [
+        "Levantamento das cargas e definição da arquitetura do quadro",
+        "Diagramas unifilar e funcional",
+        "Dimensionamento de barramentos, condutores e dispositivos de proteção e manobra",
+        "Layout e vistas do painel",
+        "Lista de materiais e especificação técnica para fabricação"
+      ]),
+      // B — Proteção, aterramento e SPDA
+      s("spda", 1, "Projeto de SPDA e MPS", "global", true, [
+        "Análise de risco",
+        "Subsistemas de captação, descidas e aterramento",
+        "Equipotencialização e medidas de proteção contra surtos",
+        "Detalhes construtivos, memorial de cálculo e lista de materiais"
+      ]),
+      s("malha", 1, "Dimensionamento de malha de aterramento", "global", false, [
+        "Levantamento das características do solo e da instalação",
+        "Cálculo e dimensionamento da malha (resistência de aterramento, tensões de passo e de toque)",
+        "Projeto da malha, com plantas, detalhes e conexões",
+        "Memorial de cálculo e lista de materiais"
+      ]),
+      s("resistividade", 1, "Medição de resistividade do solo", "visita", false, [
+        "Medição da resistividade do solo pelo método de Wenner",
+        "Estratificação do solo",
+        "Relatório técnico com os resultados e a interpretação"
+      ]),
+      s("protecao", 1, "Estudo de proteção, coordenação e seletividade (ajustes)", "global", false, [
+        "Levantamento dos dados do sistema e dos equipamentos de proteção",
+        "Estudo de curto-circuito",
+        "Coordenação e seletividade entre os dispositivos de proteção",
+        "Definição dos ajustes dos relés e dos dispositivos de proteção",
+        "Coordenogramas, memorial de cálculo e planilha de ajustes"
+      ]),
+      s("reles", 1, "Parametrização de relés de subestação", "visita", false, [
+        "Análise do estudo de ajustes",
+        "Parametrização dos relés de proteção da subestação",
+        "Testes de verificação das funções e dos ajustes",
+        "Relatório de parametrização"
+      ]),
+      // C — Média tensão e subestações
+      s("se_aerea", 2, "Projeto de subestação aérea", "global", false, [
+        "Dimensionamento da subestação aérea (transformador, estrutura e equipamentos)",
+        "Projeto da estrutura, do posto de transformação e do ramal de ligação em média tensão",
+        "Dimensionamento de cabos, proteções e para-raios",
+        "Projeto da malha de aterramento e equipotencialização",
+        "Diagramas unifilares, memorial de cálculo, memorial descritivo, especificações e lista de materiais"
+      ]),
+      s("se_abrigada", 2, "Projeto de subestação abrigada", "global", true, [
+        "Dimensionamento da subestação",
+        "Arranjo físico da subestação, com plantas, cortes e requisitos de acesso e ventilação",
+        "Dimensionamento e especificação do transformador a seco, equipamentos, cabos e proteções de média e baixa tensão",
+        "Projeto da malha de aterramento e equipotencialização",
+        "Diagramas unifilares, memorial de cálculo, memorial descritivo, especificações e lista de materiais"
+      ]),
+      s("rede_mt", 2, "Projeto de rede de média tensão", "global", false, [
+        "Levantamento de campo e definição do traçado",
+        "Dimensionamento de condutores, estruturas e proteções",
+        "Projeto da rede, com plantas e detalhes construtivos",
+        "Cálculos de queda de tensão e curto-circuito",
+        "Memorial descritivo, especificações e lista de materiais"
+      ]),
+      s("laudo_se_mt", 2, "Laudo ou inspeção de subestação de média tensão", "global", false, [
+        "Inspeção das instalações da subestação",
+        "Verificação de conformidade com a ABNT NBR 14039",
+        "Registro fotográfico e levantamento de não conformidades",
+        "Laudo técnico com recomendações"
+      ]),
+      // D — Energia e geração
+      s("fv", 3, "Projeto de energia fotovoltaica", "kwp", false, [
+        "Levantamento do consumo e da área disponível",
+        "Dimensionamento do sistema (módulos, inversores e potência instalada)",
+        "Projeto elétrico em corrente contínua e alternada, com proteções e aterramento",
+        "Estimativa de geração",
+        "Diagrama unifilar, memorial descritivo e lista de materiais"
+      ]),
+      s("carregador_ve", 3, "Projeto para carregador de carro elétrico", "global", false, [
+        "Levantamento da infraestrutura elétrica existente e da demanda",
+        "Dimensionamento de circuitos, proteções e aterramento dos pontos de recarga",
+        "Projeto da infraestrutura (eletrodutos, quadros e caminhamentos)",
+        "Diagrama unifilar, memorial descritivo e lista de materiais"
+      ]),
+      s("fp", 3, "Correção do fator de potência (baixa ou média tensão)", "global", false, [
+        "Análise das faturas e das medições para diagnóstico do fator de potência",
+        "Dimensionamento do banco de capacitores",
+        "Projeto do painel e das proteções do banco, considerando a presença de harmônicos",
+        "Memorial de cálculo, diagrama unifilar e lista de materiais"
+      ]),
+      s("viab_fv", 3, "Estudo de viabilidade de geração fotovoltaica", "global", false, [
+        "Análise do perfil de consumo e das faturas",
+        "Estimativa de geração e dimensionamento preliminar do sistema",
+        "Estimativa de investimento e de retorno financeiro",
+        "Relatório de viabilidade"
+      ]),
+      s("mercado_livre", 3, "Estudo de migração para o mercado livre de energia", "global", false, [
+        "Análise do perfil de consumo e da demanda contratada",
+        "Simulação comparativa entre o mercado cativo e o mercado livre",
+        "Estimativa da economia e dos custos de migração",
+        "Relatório com a recomendação"
+      ]),
+      s("viab_bess", 3, "Estudo de viabilidade de BESS (armazenamento de energia)", "global", false, [
+        "Análise do perfil de carga e de demanda",
+        "Dimensionamento preliminar do sistema de armazenamento (potência e energia)",
+        "Avaliação das aplicações (redução de demanda na ponta, backup e arbitragem tarifária)",
+        "Estimativa de investimento e de retorno financeiro",
+        "Relatório de viabilidade"
+      ]),
+      s("fatura", 3, "Análise de fatura e demanda contratada", "global", false, [
+        "Levantamento do histórico de faturas",
+        "Análise da demanda contratada, do fator de potência e do enquadramento tarifário",
+        "Identificação de oportunidades de redução de custo",
+        "Relatório com as recomendações"
+      ]),
+      s("rateio", 3, "Rateio de créditos de geração distribuída", "global", false, [
+        "Análise da unidade geradora e das unidades consumidoras beneficiárias",
+        "Definição dos percentuais de rateio dos créditos",
+        "Elaboração dos documentos e solicitação junto à concessionária",
+        "Acompanhamento até a efetivação do rateio"
+      ]),
+      // E — Infraestrutura
+      s("infra", 4, "Projeto de infraestrutura de lógica e segurança eletrônica (CFTV, alarme e controle de acesso)", "m2", false, [
+        "Infraestrutura de lógica (cabeamento estruturado): eletrodutos, eletrocalhas, caixas e pontos",
+        "Infraestrutura de CFTV: caminhamentos, caixas e pontos de energia e de rede",
+        "Infraestrutura de alarme: caminhamentos, caixas e pontos",
+        "Infraestrutura de controle de acesso (catracas, portaria eletrônica e fechaduras): caminhamentos, caixas e pontos de energia",
+        "Plantas, detalhes e lista de materiais"
+      ]),
+      // F — Concessionária
+      s("aprov_se", 5, "Aprovação de subestação na concessionária", "global", true, [
+        "Elaboração dos documentos necessários à aprovação do projeto",
+        "Acompanhamento técnico do processo de aprovação"
+      ]),
+      s("aprov_fv", 5, "Aprovação de projeto fotovoltaico na concessionária", "global", true, [
+        "Elaboração dos documentos e do formulário de solicitação de acesso",
+        "Elaboração do projeto e dos documentos exigidos pela concessionária",
+        "Acompanhamento da análise e atendimento a pendências",
+        "Acompanhamento da vistoria e da homologação"
+      ]),
+      s("titularidade", 5, "Mudança de titularidade", "global", false, [
+        "Levantamento da documentação necessária",
+        "Elaboração e envio da solicitação de mudança de titularidade à concessionária",
+        "Acompanhamento do processo até a conclusão"
+      ]),
+      s("grupo_tarifario", 5, "Mudança de grupo tarifário ou demanda contratada", "global", false, [
+        "Análise do perfil de consumo e de demanda",
+        "Definição do enquadramento tarifário e da demanda contratada adequados",
+        "Elaboração e envio da solicitação à concessionária",
+        "Acompanhamento do processo até a conclusão"
+      ]),
+      s("vistoria", 5, "Acompanhamento da vistoria e energização", "visita", false, [
+        "Acompanhamento da vistoria da concessionária",
+        "Atendimento a eventuais pendências apontadas",
+        "Acompanhamento da energização"
+      ]),
+      // G — Laudos e consultoria
+      s("laudo_spda", 6, "Laudo de SPDA", "global", false, [
+        "Inspeção visual do SPDA",
+        "Medições de continuidade e de resistência de aterramento",
+        "Verificação de conformidade com a ABNT NBR 5419",
+        "Registro fotográfico e laudo técnico com recomendações"
+      ]),
+      s("laudo_malha", 6, "Laudo da malha de aterramento", "global", false, [
+        "Medição da resistência de aterramento da malha em campo",
+        "Verificação das conexões e da continuidade",
+        "Registro fotográfico e laudo técnico com recomendações"
+      ]),
+      s("revisao_terceiros", 6, "Análise ou revisão de projeto de terceiros", "global", false, [
+        "Análise do projeto e dos documentos apresentados",
+        "Verificação de conformidade com as normas aplicáveis",
+        "Relatório de análise com não conformidades e recomendações"
+      ]),
+      s("parecer", 6, "Parecer técnico", "global", false, [
+        "Análise da documentação e das informações fornecidas",
+        "Vistoria, quando necessária",
+        "Parecer técnico fundamentado"
+      ]),
+      s("horas", 6, "Horas técnicas de consultoria", "hora", false, [
+        "Atendimento técnico e consultoria sob demanda, cobrados por hora técnica",
+        "Resumo das horas e dos assuntos tratados, quando solicitado"
+      ]),
+      // H — Obra e pós-projeto
+      s("acomp_obra", 7, "Acompanhamento de obra", "visita", false, [
+        "Visitas técnicas à obra, no número previsto nesta proposta",
+        "Verificação da execução conforme o projeto",
+        "Orientação à equipe de execução",
+        "Relatório de cada visita"
+      ]),
+      s("comissionamento", 7, "Comissionamento e energização", "global", false, [
+        "Inspeção final das instalações",
+        "Ensaios e testes de aceitação (continuidade, isolação e funcionamento das proteções)",
+        "Acompanhamento da energização",
+        "Relatório de comissionamento"
+      ]),
+      s("asbuilt", 7, "As-built", "global", false, [
+        "Levantamento das alterações feitas durante a execução",
+        "Atualização dos desenhos conforme o construído",
+        "Emissão do projeto as-built"
+      ]),
+      s("visita", 7, "Visita técnica e levantamento de cargas", "visita", false, [
+        "Visita técnica ao local",
+        "Levantamento das instalações e das cargas existentes",
+        "Registro fotográfico e relatório do levantamento"
+      ]),
+      s("quantitativos", 7, "Planilha de quantitativos e orçamento", "global", false, [
+        "Levantamento dos quantitativos a partir do projeto",
+        "Planilha orçamentária com composição de custos",
+        "Especificações técnicas dos materiais e serviços"
+      ]),
+      s("revisao_projeto", 7, "Revisão ou atualização de projeto já aprovado", "global", false, [
+        "Análise das alterações solicitadas",
+        "Atualização dos desenhos e dos documentos do projeto",
+        "Reemissão do projeto revisado"
+      ])
+    ];
+  }
+
+  // Bibliotecas salvas antes do catálogo novo (versão 1): acrescenta os serviços que faltam e completa
+  // categoria/base de cobrança/destaque. Texto que o usuário editou não é sobrescrito; só os títulos e
+  // trechos padrão antigos são atualizados. Roda uma vez (depois a biblioteca passa a ser versão 2),
+  // então o que o usuário remover depois não volta.
+  function migrateProjectLibrary(lib){
+    var legacyKey = {
+      "Projeto de instalações elétricas em baixa tensão":"bt",
+      "Projeto de SPDA em conformidade com a ABNT NBR 5419: 2026":"spda",
+      "Projeto da subestação abrigada":"se_abrigada",
+      "Aprovação do projeto na Equatorial/PA":"aprov_se"
+    };
+    var oldDefaultTitle = {
+      spda:"Projeto de SPDA em conformidade com a ABNT NBR 5419: 2026",
+      se_abrigada:"Projeto da subestação abrigada",
+      aprov_se:"Aprovação do projeto na Equatorial/PA"
+    };
+    lib.services.forEach(function(s){ if(!s.key && legacyKey[s.title]) s.key = legacyKey[s.title]; });
+    var byKey = {};
+    lib.services.forEach(function(s){ if(s.key) byKey[s.key] = s; });
+    defaultServiceCatalog().forEach(function(d){
+      var cur = byKey[d.key];
+      if(!cur){ lib.services.push(d); return; }
+      if(oldDefaultTitle[d.key] && cur.title === oldDefaultTitle[d.key]) cur.title = d.title;
+      if(!cur.category) cur.category = d.category;
+      if(cur.billing == null) cur.billing = d.billing;
+      if(cur.top == null) cur.top = d.top;
+    });
+    if(byKey.bt){
+      var oldProt = "Dimensionamento e coordenação das proteções, incluindo disjuntores, DR e DPS";
+      byKey.bt.acts = byKey.bt.acts.map(function(a){ return a === oldProt ? "Dimensionamento, coordenação e seletividade das proteções, incluindo disjuntores, DR e DPS" : a; });
+    }
+    // cláusula de exclusões: CFTV/alarme/cabeamento agora são serviços de infraestrutura
+    var oldExcl = "Não estão incluídos neste escopo: projetos de prevenção e combate a incêndio, cabeamento estruturado, CFTV, alarme, automação, fornecimento de materiais, execução de obra e acompanhamento ou fiscalização da obra.";
+    var newExcl = "Não estão incluídos neste escopo: projetos de prevenção e combate a incêndio, automação, fornecimento de materiais, execução de obra e quaisquer serviços não descritos na Tabela 1.";
+    lib.clauses.forEach(function(c){ if(c.text === oldExcl) c.text = newExcl; });
+    var infraExcl = "Para a infraestrutura de CFTV, alarme e controle de acesso, não estão incluídos a especificação, o fornecimento, a configuração e a programação dos equipamentos.";
+    if(!lib.clauses.some(function(c){ return c.text === infraExcl; })){
+      lib.clauses.push({ id:genId(), group:"Exclusões", text:infraExcl, on:false });
+    }
+    lib.version = LIBRARY_VERSION;
+  }
+
   function defaultProjectLibrary(){
-    function svc(title, acts){ return { id:genId(), title:title, acts:acts }; }
     function cl(group, text, on){ return { id:genId(), group:group, text:text, on:!!on }; }
     return {
-      services: [
-        svc("Projeto de instalações elétricas em baixa tensão", [
-          "Levantamento métrico e atualização simplificada da planta baixa",
-          "Levantamento e avaliação das instalações elétricas existentes e das possibilidades de aproveitamento",
-          "Levantamento das cargas e cálculo da demanda da edificação",
-          "Projeto de iluminação, tomadas de uso geral e específico, ar-condicionado e cargas especiais",
-          "Projeto do QGBT, dos quadros por pavimento e da prumada elétrica",
-          "Dimensionamento de circuitos, alimentadores, condutores, eletrodutos e eletrocalhas",
-          "Cálculos de queda de tensão e curto-circuito",
-          "Dimensionamento e coordenação das proteções, incluindo disjuntores, DR e DPS",
-          "Projeto de aterramento e equipotencialização",
-          "Diagramas unifilares e quadros de cargas",
-          "Lista de materiais"
-        ]),
-        svc("Projeto de SPDA em conformidade com a ABNT NBR 5419: 2026", [
-          "Análise de risco",
-          "Subsistemas de captação, descidas e aterramento",
-          "Equipotencialização e medidas de proteção contra surtos",
-          "Detalhes construtivos, memorial de cálculo e lista de materiais"
-        ]),
-        svc("Projeto da subestação abrigada", [
-          "Dimensionamento da subestação",
-          "Arranjo físico da subestação, com plantas, cortes e requisitos de acesso e ventilação",
-          "Dimensionamento e especificação do transformador a seco, equipamentos, cabos e proteções de média e baixa tensão",
-          "Projeto da malha de aterramento e equipotencialização",
-          "Diagramas unifilares, memorial de cálculo, memorial descritivo, especificações e lista de materiais"
-        ]),
-        svc("Aprovação do projeto na Equatorial/PA", [
-          "Elaboração dos documentos necessários à aprovação do projeto",
-          "Acompanhamento técnico do processo de aprovação"
-        ])
-      ],
+      version: LIBRARY_VERSION,
+      services: defaultServiceCatalog(),
       clauses: [
         cl("Premissas", "Os projetos serão elaborados em conformidade com as normas técnicas ABNT aplicáveis (NBR 5410, NBR 14039 e NBR 5419) e com as normas e padrões técnicos da concessionária de energia.", true),
         cl("Premissas", "O prazo de elaboração dos projetos não contempla o período de análise do projeto pela Equatorial/PA, o qual depende exclusivamente dos procedimentos e prazos da concessionária.", true),
@@ -907,7 +1179,8 @@
         cl("Responsabilidades do contratante", "O contratante deverá fornecer o projeto arquitetônico atualizado em arquivo digital editável (.dwg) e comunicar por escrito qualquer alteração de arquitetura, de cargas ou de uso ocorrida após o início dos trabalhos.", true),
         cl("Responsabilidades do contratante", "A taxa de registro da ART junto ao CREA-PA é de responsabilidade do contratante.", false),
         cl("Responsabilidades do contratante", "Taxas, emolumentos e custos cobrados pela concessionária ou por órgãos públicos para análise e aprovação do projeto são de responsabilidade do contratante.", false),
-        cl("Exclusões", "Não estão incluídos neste escopo: projetos de prevenção e combate a incêndio, cabeamento estruturado, CFTV, alarme, automação, fornecimento de materiais, execução de obra e acompanhamento ou fiscalização da obra.", true),
+        cl("Exclusões", "Não estão incluídos neste escopo: projetos de prevenção e combate a incêndio, automação, fornecimento de materiais, execução de obra e quaisquer serviços não descritos na Tabela 1.", true),
+        cl("Exclusões", "Para a infraestrutura de CFTV, alarme e controle de acesso, não estão incluídos a especificação, o fornecimento, a configuração e a programação dos equipamentos.", false),
         cl("Exclusões", "Visitas técnicas além da vistoria inicial e deslocamentos para fora do município de Belém/PA serão cobrados à parte.", false),
         cl("Entregáveis", "A entrega será realizada em formato PDF (para fins de aprovação e impressão), acompanhada dos arquivos editáveis em DWG.", true),
         cl("Condições gerais", "Estão incluídas até 2 (duas) rodadas de revisão do projeto, solicitadas por escrito em até 15 dias corridos após a entrega. Alterações posteriores, decorrentes de mudança de arquitetura, de cargas ou de escopo, serão orçadas à parte.", true),
@@ -995,6 +1268,10 @@
         if(!c.id) c.id = genId();
         return c;
       });
+    }
+    if(parsed.projectLibrary){
+      d.projectLibrary.version = parsed.projectLibrary.version || 1;
+      if(d.projectLibrary.version < LIBRARY_VERSION) migrateProjectLibrary(d.projectLibrary);
     }
     d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
     d.counters = Object.assign(d.counters, parsed.counters||{});
@@ -1606,9 +1883,20 @@
   function findScope(sid){
     return pj().scope.find(function(s){ return s.sid === sid; });
   }
+  function serviceCategory(s){
+    return SERVICE_CATEGORIES.indexOf(s.category) >= 0 ? s.category : SERVICE_OTHER;
+  }
+  // serviços na ordem das categorias (e, dentro da categoria, na ordem da biblioteca)
+  function servicesByCategory(){
+    var cats = SERVICE_CATEGORIES.concat([SERVICE_OTHER]), out = [];
+    cats.forEach(function(c){
+      state.projectLibrary.services.forEach(function(s){ if(serviceCategory(s) === c) out.push(s); });
+    });
+    return out;
+  }
   function sortScopeByLibrary(dr){
     var order = {};
-    state.projectLibrary.services.forEach(function(s, i){ order[s.id] = i; });
+    servicesByCategory().forEach(function(s, i){ order[s.id] = i; });
     dr.scope.sort(function(a, b){
       var ia = order[a.sid] == null ? 9999 : order[a.sid], ib = order[b.sid] == null ? 9999 : order[b.sid];
       return ia - ib;
@@ -1631,16 +1919,42 @@
     }
     return h + '</div>';
   }
+  var scopeFilter = "";
+  var catOpen = {}; // categorias abertas na lista de escopo (só interface)
   function renderScopeList(){
     var box = document.getElementById("scope-list");
     var dr = pj(), lib = state.projectLibrary.services;
     var known = {};
     lib.forEach(function(s){ known[s.id] = true; });
-    var html = lib.map(function(s){ return scopeCardHtml(s.id, s.title, findScope(s.id)); }).join("");
+    var q = scopeFilter.trim().toLowerCase();
+    function matches(s){
+      return !q || s.title.toLowerCase().indexOf(q) >= 0 || (s.acts||[]).some(function(a){ return String(a).toLowerCase().indexOf(q) >= 0; });
+    }
+    function card(s){ return scopeCardHtml(s.id, s.title, findScope(s.id)); }
+    var ordered = servicesByCategory().filter(matches);
+    var html = "";
+    if(q){
+      html = ordered.map(card).join("");
+    } else {
+      var tops = ordered.filter(function(s){ return s.top; });
+      if(tops.length){
+        html += '<div class="sub-label">Mais usados</div>' + tops.map(card).join("");
+      }
+      SERVICE_CATEGORIES.concat([SERVICE_OTHER]).forEach(function(cat){
+        var items = ordered.filter(function(s){ return !s.top && serviceCategory(s) === cat; });
+        if(!items.length) return;
+        var selected = items.filter(function(s){ return findScope(s.id); }).length;
+        html += '<details class="scope-cat" data-cat-d="'+escapeHtml(cat)+'"'+((catOpen[cat] || selected) ? ' open' : '')+'>' +
+          '<summary>'+escapeHtml(cat)+' <span class="hint">('+items.length+(selected ? ' · '+selected+' selecionado'+(selected>1?'s':'') : '')+')</span></summary>' +
+          '<div class="scope-cat-body">'+items.map(card).join("")+'</div></details>';
+      });
+    }
+    // serviços já marcados na proposta que não existem mais na biblioteca
     dr.scope.forEach(function(s){
       if(!known[s.sid]) html += scopeCardHtml(s.sid, s.title+" (não está mais nos modelos)", s);
     });
-    box.innerHTML = html || '<div class="hint">Nenhum modelo de serviço cadastrado. Use "editar modelos".</div>';
+    box.innerHTML = html || '<div class="hint">'+(q ? "Nenhum serviço encontrado." : 'Nenhum modelo de serviço cadastrado. Use "editar modelos".')+'</div>';
+    growTextareas();
   }
 
   function renderTriggers(){
@@ -1766,16 +2080,38 @@
   }
 
   // ----- modelos (biblioteca de serviços e cláusulas) -----
+  var libOpen = {}; // serviços abertos na aba Modelos (só interface)
   function renderLibrary(){
     var lib = state.projectLibrary;
-    document.getElementById("lib-services").innerHTML = lib.services.map(function(s, i){
-      return '<div class="item-card">' +
-        '<div class="field"><label>Título do serviço</label><input data-ls-title="'+i+'" value="'+escapeHtml(s.title)+'"></div>' +
-        '<div class="field"><label>Atividades (uma por linha)</label><textarea rows="6" data-ls-acts="'+i+'">'+escapeHtml(s.acts.join("\n"))+'</textarea></div>' +
-        '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir">▲</button>' +
-        '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer">▼</button>' +
-        '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div></div>';
-    }).join("");
+    var html = "";
+    SERVICE_CATEGORIES.concat([SERVICE_OTHER]).forEach(function(cat){
+      var items = [];
+      lib.services.forEach(function(s, i){ if(serviceCategory(s) === cat) items.push({ s:s, i:i }); });
+      if(!items.length) return;
+      html += '<div class="sub-label">'+escapeHtml(cat)+' ('+items.length+')</div>';
+      items.forEach(function(x){
+        var s = x.s, i = x.i;
+        var catOpts = SERVICE_CATEGORIES.concat([SERVICE_OTHER]).map(function(c){
+          return '<option value="'+escapeHtml(c)+'"'+(c===serviceCategory(s)?' selected':'')+'>'+escapeHtml(c)+'</option>';
+        }).join("");
+        var billOpts = BILLING_OPTIONS.map(function(b){
+          return '<option value="'+b[0]+'"'+(b[0]===(s.billing||"global")?' selected':'')+'>'+b[1]+'</option>';
+        }).join("");
+        html += '<details class="item-card" data-lsd="'+s.id+'"'+(libOpen[s.id]?' open':'')+'>' +
+          '<summary style="cursor:pointer; font-weight:600;">'+escapeHtml(s.title||"(sem título)")+(s.top?' <span class="hint">· mais usado</span>':'')+'</summary>' +
+          '<div class="field"><label>Título do serviço</label><input data-ls-title="'+i+'" value="'+escapeHtml(s.title)+'"></div>' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Categoria</label><select data-ls-cat="'+i+'">'+catOpts+'</select></div>' +
+            '<div class="field"><label>Base de cobrança (referência)</label><select data-ls-bill="'+i+'">'+billOpts+'</select></div>' +
+          '</div>' +
+          '<label class="checkbox-field"><input type="checkbox" data-ls-top="'+i+'"'+(s.top?' checked':'')+'> Mostrar em "Mais usados" (fixo no topo da lista de escopo)</label>' +
+          '<div class="field"><label>Atividades (uma por linha)</label><textarea rows="6" data-ls-acts="'+i+'">'+escapeHtml(s.acts.join("\n"))+'</textarea></div>' +
+          '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir">▲</button>' +
+          '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer">▼</button>' +
+          '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div></details>';
+      });
+    });
+    document.getElementById("lib-services").innerHTML = html;
     document.getElementById("lib-clauses").innerHTML = lib.clauses.map(function(c, i){
       var opts = CLAUSE_GROUPS.concat(CLAUSE_GROUPS.indexOf(c.group) < 0 ? [c.group] : []).map(function(g){
         return '<option value="'+escapeHtml(g)+'"'+(g===c.group?' selected':'')+'>'+escapeHtml(g)+'</option>';
@@ -1868,8 +2204,14 @@
     });
     scopeBox.addEventListener("toggle", function(e){
       var sid = e.target.getAttribute && e.target.getAttribute("data-sid-d");
+      var cat = e.target.getAttribute && e.target.getAttribute("data-cat-d");
       if(sid){ scopeOpen[sid] = e.target.open; growTextareas(); }
+      else if(cat){ catOpen[cat] = e.target.open; growTextareas(); }
     }, true);
+    document.getElementById("scope-search").addEventListener("input", function(e){
+      scopeFilter = e.target.value;
+      renderScopeList();
+    });
     scopeBox.addEventListener("input", function(e){
       var sid = e.target.getAttribute("data-scope-acttext");
       if(!sid) return;
@@ -1997,11 +2339,31 @@
       else return;
       renderScopeList(); scheduleSave();
     });
+    lsBox.addEventListener("toggle", function(e){
+      var id = e.target.getAttribute && e.target.getAttribute("data-lsd");
+      if(id){ libOpen[id] = e.target.open; growTextareas(); }
+    }, true);
+    lsBox.addEventListener("change", function(e){
+      var lib = state.projectLibrary.services;
+      var ci = e.target.getAttribute("data-ls-cat"), bi = e.target.getAttribute("data-ls-bill"), ti = e.target.getAttribute("data-ls-top");
+      if(ci != null) lib[parseInt(ci, 10)].category = e.target.value;
+      else if(bi != null) lib[parseInt(bi, 10)].billing = e.target.value;
+      else if(ti != null) lib[parseInt(ti, 10)].top = e.target.checked;
+      else return;
+      renderLibrary(); renderScopeList(); scheduleSave();
+    });
+    // sobe/desce só entre serviços da mesma categoria
+    function moveWithinCategory(lib, i, delta){
+      var cat = serviceCategory(lib[i]), j = i + delta;
+      while(j >= 0 && j < lib.length && serviceCategory(lib[j]) !== cat) j += delta;
+      if(j < 0 || j >= lib.length) return;
+      var tmp = lib[i]; lib[i] = lib[j]; lib[j] = tmp;
+    }
     lsBox.addEventListener("click", function(e){
       var lib = state.projectLibrary.services;
       var up = e.target.closest("[data-ls-up]"), down = e.target.closest("[data-ls-down]"), rm = e.target.closest("[data-ls-rm]");
-      if(up) moveInArray(lib, parseInt(up.getAttribute("data-ls-up"), 10), -1);
-      else if(down) moveInArray(lib, parseInt(down.getAttribute("data-ls-down"), 10), 1);
+      if(up) moveWithinCategory(lib, parseInt(up.getAttribute("data-ls-up"), 10), -1);
+      else if(down) moveWithinCategory(lib, parseInt(down.getAttribute("data-ls-down"), 10), 1);
       else if(rm){
         var idx = parseInt(rm.getAttribute("data-ls-rm"), 10);
         if(!confirm('Remover o serviço "'+lib[idx].title+'" dos modelos? Propostas já emitidas não mudam.')) return;
@@ -2010,7 +2372,9 @@
       renderLibrary(); renderScopeList(); scheduleSave();
     });
     document.getElementById("btn-add-lib-service").addEventListener("click", function(){
-      state.projectLibrary.services.push({ id:genId(), title:"Novo serviço", acts:[] });
+      var ns = { id:genId(), title:"Novo serviço", category:SERVICE_OTHER, billing:"global", top:false, acts:[] };
+      state.projectLibrary.services.push(ns);
+      libOpen[ns.id] = true;
       renderLibrary(); renderScopeList(); scheduleSave();
     });
 
