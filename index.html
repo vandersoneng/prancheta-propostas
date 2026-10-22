@@ -242,7 +242,13 @@
   .add-row-btn:hover{border-color:var(--accent); color:var(--accent);}
 
   .save-hint{font-size:11px; color:var(--ink-faint); display:flex; align-items:center; gap:6px;}
-  .save-dot{width:6px; height:6px; border-radius:50%; background:var(--good);}
+  .save-dot{width:6px; height:6px; border-radius:50%; background:var(--good); flex-shrink:0;}
+  .save-dot.saving{background:var(--accent);}
+  .save-dot.bad{background:var(--danger);}
+  .form-foot{margin-top:auto; padding-top:14px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:6px;}
+  .form-foot-doc{font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); line-height:1.5;}
+  .pdf-end{text-align:center; font-size:12px; color:var(--ink-soft); margin:2px 0 4px; padding-top:14px; border-top:1px solid var(--line);}
+  .pdf-end small{display:block; margin-top:3px; font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);}
 
   /* preview sheet */
   .sheet-wrap{flex:1; overflow:auto; padding:32px; display:flex; justify-content:center; align-items:flex-start; background:var(--paper);}
@@ -385,7 +391,7 @@
     @page{size:A4; margin:0;}
     .app{height:auto !important; overflow:visible !important;}
     .sheet-wrap{overflow:visible !important;}
-    .topbar, .side-tabs, .form-panel, .panel-toggle-col, .toast, .mobile-bar, .pdf-page-label{display:none !important;}
+    .topbar, .side-tabs, .form-panel, .panel-toggle-col, .toast, .mobile-bar, .pdf-page-label, .pdf-end{display:none !important;}
     .sheet-wrap{padding:0; display:block !important;}
     .sheet{box-shadow:none; border:none; max-width:none; width:100%; padding:0 6mm;}
     .sheet.paged{padding:0;}
@@ -718,8 +724,10 @@
         <button type="button" class="btn-ghost btn-sm" id="btn-sign-out" style="align-self:flex-start; padding:6px 0;">Sair da conta</button>
       </div>
 
-      <div class="save-hint"><span class="save-dot"></span> Dados sincronizados na nuvem (Supabase) — também salvos neste navegador como cache</div>
-      <div class="save-hint" style="align-items:flex-start;">Aberto fora do chat (arquivo salvo no seu computador), "Baixar proposta" gera o PDF direto. Dentro do chat, baixa um arquivo/imagem para você imprimir como PDF.</div>
+      <div class="form-foot">
+        <div class="save-hint" id="sync-status"><span class="save-dot"></span><span id="sync-text">Verificando sincronização…</span></div>
+        <div class="form-foot-doc" id="form-foot-summary"></div>
+      </div>
     </aside>
 
     <div class="panel-toggle-col">
@@ -1352,11 +1360,27 @@
   function persistLocal(){
     try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
   }
+  // Estado real do salvamento, mostrado no rodapé do formulário
+  var syncAt = null;
+  function setSyncStatus(kind){
+    var el = document.getElementById("sync-text"), dot = document.querySelector("#sync-status .save-dot");
+    if(!el || !dot) return;
+    if(kind === "ok" || kind === "loaded") syncAt = new Date();
+    var t = syncAt ? syncAt.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" }) : "";
+    el.textContent = kind === "saving" ? "Salvando na nuvem…"
+      : kind === "ok" ? "Salvo na nuvem às "+t
+      : kind === "loaded" ? "Dados carregados da nuvem às "+t
+      : "Sem conexão com a nuvem — salvo só neste navegador";
+    dot.className = "save-dot" + (kind === "saving" ? " saving" : kind === "offline" ? " bad" : "");
+  }
   function persistCloud(){
+    setSyncStatus("saving");
     saveToCloud(state).then(function(res){
-      if(res && res.error) toast("Sem conexão com a nuvem — salvo só neste navegador");
+      if(res && res.error){ toast("Sem conexão com a nuvem — salvo só neste navegador"); setSyncStatus("offline"); }
+      else setSyncStatus("ok");
     }).catch(function(){
       toast("Sem conexão com a nuvem — salvo só neste navegador");
+      setSyncStatus("offline");
     });
   }
   function scheduleSave(){
@@ -3717,6 +3741,13 @@
   // A prévia usa a MESMA diagramação do PDF (layoutPass): cada página vira um SVG A4, com as mesmas
   // quebras de folha, texto justificado e QR Code. O que aparece na tela é o que sai no arquivo.
   var pixPreviewCache = {}, pixPreviewPending = false;
+  function docSummaryText(lay, dr){
+    var parts = [dr.number + (state.mode === "projeto" ? " · "+revLabel(dr) : "")];
+    parts.push(lay.pageCount+" folha"+(lay.pageCount > 1 ? "s" : "")+" A4");
+    parts.push("Total "+fmtBRL(calcTotals(dr).total));
+    parts.push("válida até "+addDaysBR(dr.date, dr.validadeDias));
+    return parts.join(" · ");
+  }
   function pagesSvgHtml(lay, dr){
     var info = issuerInfo(dr), qr = "";
     if(lay.pixBox){
@@ -3762,6 +3793,7 @@
       });
       out.push(s + '</svg></div><div class="pdf-page-label">Folha '+(p+1)+' de '+lay.pageCount+' · A4</div>');
     }
+    out.push('<div class="pdf-end">Fim da proposta<small>'+escapeHtml(docSummaryText(lay, dr))+'</small></div>');
     return out.join("");
   }
 
@@ -3773,6 +3805,8 @@
       var lay = buildProposalOps();
       sheet.classList.add("paged");
       sheet.innerHTML = pagesSvgHtml(lay, dr);
+      var fs0 = document.getElementById("form-foot-summary");
+      if(fs0) fs0.textContent = docSummaryText(lay, dr);
       if(mode === "projeto") refreshProjetoLive();
       return;
     }catch(e){
@@ -5548,6 +5582,7 @@
     loadFromCloud().then(function(cloudState){
       if(cloudState){
         state = cloudState;
+        setSyncStatus("loaded");
       } else {
         var local = loadLocalCache();
         state = hasRealData(local) ? local : defaultState();
@@ -5560,6 +5595,7 @@
       if(local){
         state = local;
         finishInit();
+        setSyncStatus("offline");
         toast("Sem conexão com a nuvem — usando dados salvos neste navegador");
       } else {
         setAuthError("Não foi possível carregar seus dados. Verifique sua conexão e tente novamente.");
