@@ -169,6 +169,13 @@
     color:var(--ink-soft); cursor:pointer;
   }
   .side-tab-icon{width:17px; height:17px; flex-shrink:0;}
+  .side-account{margin-top:auto; padding-top:12px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:4px;}
+  .side-user{font-size:11px; color:var(--ink-faint); padding:0 13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .side-logout{
+    display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:transparent; border:none;
+    border-radius:7px; padding:10px 13px; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer;
+  }
+  .side-logout:hover{ background:var(--danger-bg); color:var(--danger); }
   .side-tab:hover{ background:var(--paper-raised); color:var(--ink); }
   .side-tab[aria-selected="true"]{
     background:var(--paper-raised); border-left-color:var(--accent);
@@ -358,6 +365,9 @@
     }
     .side-tab{ flex:0 0 auto; width:auto; white-space:nowrap; border-left:none; border-bottom:3px solid transparent; border-radius:7px 7px 0 0; padding:11px 12px; }
     .side-tab[aria-selected="true"]{ border-left-color:transparent; border-bottom-color:var(--accent); }
+    .side-account{margin:0 0 0 auto; padding:0; border-top:0; flex-direction:row; align-items:center; flex:0 0 auto;}
+    .side-user{display:none;}
+    .side-logout{width:auto; white-space:nowrap; padding:11px 12px;}
     .form-panel, .form-panel.collapsed{
       width:100% !important; min-width:0 !important; max-width:none !important;
       padding:14px 14px 96px !important; overflow:visible !important;
@@ -445,6 +455,10 @@
       <button type="button" class="side-tab" id="tab-btn-modelos" data-tab="modelos" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></svg>Modelos</button>
       <button type="button" class="side-tab" id="tab-btn-historico" data-tab="historico" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Histórico</button>
       <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v18"/><path d="M14 9h5a1 1 0 0 1 1 1v12"/><path d="M8 6h.01M8 10h.01M8 14h.01M8 18h.01"/></svg>Empresa</button>
+      <div class="side-account">
+        <div class="side-user" id="side-user"></div>
+        <button type="button" class="side-logout" id="btn-sign-out" title="Sair da conta neste dispositivo"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sair</button>
+      </div>
     </nav>
     <aside class="form-panel">
 
@@ -717,11 +731,6 @@
           <button type="button" class="btn btn-sm" id="btn-pick-folder">Escolher pasta</button>
           <button type="button" class="btn-ghost btn-sm" id="btn-clear-folder">Remover pasta</button>
         </div>
-      </div>
-
-      <div class="field-group" data-panel="empresa">
-        <legend>Conta</legend>
-        <button type="button" class="btn-ghost btn-sm" id="btn-sign-out" style="align-self:flex-start; padding:6px 0;">Sair da conta</button>
       </div>
 
       <div class="form-foot">
@@ -5605,8 +5614,18 @@
     });
   }
 
+  function showSessionUser(){
+    try{
+      sb.auth.getSession().then(function(r){
+        var u = r && r.data && r.data.session && r.data.session.user;
+        var el = document.getElementById("side-user");
+        if(el && u){ el.textContent = u.email || ""; el.title = "Conta conectada: "+(u.email||""); }
+      });
+    }catch(e){}
+  }
   function finishInit(){
     hideAuthGate();
+    showSessionUser();
     ensureDraftClauses();
     loadHistoryCollapseState();
     attachProjetoHandlers();
