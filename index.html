@@ -143,16 +143,18 @@
   .workspace.hide-preview .panel-toggle-col{ display:none; }
   .workspace.hide-preview .form-panel.wide{ width:auto; max-width:none; flex:1; }
 
-  .panel-toggle-col{ position:relative; width:0; flex-shrink:0; overflow:visible; z-index:6; }
+  .panel-toggle-col{ position:relative; width:0; flex-shrink:0; overflow:visible; z-index:6; padding-top:calc(50vh - 84px); }
   .panel-toggle{
-    position:absolute; top:18px; left:-16px;
-    width:32px; height:32px; border-radius:50%; border:2px solid var(--paper-raised);
-    background:var(--accent); color:var(--accent-ink);
-    display:flex; align-items:center; justify-content:center;
-    font-size:16px; font-weight:700; line-height:1; cursor:pointer; padding:0;
-    box-shadow:var(--shadow);
+    position:sticky; top:calc(50vh - 17px); margin-left:-17px;
+    width:34px; height:34px; border-radius:50%;
+    border:1px solid var(--line-strong); background:var(--paper-raised); color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;
+    box-shadow:0 1px 6px rgba(0,0,0,.18);
+    transition:border-color .15s ease, color .15s ease, box-shadow .15s ease;
   }
-  .panel-toggle:hover{ filter:brightness(1.08); }
+  .panel-toggle svg{ width:16px; height:16px; transition:transform .18s ease; }
+  .panel-toggle.is-collapsed svg{ transform:rotate(180deg); }
+  .panel-toggle:hover{ border-color:var(--accent); color:var(--accent); box-shadow:0 2px 10px rgba(0,0,0,.25); }
 
   .side-tabs{
     width:180px; flex-shrink:0; background:var(--paper);
@@ -713,7 +715,7 @@
     </aside>
 
     <div class="panel-toggle-col">
-      <button type="button" class="panel-toggle" id="btn-toggle-panel" title="Ocultar formulário">‹</button>
+      <button type="button" class="panel-toggle" id="btn-toggle-panel" title="Ocultar formulário" aria-label="Ocultar formulário"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
     </div>
 
     <main class="sheet-wrap">
@@ -1812,8 +1814,9 @@
     var panel = document.querySelector(".form-panel");
     var btn = document.getElementById("btn-toggle-panel");
     panel.classList.toggle("collapsed", collapsed);
-    btn.textContent = collapsed ? "›" : "‹";
+    btn.classList.toggle("is-collapsed", collapsed);
     btn.title = collapsed ? "Mostrar formulário" : "Ocultar formulário";
+    btn.setAttribute("aria-label", btn.title);
     try{ localStorage.setItem(PANEL_COLLAPSED_KEY, collapsed ? "1" : "0"); }catch(e){}
   }
   function attachPanelToggle(){
