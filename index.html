@@ -1461,7 +1461,8 @@
     if(c.address) meta.push(c.address);
     if(c.address2) meta.push(c.address2);
     if(contact) meta.push(contact);
-    return { isPf:false, name:c.name||"Sua empresa", logo:c.logo||"", meta:meta,
+    var metaRows = [c.doc ? "CNPJ "+c.doc : "", [c.address, c.address2].filter(Boolean).join(" · "), contact].filter(Boolean);
+    return { isPf:false, name:c.name||"Sua empresa", logo:c.logo||"", meta:meta, metaRows:metaRows,
         sigName:c.name||"Empresa", sigRoles:[c.doc ? "CNPJ "+c.doc : "", (p.name && p.reg) ? "Resp. técnico: "+p.name+" — "+p.reg : ""].filter(Boolean),
       pix:{ key:c.pixKey, type:c.pixType, city:c.pixCity, name:c.name, bank:c.pixBank, holder:c.name } };
   }
@@ -4328,7 +4329,7 @@
     var totals = calcTotals(dr);
     var modeColor = mode==="cabos" ? "#B5652E" : "#2B5876";
     var P = (mode === "projeto");
-    var HEAD_PT = 14; // nome do emitente e título "Proposta Comercial" usam o mesmo corpo
+    var HEAD_PT = P ? 14 : 12; // nome do emitente e título "Proposta Comercial" usam o mesmo corpo
     var LW = 595.28, LH = 841.89, ML = P ? 46 : 42, MR = P ? 46 : 42, MT = P ? 44 : 40, MB = P ? 44 : 40, CW = LW-ML-MR;
     var ctx = measureScratch();
     var ops = [];
@@ -4417,7 +4418,8 @@
       if(hasLogo){ logoBox = { x:ML, y:y, w:lg, h:lg, page:0 }; companyX = ML+lg+10; }
       var maxW = (LW-MR-150) - companyX;
       var metaRows = info.meta.slice();
-      if(metaRows.length > 2){ var lastMeta = metaRows.pop(); metaRows = [metaRows.join("   ·   "), lastMeta]; }
+      if(mode === "cabos" && info.metaRows) metaRows = info.metaRows.slice();
+      else if(metaRows.length > 2){ var lastMeta = metaRows.pop(); metaRows = [metaRows.join("   ·   "), lastMeta]; }
       var nameBase = null, metaBases = [];
       setFontFor(true,HEAD_PT,false);
       wrapText(ctx, info.name, maxW).forEach(function(l){
