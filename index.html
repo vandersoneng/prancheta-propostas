@@ -486,9 +486,14 @@
       <div class="field-group" data-panel="itens" data-mode="projeto">
         <legend>Escopo dos projetos <button type="button" class="add-row-btn" id="btn-edit-models">editar modelos</button></legend>
         <div class="hint">Marque os serviços e desmarque as atividades que não se aplicam. Só o que estiver marcado aparece na proposta.</div>
+        <div class="field"><label for="f-price-mode">Forma de preço</label>
+          <select id="f-price-mode"><option value="item">Valor por serviço</option><option value="global">Valor global (um valor para todos os serviços)</option></select>
+        </div>
+        <label class="checkbox-field" id="wrap-show-values"><input type="checkbox" id="f-show-values"> Mostrar o valor de cada serviço na proposta</label>
         <div class="field"><input type="search" id="scope-search" placeholder="Buscar serviço ou atividade…" aria-label="Buscar serviço"></div>
         <div id="scope-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-        <div class="field"><label for="f-scope-price">Valor global dos projetos (R$)</label><input type="number" min="0" step="0.01" id="f-scope-price"></div>
+        <div class="hint" id="scope-total-hint"></div>
+        <div class="field" id="wrap-scope-price"><label for="f-scope-price">Valor global dos projetos (R$)</label><input type="number" min="0" step="0.01" id="f-scope-price"></div>
         <div class="hint" id="scope-hint"></div>
       </div>
 
@@ -1207,6 +1212,13 @@
     dr.payment = Object.assign({ parcels:[] }, dr.payment);
     dr.nf = Object.assign({ mode:"none", percent:10 }, dr.nf);
     if(!Array.isArray(dr.scope)) dr.scope = [];
+    if(dr.priceMode == null) dr.priceMode = (Number(dr.scopePrice)||0) > 0 ? "global" : "item";
+    if(dr.showItemValues == null) dr.showItemValues = true;
+    dr.scope.forEach(function(e){
+      if(e.billing == null) e.billing = "global";
+      if(e.qty == null) e.qty = 1;
+      if(e.price == null) e.price = 0;
+    });
     if(!Array.isArray(dr.clauses)) dr.clauses = [];
     if(!Array.isArray(dr.deadline.triggers)) dr.deadline.triggers = [];
     if(!Array.isArray(dr.payment.parcels)) dr.payment.parcels = [];
@@ -1225,7 +1237,7 @@
       city: issuer==="pf" ? (p.city||"") : companyCity(),
       greeting:"Prezado(a) Senhor(a),",
       obra:{ address:"", floors:"", area:0 }, intro:"",
-      scope:[], scopePrice:0,
+      scope:[], scopePrice:0, priceMode:"item", showItemValues:true,
       deadline:{ days:30, unit:"corridos", triggers:defaultDeadlineTriggers() },
       payment:{ parcels:defaultParcels() },
       nf:{ mode: issuer==="pf" ? "note" : "none", percent:10 },
@@ -1399,9 +1411,17 @@
 
   function draft(){ return state.drafts[state.mode]; }
 
+  // Soma dos serviços de projeto: no modo "item" cada serviço tem qtd × preço; no modo "global" vale
+  // o valor único (scopePrice). Propostas antigas não têm priceMode e continuam no valor global.
+  function scopeTotal(dr){
+    if(dr.priceMode === "item" && Array.isArray(dr.scope)){
+      return dr.scope.reduce(function(s, e){ return s + (Number(e.qty)||0)*(Number(e.price)||0); }, 0);
+    }
+    return Number(dr.scopePrice)||0;
+  }
   function calcTotals(dr){
     // scopePrice = valor global dos projetos (proposta de projeto); propostas antigas não têm.
-    var subtotal = (Number(dr.scopePrice)||0) + dr.items.reduce(function(s,it){ return s + (Number(it.qty)||0)*(Number(it.price)||0); }, 0);
+    var subtotal = scopeTotal(dr) + dr.items.reduce(function(s,it){ return s + (Number(it.qty)||0)*(Number(it.price)||0); }, 0);
     var discountAmount = dr.discount.type==="percent"
       ? subtotal * (Number(dr.discount.value)||0)/100
       : (Number(dr.discount.value)||0);
@@ -1543,7 +1563,7 @@
     ["f-greeting", function(s){return pj().greeting;}, function(s,v){pj().greeting=v;}],
     ["f-obra-address", function(s){return pj().obra.address;}, function(s,v){pj().obra.address=v;}],
     ["f-obra-floors", function(s){return pj().obra.floors;}, function(s,v){pj().obra.floors=v;}],
-    ["f-obra-area", function(s){return pj().obra.area||"";}, function(s,v){pj().obra.area=nonNeg(v);}],
+    ["f-obra-area", function(s){return pj().obra.area||"";}, function(s,v){pj().obra.area=nonNeg(v); syncAutoQty();}],
     ["f-intro", function(s){return pj().intro;}, function(s,v){pj().intro=v;}],
     ["f-scope-price", function(s){return pj().scopePrice||"";}, function(s,v){pj().scopePrice=nonNeg(v);}],
     ["f-nf-mode", function(s){return pj().nf.mode;}, function(s,v){pj().nf.mode=v;}],
@@ -1871,6 +1891,38 @@
     }
   }
 
+  var BILLING_UNIT = { global:"", m2:"m²", kwp:"kWp", visita:"visitas", hora:"horas" };
+  function billingQtyDefault(bill, dr){
+    if(bill === "global") return 1;
+    if(bill === "m2") return Number(dr.obra.area)||0;
+    if(bill === "kwp") return 0;
+    return 1;
+  }
+  function newScopeEntry(svc, dr){
+    var bill = svc.billing || "global";
+    return {
+      sid:svc.id, title:svc.title, acts: svc.acts.map(function(a){ return { t:a, on:true }; }),
+      billing:bill, qty:billingQtyDefault(bill, dr), price:Number(svc.rate)||0, qtyAuto:(bill === "m2")
+    };
+  }
+  // quando a área da obra muda, os serviços cobrados por m² (com quantidade automática) acompanham
+  function syncAutoQty(){
+    var dr = pj(), area = Number(dr.obra.area)||0, changed = false;
+    dr.scope.forEach(function(e){ if(e.billing === "m2" && e.qtyAuto){ e.qty = area; changed = true; } });
+    if(changed) renderScopeList();
+  }
+  function updateScopeTotals(){
+    document.querySelectorAll("[data-sp-total]").forEach(function(el){
+      var e = findScope(el.getAttribute("data-sp-total"));
+      el.textContent = fmtBRL(e ? (Number(e.qty)||0)*(Number(e.price)||0) : 0);
+    });
+  }
+  function applyPriceModeUI(){
+    var item = pj().priceMode === "item";
+    document.getElementById("wrap-scope-price").style.display = item ? "none" : "";
+    document.getElementById("wrap-show-values").style.display = item ? "" : "none";
+    document.getElementById("scope-total-hint").style.display = item ? "" : "none";
+  }
   function findScope(sid){
     return pj().scope.find(function(s){ return s.sid === sid; });
   }
@@ -1898,6 +1950,15 @@
   function scopeCardHtml(sid, title, entry){
     var h = '<div class="item-card" data-sid="'+sid+'">' +
       '<label class="checkbox-field" style="font-weight:600; color:var(--ink);"><input type="checkbox" data-scope-toggle="'+sid+'"'+(entry?' checked':'')+'> <span>'+escapeHtml(title)+'</span></label>';
+    if(entry && pj().priceMode === "item"){
+      var bill = entry.billing || "global";
+      var billOpts = BILLING_OPTIONS.map(function(b){ return '<option value="'+b[0]+'"'+(b[0]===bill?' selected':'')+'>'+b[1]+'</option>'; }).join("");
+      h += '<div class="field-row">' +
+        (bill === "global" ? '' : '<div class="field"><label>Quantidade ('+BILLING_UNIT[bill]+')</label><input type="number" min="0" step="0.01" data-sp-qty="'+sid+'" value="'+(entry.qty||"")+'"></div>') +
+        '<div class="field"><label>'+(bill === "global" ? 'Valor (R$)' : 'Preço por unidade (R$)')+'</label><input type="number" min="0" step="0.01" data-sp-price="'+sid+'" value="'+(entry.price||"")+'"></div>' +
+        '<div class="field"><label>Cobrança</label><select data-sp-bill="'+sid+'">'+billOpts+'</select></div></div>' +
+        '<div class="hint">Total do serviço: <b data-sp-total="'+sid+'">'+fmtBRL((Number(entry.qty)||0)*(Number(entry.price)||0))+'</b></div>';
+    }
     if(entry){
       var onCount = entry.acts.filter(function(a){ return a.on; }).length;
       h += '<details data-sid-d="'+sid+'"'+(scopeOpen[sid]?' open':'')+'><summary class="hint" style="cursor:pointer;">Atividades: '+onCount+' de '+entry.acts.length+' marcadas</summary>';
@@ -2008,11 +2069,13 @@
     }
     var hint = document.getElementById("scope-hint");
     if(hint){
-      var area = Number(dr.obra.area)||0, price = Number(dr.scopePrice)||0;
+      var area = Number(dr.obra.area)||0, price = scopeTotal(dr);
       hint.textContent = (area > 0 && price > 0)
         ? "Referência interna (não sai na proposta): "+fmtBRL(price/area)+" por m² de área construída ("+fmtNum(area,2)+" m²)."
-        : "Informe a área construída (aba Proposta) e o valor global para ver a referência por m².";
+        : "Informe a área construída (aba Proposta) e os valores para ver a referência por m².";
     }
+    var th = document.getElementById("scope-total-hint");
+    if(th) th.textContent = dr.priceMode === "item" ? "Total dos serviços marcados: "+fmtBRL(scopeTotal(dr)) : "";
     var nf = document.getElementById("nf-hint");
     if(nf){
       nf.textContent = dr.nf.mode === "note" ? "Valor com nota fiscal que aparece como observação: "+fmtBRL(totals.nfNoteTotal)+"."
@@ -2063,6 +2126,9 @@
     document.getElementById("f-revision").value = revLabel(dr);
     document.getElementById("f-accept").checked = !!dr.accept;
     document.getElementById("f-annex").checked = !!dr.annex;
+    document.getElementById("f-price-mode").value = dr.priceMode === "global" ? "global" : "item";
+    document.getElementById("f-show-values").checked = dr.showItemValues !== false;
+    applyPriceModeUI();
     renderScopeList();
     renderTriggers();
     renderParcels();
@@ -2097,6 +2163,7 @@
             '<div class="field"><label>Categoria</label><select data-ls-cat="'+i+'">'+catOpts+'</select></div>' +
             '<div class="field"><label>Base de cobrança (referência)</label><select data-ls-bill="'+i+'">'+billOpts+'</select></div>' +
           '</div>' +
+          '<div class="field"><label>Preço padrão por unidade da base (R$, opcional — já vem preenchido ao marcar o serviço)</label><input type="number" min="0" step="0.01" data-ls-rate="'+i+'" value="'+(s.rate||"")+'"></div>' +
           '<label class="checkbox-field"><input type="checkbox" data-ls-top="'+i+'"'+(s.top?' checked':'')+'> Mostrar em "Mais usados" (fixo no topo da lista de escopo)</label>' +
           '<div class="field"><label>Atividades (uma por linha)</label><textarea rows="6" data-ls-acts="'+i+'">'+escapeHtml(s.acts.join("\n"))+'</textarea></div>' +
           '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir">▲</button>' +
@@ -2180,12 +2247,25 @@
         if(t.checked){
           var svc = state.projectLibrary.services.find(function(s){ return s.id === sid; });
           if(!svc) return;
-          dr.scope.push({ sid:sid, title:svc.title, acts: svc.acts.map(function(a){ return { t:a, on:true }; }) });
+          dr.scope.push(newScopeEntry(svc, dr));
           sortScopeByLibrary(dr);
         } else {
           dr.scope = dr.scope.filter(function(s){ return s.sid !== sid; });
         }
         renderScopeList(); scheduleSave(); renderPreview();
+        return;
+      }
+      var spb = t.getAttribute("data-sp-bill");
+      if(spb){
+        var en = findScope(spb);
+        if(en){
+          var prev = en.billing || "global";
+          en.billing = t.value;
+          if(t.value === "global"){ en.qty = 1; en.qtyAuto = false; }
+          else if(t.value === "m2"){ en.qty = Number(dr.obra.area)||0; en.qtyAuto = true; }
+          else if(prev === "global" || prev === "m2"){ en.qty = billingQtyDefault(t.value, dr); en.qtyAuto = false; }
+          renderScopeList(); scheduleSave(); renderPreview();
+        }
         return;
       }
       var sid2 = t.getAttribute("data-scope-actchk");
@@ -2201,11 +2281,35 @@
       if(sid){ scopeOpen[sid] = e.target.open; growTextareas(); }
       else if(cat){ catOpen[cat] = e.target.open; growTextareas(); }
     }, true);
+    scopeBox.addEventListener("focusout", function(e){
+      var spq = e.target.getAttribute && e.target.getAttribute("data-sp-qty"), spp = e.target.getAttribute && e.target.getAttribute("data-sp-price");
+      if(spq == null && spp == null) return;
+      var pe = findScope(spq != null ? spq : spp);
+      if(pe) e.target.value = (spq != null ? pe.qty : pe.price) || "";
+    });
+    document.getElementById("f-price-mode").addEventListener("change", function(e){
+      pj().priceMode = e.target.value === "global" ? "global" : "item";
+      applyPriceModeUI(); renderScopeList(); scheduleSave(); renderPreview();
+    });
+    document.getElementById("f-show-values").addEventListener("change", function(e){
+      pj().showItemValues = e.target.checked;
+      scheduleSave(); renderPreview();
+    });
     document.getElementById("scope-search").addEventListener("input", function(e){
       scopeFilter = e.target.value;
       renderScopeList();
     });
     scopeBox.addEventListener("input", function(e){
+      var spq = e.target.getAttribute("data-sp-qty"), spp = e.target.getAttribute("data-sp-price");
+      if(spq != null || spp != null){
+        var pe = findScope(spq != null ? spq : spp);
+        if(pe){
+          if(spq != null){ pe.qty = nonNeg(e.target.value); pe.qtyAuto = false; }
+          else pe.price = nonNeg(e.target.value);
+          updateScopeTotals(); scheduleSave(); renderPreview();
+        }
+        return;
+      }
       var sid = e.target.getAttribute("data-scope-acttext");
       if(!sid) return;
       var entry = findScope(sid), ai = parseInt(e.target.getAttribute("data-ai"), 10);
@@ -2325,10 +2429,11 @@
     // --- biblioteca de modelos ---
     var lsBox = document.getElementById("lib-services");
     lsBox.addEventListener("input", function(e){
-      var ti = e.target.getAttribute("data-ls-title"), ai = e.target.getAttribute("data-ls-acts");
+      var ti = e.target.getAttribute("data-ls-title"), ai = e.target.getAttribute("data-ls-acts"), ri = e.target.getAttribute("data-ls-rate");
       var lib = state.projectLibrary.services;
       if(ti != null) lib[parseInt(ti, 10)].title = e.target.value;
       else if(ai != null) lib[parseInt(ai, 10)].acts = splitLines(e.target.value);
+      else if(ri != null) lib[parseInt(ri, 10)].rate = nonNeg(e.target.value);
       else return;
       renderScopeList(); scheduleSave();
     });
@@ -3479,6 +3584,13 @@
     return String(s||"").split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean);
   }
 
+  // "1.989,44 m² × R$ 10,15" sob o valor do serviço, quando cobrado por m², kWp, visita ou hora
+  function basisText(e){
+    var bill = e.billing || "global", q = Number(e.qty)||0, p = Number(e.price)||0;
+    if(bill === "global" || q <= 0 || p <= 0) return "";
+    var u = bill === "m2" ? "m²" : bill === "kwp" ? "kWp" : bill === "hora" ? "h" : (q === 1 ? "visita" : "visitas");
+    return fmtNum(q, q % 1 === 0 ? 0 : 2)+" "+u+" × "+fmtBRL(p);
+  }
   function projetoDoc(dr){
     var info = issuerInfo(dr), totals = calcTotals(dr);
     var doc = { info:info, totals:totals };
@@ -3493,13 +3605,24 @@
     var rows = [], n = 0;
     var blocks = dr.scope.map(function(s){
       var acts = s.acts.filter(function(a){ return a.on && String(a.t||"").trim(); }).map(function(a){ return stripEndPunct(a.t); });
-      return { title: stripEndPunct(s.title) + (acts.length ? ", incluindo:" : "."), acts:acts };
+      return { title: stripEndPunct(s.title) + (acts.length ? ", incluindo:" : "."), acts:acts, entry:s };
     });
-    if(!blocks.length && (Number(dr.scopePrice)||0) > 0) blocks = [{ title:"Serviços técnicos de projeto.", acts:[] }];
-    if(blocks.length){
+    var itemMode = dr.priceMode === "item", showVals = dr.showItemValues !== false;
+    if(!blocks.length && !itemMode && (Number(dr.scopePrice)||0) > 0) blocks = [{ title:"Serviços técnicos de projeto.", acts:[] }];
+    blocks.forEach(function(b, bi){
       n++;
-      rows.push({ n:n, blocks:blocks, desc:"", value:fmtBRL(dr.scopePrice) });
-    }
+      var row = { n:n, blocks:[b], desc:"", value:"", sub:"" };
+      if(itemMode){
+        if(b.entry && showVals){
+          row.value = fmtBRL((Number(b.entry.qty)||0)*(Number(b.entry.price)||0));
+          row.sub = basisText(b.entry);
+        }
+      } else if(bi === 0){
+        row.value = fmtBRL(dr.scopePrice);
+        if(blocks.length > 1) row.sub = "valor global dos itens 1 a "+blocks.length;
+      }
+      rows.push(row);
+    });
     dr.items.forEach(function(it){
       n++;
       var qty = Number(it.qty)||0, lt = qty*(Number(it.price)||0);
@@ -4449,7 +4572,7 @@
       y += 4;
       text({ x:ML, y:y+8, text:"Tabela 1 — Descrição dos serviços", size:9, bold:true, color:CV_SOFT });
       y += 18;
-      var colItem = 32, colVal = 80, xDesc = ML+colItem, colDesc = CW-colItem-colVal-8;
+      var colItem = 32, colVal = doc.rows.some(function(r){ return !!r.sub; }) ? 112 : 80, xDesc = ML+colItem, colDesc = CW-colItem-colVal-8;
       text({ x:ML, y:y+7, text:"ITEM", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
       text({ x:xDesc, y:y+7, text:"DESCRIÇÃO", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
       text({ x:LW-MR, y:y+7, text:"VALOR (R$)", size:7.5, bold:true, color:CV_FAINT, align:"right" });
@@ -4473,7 +4596,8 @@
       doc.rows.forEach(function(r, ri){
         ensureSpace(34);
         text({ x:ML, y:y+bl(BODY,RP), text:String(r.n), size:BODY, color:CV_SOFT });
-        text({ x:LW-MR, y:y+bl(BODY,RP), text:r.value, size:BODY, color:CV_INK, align:"right" });
+        if(r.value) text({ x:LW-MR, y:y+bl(BODY,RP), text:r.value, size:BODY, color:CV_INK, align:"right" });
+        if(r.sub) text({ x:LW-MR, y:y+bl(BODY,RP)+12, text:r.sub, size:8, color:CV_FAINT, align:"right" });
         if(r.blocks){
           r.blocks.forEach(function(b){
             ensureSpace(46);
