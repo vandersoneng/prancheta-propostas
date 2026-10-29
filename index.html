@@ -1527,7 +1527,9 @@
       if(p.title) meta.push(p.title);
       if(p.reg) meta.push(p.reg);
       if(contact) meta.push(contact);
-      return { isPf:true, name:p.name||"Profissional liberal", logo:"", meta:meta,
+      // cabeçalho em 2 linhas de apoio: formação/título na 1ª; registro e contatos na 2ª (título longo não força quebra no meio do CREA)
+      var pfRows = [p.title, [p.reg, contact].filter(Boolean).join("   ·   ")].filter(Boolean);
+      return { isPf:true, name:p.name||"Profissional liberal", logo:"", meta:meta, metaRows:pfRows,
         sigName:p.name||"Profissional", sigRoles:[[p.title, p.reg].filter(Boolean).join(" · "), p.tagline].filter(Boolean),
         pix:{ key:p.pixKey, type:p.pixType, city:p.pixCity, name:p.name, bank:p.pixBank, holder:p.pixHolder||p.name } };
     }
@@ -4559,7 +4561,7 @@
       if(hasLogo){ logoBox = { x:ML, y:y, w:lg, h:lg, page:0 }; companyX = ML+lg+10; }
       var maxW = (LW-MR-150) - companyX;
       var metaRows = info.meta.slice();
-      if(mode === "cabos" && info.metaRows) metaRows = info.metaRows.slice();
+      if((mode === "cabos" || info.isPf) && info.metaRows) metaRows = info.metaRows.slice();
       else if(metaRows.length > 2){ var lastMeta = metaRows.pop(); metaRows = [metaRows.join("   ·   "), lastMeta]; }
       var nameBase = null, metaBases = [];
       setFontFor(true,HEAD_PT,false);
