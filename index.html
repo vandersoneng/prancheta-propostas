@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OrçaVolt</title>
 <style>
   :root{
@@ -358,14 +358,25 @@
   .pdf-page-label{text-align:center; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint); margin:8px 0 22px;}
 
   .mobile-bar{display:none;}
+  .pv-zoom{display:none;}
 
   @media (max-width:900px){
-    .topbar{position:static; padding:10px 12px; gap:8px 10px;}
-    .brand{width:100%; margin-right:0;}
-    .mode-switch{width:100%;}
+    .topbar{position:static; padding:10px 12px; gap:8px;}
+    .brand{flex:1 1 auto; min-width:0; margin-right:0; order:1;}
+    .brand-sub{display:none;}
+    .topbar .btn-pill{order:2; flex:0 0 auto; justify-content:center; padding:9px 14px;}
+    #btn-share{order:3; font-size:0; gap:0; padding:9px 12px;}
+    #btn-share .btn-icon{width:18px; height:18px;}
+    .mode-switch{order:4; width:100%;}
     .mode-btn{flex:1; padding:10px 8px;}
-    .topbar .btn-pill{flex:1; justify-content:center; padding:10px 8px;}
     #btn-download{display:none;}
+    #lib-services .field-row{flex-direction:column;}
+    /* itens e catálogo: o nome usa a largura toda e o ✕ vai para o canto (sem alça de arrastar, que não serve no toque) */
+    .item-card-top{position:relative; flex-wrap:wrap;}
+    .item-card-top .drag-handle{display:none;}
+    .item-card-top .field{flex:1 1 100%;}
+    .item-card-top .btn-ghost{position:absolute; right:-4px; top:-6px;}
+    #btn-add-from-catalog{justify-content:center;}
     .workspace{flex-direction:column;}
     .side-tabs{
       width:100%; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
@@ -388,7 +399,15 @@
     .item-grid{grid-template-columns:1fr 1fr;}
     .field-row{flex-wrap:wrap;}
     .field-row > .field{min-width:130px;}
-    .sheet-wrap{padding:12px 10px 96px;}
+    .sheet-wrap{padding:8px 10px 96px; flex-direction:column; align-items:flex-start;}
+    .pv-zoom{
+      display:flex; align-items:center; gap:8px; position:sticky; left:0; top:0; z-index:12;
+      width:calc(100vw - 20px); box-sizing:border-box; padding:4px 0 8px; background:var(--paper);
+    }
+    .pv-zoom button{min-width:44px; height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--line-strong); background:var(--paper-raised); color:var(--ink); font-size:15px; font-weight:700; cursor:pointer;}
+    .pv-zoom #pv-fit{flex:1; font-size:13px;}
+    .pv-zoom span{min-width:40px; text-align:right; font-family:var(--font-mono); font-size:12px; color:var(--ink-faint);}
+    .sheet.paged{width:calc((100vw - 20px) * var(--pvz, 1)); max-width:none; flex-shrink:0;}
     /* celular: um painel por vez (Editar ou Prévia), alternados pela barra de baixo */
     .workspace .sheet-wrap{display:none;}
     .workspace.show-preview-m .sheet-wrap{display:flex;}
@@ -753,6 +772,12 @@
     </div>
 
     <main class="sheet-wrap">
+      <div class="pv-zoom" id="pv-zoom" role="group" aria-label="Zoom da prévia">
+        <button type="button" id="pv-out" aria-label="Reduzir a prévia">−</button>
+        <button type="button" id="pv-fit">Ajustar</button>
+        <button type="button" id="pv-in" aria-label="Ampliar a prévia">+</button>
+        <span id="pv-level">100%</span>
+      </div>
       <div class="sheet" id="sheet"></div>
     </main>
   </div>
@@ -1847,9 +1872,24 @@
     document.querySelectorAll(".side-tab").forEach(function(btn){
       btn.addEventListener("click", function(){ setActiveTab(btn.getAttribute("data-tab")); setMobileView(false); });
     });
+    document.getElementById("pv-in").addEventListener("click", function(){ setPreviewZoom(pvIdx+1); });
+    document.getElementById("pv-out").addEventListener("click", function(){ setPreviewZoom(pvIdx-1); });
+    document.getElementById("pv-fit").addEventListener("click", function(){ setPreviewZoom(0); });
+    setPreviewZoom(0);
     document.getElementById("mb-edit").addEventListener("click", function(){ setMobileView(false); });
     document.getElementById("mb-preview").addEventListener("click", function(){ setMobileView(true); });
     document.getElementById("mb-download").addEventListener("click", function(){ document.getElementById("btn-download").click(); });
+  }
+  // Celular: zoom da prévia em níveis (a folha A4 em tela estreita fica com letra minúscula)
+  var PV_LEVELS = [1, 1.5, 2, 2.6], pvIdx = 0;
+  function setPreviewZoom(i){
+    pvIdx = Math.max(0, Math.min(PV_LEVELS.length-1, i));
+    var wrap = document.querySelector(".sheet-wrap");
+    wrap.style.setProperty("--pvz", PV_LEVELS[pvIdx]);
+    document.getElementById("pv-level").textContent = Math.round(PV_LEVELS[pvIdx]*100)+"%";
+    document.getElementById("pv-out").disabled = pvIdx === 0;
+    document.getElementById("pv-in").disabled = pvIdx === PV_LEVELS.length-1;
+    if(pvIdx === 0) wrap.scrollLeft = 0;
   }
   // Celular: alterna entre o formulário e a prévia (no computador as duas ficam lado a lado).
   function setMobileView(showPreview){
