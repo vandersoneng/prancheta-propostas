@@ -227,6 +227,15 @@
   .tax-row .field{flex:1;}
   .checkbox-field{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft);}
   .checkbox-field input{width:auto;}
+  .act-tools{display:flex; gap:12px; padding:2px 0 4px;}
+  .act-tools .btn-ghost{padding:2px 0; color:var(--blue);}
+  .act-row{display:flex; gap:8px; align-items:flex-start; padding:4px 0; border-top:1px solid var(--line);}
+  .act-row > input[type="checkbox"]{width:auto; margin-top:3px; flex-shrink:0;}
+  .act-row .act-text{flex:1; font-size:12.5px; line-height:1.4; color:var(--ink); cursor:pointer;}
+  .act-row.off .act-text{color:var(--ink-faint); text-decoration:line-through;}
+  .act-btns{display:flex; flex-shrink:0;}
+  .act-btns .btn-ghost{padding:2px 6px; font-size:13px; color:var(--ink-faint);}
+  .act-btns .btn-ghost:hover{color:var(--accent);}
   .chk-row{display:flex; gap:8px; align-items:flex-start;}
   .chk-row > input[type="checkbox"]{width:auto; margin-top:9px; flex-shrink:0;}
   .chk-row > .field{flex:1; min-width:0;}
@@ -1991,7 +2000,8 @@
     });
   }
 
-  var scopeOpen = {}; // quais serviços estão com a lista de atividades aberta (só interface)
+  var scopeOpen = {}; // lista de atividades de cada serviço: aberta, a menos que o usuário a feche (só interface)
+  var scopeEditing = null; // atividade com o texto em edição: { sid, ai }
   function scopeCardHtml(sid, title, entry){
     var h = '<div class="item-card" data-sid="'+sid+'">' +
       '<label class="checkbox-field" style="font-weight:600; color:var(--ink);"><input type="checkbox" data-scope-toggle="'+sid+'"'+(entry?' checked':'')+'> <span>'+escapeHtml(title)+'</span></label>';
@@ -2006,11 +2016,17 @@
     }
     if(entry){
       var onCount = entry.acts.filter(function(a){ return a.on; }).length;
-      h += '<details data-sid-d="'+sid+'"'+(scopeOpen[sid]?' open':'')+'><summary class="hint" style="cursor:pointer;">Atividades: '+onCount+' de '+entry.acts.length+' marcadas</summary>';
+      h += '<details data-sid-d="'+sid+'"'+(scopeOpen[sid] !== false ? ' open' : '')+'><summary class="hint" style="cursor:pointer;">Atividades incluídas na proposta: <b>'+onCount+' de '+entry.acts.length+'</b></summary>';
+      h += '<div class="act-tools"><button type="button" class="btn-ghost btn-sm" data-scope-all="'+sid+'" data-val="1">marcar todas</button><button type="button" class="btn-ghost btn-sm" data-scope-all="'+sid+'" data-val="0">desmarcar todas</button></div>';
       entry.acts.forEach(function(a, i){
-        h += '<div class="chk-row"><input type="checkbox" data-scope-actchk="'+sid+'" data-ai="'+i+'"'+(a.on?' checked':'')+' title="Incluir na proposta">' +
-          '<div class="field"><textarea rows="2" style="min-height:42px;" data-scope-acttext="'+sid+'" data-ai="'+i+'">'+escapeHtml(a.t)+'</textarea></div>' +
-          '<button type="button" class="btn-ghost btn-sm" data-scope-actrm="'+sid+'" data-ai="'+i+'" title="Remover atividade">✕</button></div>';
+        var editing = scopeEditing && scopeEditing.sid === sid && scopeEditing.ai === i;
+        h += '<div class="act-row'+(a.on?'':' off')+'">' +
+          '<input type="checkbox" id="ac-'+sid+'-'+i+'" data-scope-actchk="'+sid+'" data-ai="'+i+'"'+(a.on?' checked':'')+'>' +
+          (editing
+            ? '<div class="field" style="flex:1;"><textarea rows="2" style="min-height:42px;" data-scope-acttext="'+sid+'" data-ai="'+i+'">'+escapeHtml(a.t)+'</textarea></div>'
+            : '<label class="act-text" for="ac-'+sid+'-'+i+'">'+(a.t.trim() ? escapeHtml(a.t) : '<i>(atividade em branco)</i>')+'</label>') +
+          '<span class="act-btns"><button type="button" class="btn-ghost btn-sm" data-scope-actedit="'+sid+'" data-ai="'+i+'" title="Editar o texto desta atividade só nesta proposta">✎</button>' +
+          '<button type="button" class="btn-ghost btn-sm" data-scope-actrm="'+sid+'" data-ai="'+i+'" title="Remover esta atividade da proposta">✕</button></span></div>';
       });
       h += '<button type="button" class="add-row-btn" data-scope-actadd="'+sid+'">+ atividade</button></details>';
     }
@@ -2327,6 +2343,20 @@
       else if(cat){ catOpen[cat] = e.target.open; growTextareas(); }
     }, true);
     scopeBox.addEventListener("focusout", function(e){
+      if(e.target.getAttribute && e.target.getAttribute("data-scope-acttext") != null){
+        // terminou de editar o texto: troca a caixa pela linha marcável, no próprio lugar
+        // (sem refazer a lista inteira, para não perder um clique em outro botão)
+        var ta = e.target, tsid = ta.getAttribute("data-scope-acttext"), tai = parseInt(ta.getAttribute("data-ai"), 10);
+        var ten = findScope(tsid), wrap = ta.closest(".field");
+        scopeEditing = null;
+        if(wrap){
+          var lab = document.createElement("label");
+          lab.className = "act-text"; lab.htmlFor = "ac-"+tsid+"-"+tai;
+          lab.innerHTML = (ten && ten.acts[tai] && ten.acts[tai].t.trim()) ? escapeHtml(ten.acts[tai].t) : "<i>(atividade em branco)</i>";
+          wrap.replaceWith(lab);
+        }
+        return;
+      }
       var spq = e.target.getAttribute && e.target.getAttribute("data-sp-qty"), spp = e.target.getAttribute && e.target.getAttribute("data-sp-price");
       if(spq == null && spp == null) return;
       var pe = findScope(spq != null ? spq : spp);
@@ -2363,12 +2393,32 @@
     scopeBox.addEventListener("click", function(e){
       var add = e.target.closest("[data-scope-actadd]");
       var rm = e.target.closest("[data-scope-actrm]");
-      if(add){
+      var all = e.target.closest("[data-scope-all]");
+      var ed = e.target.closest("[data-scope-actedit]");
+      if(all){
+        var ea = findScope(all.getAttribute("data-scope-all"));
+        if(ea){
+          var val = all.getAttribute("data-val") === "1";
+          ea.acts.forEach(function(a){ a.on = val; });
+          renderScopeList(); scheduleSave(); renderPreview();
+        }
+      } else if(ed){
+        scopeEditing = { sid:ed.getAttribute("data-scope-actedit"), ai:parseInt(ed.getAttribute("data-ai"), 10) };
+        renderScopeList();
+        var ta = document.querySelector('#scope-list textarea[data-scope-acttext]');
+        if(ta){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+      } else if(add){
         var en = findScope(add.getAttribute("data-scope-actadd"));
-        if(en){ en.acts.push({ t:"", on:true }); renderScopeList(); scheduleSave(); renderPreview(); }
+        if(en){
+          en.acts.push({ t:"", on:true });
+          scopeEditing = { sid:en.sid, ai:en.acts.length-1 };
+          renderScopeList(); scheduleSave(); renderPreview();
+          var nta = document.querySelector('#scope-list textarea[data-scope-acttext]');
+          if(nta) nta.focus();
+        }
       } else if(rm){
         var en2 = findScope(rm.getAttribute("data-scope-actrm"));
-        if(en2){ en2.acts.splice(parseInt(rm.getAttribute("data-ai"), 10), 1); renderScopeList(); scheduleSave(); renderPreview(); }
+        if(en2){ en2.acts.splice(parseInt(rm.getAttribute("data-ai"), 10), 1); scopeEditing = null; renderScopeList(); scheduleSave(); renderPreview(); }
       }
     });
 
