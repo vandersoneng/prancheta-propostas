@@ -4676,7 +4676,7 @@
       // Tabela 1 — escopo
       ensureSpace(60);
       y += 4;
-      text({ x:ML, y:y+8, text:"Tabela 1 — Descrição dos serviços", size:9, bold:true, color:CV_SOFT });
+      text({ x:LW/2, y:y+8, text:"Tabela 1 — Descrição dos serviços", size:9, bold:true, color:CV_SOFT, align:"center" });
       y += 18;
       var colItem = 32, colVal = doc.rows.some(function(r){ return !!r.sub; }) ? 112 : 80, xDesc = ML+colItem, colDesc = CW-colItem-colVal-8;
       text({ x:ML, y:y+7, text:"ITEM", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
