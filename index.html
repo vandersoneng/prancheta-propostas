@@ -1523,12 +1523,12 @@
     var c = state.company, p = state.profissional;
     var contact, meta = [];
     if(state.mode==="projeto" && dr.issuer==="pf"){
-      contact = [p.phone, p.email].filter(Boolean).join("  ·  ");
+      contact = [p.phone, p.email].filter(Boolean).join(" · ");
       if(p.title) meta.push(p.title);
       if(p.reg) meta.push(p.reg);
       if(contact) meta.push(contact);
-      // cabeçalho em 2 linhas de apoio: formação/título na 1ª; registro e contatos na 2ª (título longo não força quebra no meio do CREA)
-      var pfRows = [p.title, [p.reg, contact].filter(Boolean).join("   ·   ")].filter(Boolean);
+      // cabeçalho do profissional: formação/título, registro e contatos, cada um na sua linha
+      var pfRows = [p.title, p.reg, contact].filter(Boolean);
       return { isPf:true, name:p.name||"Profissional liberal", logo:"", meta:meta, metaRows:pfRows,
         sigName:p.name||"Profissional", sigRoles:[[p.title, p.reg].filter(Boolean).join(" · "), p.tagline].filter(Boolean),
         pix:{ key:p.pixKey, type:p.pixType, city:p.pixCity, name:p.name, bank:p.pixBank, holder:p.pixHolder||p.name } };
