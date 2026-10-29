@@ -1817,7 +1817,7 @@
       btn.setAttribute("aria-selected", btn.getAttribute("data-tab")===tab ? "true":"false");
     });
     applyTabVisibility();
-    if(typeof growTextareas === "function") growTextareas();
+    if(typeof growTextareas === "function"){ growTextareas(); setTimeout(growTextareas, 280); } // de novo após a animação de largura do painel
     var isManageTab = tab==="catalogo" || tab==="historico" || tab==="modelos";
     var panel = document.querySelector(".form-panel");
     if(panel){
@@ -5693,6 +5693,12 @@
     document.getElementById("btn-stock-report").addEventListener("click", exportStockReportPdf);
     attachTabHandlers();
     attachPanelToggle();
+    // as caixas de texto que se ajustam ao conteúdo medem a altura na largura atual: refaz quando o painel termina de mudar de largura ou a janela muda
+    (function(){
+      var fp = document.querySelector(".form-panel"), rt = null;
+      fp.addEventListener("transitionend", function(e){ if(e.target === fp && e.propertyName === "width") growTextareas(); });
+      window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(growTextareas, 150); });
+    })();
     attachSignOut();
 
     document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
