@@ -2301,6 +2301,27 @@
   }
   // ---------- CEP: cidade e UF (e, se vazios, logradouro e bairro) vêm da consulta ----------
   var cepDone = (typeof WeakMap === "function") ? new WeakMap() : null;   // CEP já consultado por endereço (evita repetir)
+  // Cache neste navegador: só dados públicos do CEP (cidade, UF, rua, bairro). CEP repetido é instantâneo e funciona sem internet.
+  var CEP_CACHE_KEY = "prancheta-cep-cache", CEP_CACHE_MAX = 300, CEP_CACHE_TTL = 180*24*3600*1000;
+  function cepCacheRead(){
+    try{ var m = JSON.parse(localStorage.getItem(CEP_CACHE_KEY) || "{}"); return (m && typeof m === "object") ? m : {}; }catch(e){ return {}; }
+  }
+  function cepCacheGet(digits){
+    var e = cepCacheRead()[digits];
+    if(!e || (Date.now() - (e.t || 0)) > CEP_CACHE_TTL) return null;
+    return { cidade:e.c, uf:e.u, bairro:e.b, logradouro:e.l };
+  }
+  function cepCachePut(digits, res){
+    try{
+      var m = cepCacheRead();
+      m[digits] = { c:res.cidade || "", u:res.uf || "", b:res.bairro || "", l:res.logradouro || "", t:Date.now() };
+      var keys = Object.keys(m);
+      if(keys.length > CEP_CACHE_MAX){
+        keys.sort(function(x, y){ return (m[x].t || 0) - (m[y].t || 0); }).slice(0, keys.length - CEP_CACHE_MAX).forEach(function(k){ delete m[k]; });
+      }
+      localStorage.setItem(CEP_CACHE_KEY, JSON.stringify(m));
+    }catch(e){}
+  }
   function fetchCep(digits){
     return fetch("https://brasilapi.com.br/api/cep/v1/"+digits)
       .then(function(r){ if(!r.ok) throw new Error("brasilapi"); return r.json(); })
@@ -2311,23 +2332,40 @@
           .then(function(d){ return d && !d.erro ? { cidade:d.localidade, uf:d.uf, bairro:d.bairro, logradouro:d.logradouro } : null; });
       });
   }
+  function paintAddrKeys(p, owner, keys){
+    if(addrOwner(p) !== owner) return;                  // só mexe na tela se esta proposta ainda é a que está aberta
+    var host = document.getElementById("addr-"+p+"-box"), a = addrOf(owner);
+    if(host) keys.forEach(function(k){
+      var el = host.querySelector('[data-ak="'+k+'"]');
+      if(el && el.value !== a[k]) el.value = a[k];
+    });
+    updateAddrLegacy(p);
+    renderPreview();
+  }
+  // Aplica o resultado do CEP. Devolve o que mudou e, se trocou uma cidade/UF que já estava preenchida, o antes e o depois.
   function applyCepResult(p, owner, res){
-    var a = addrOf(owner), changed = [];
-    function put(key, val){ if(val != null && String(val).trim() !== "" && a[key] !== val){ a[key] = val; changed.push(key); } }
-    put("cidade", String(res.cidade || "").trim());
-    put("uf", String(res.uf || "").trim().toUpperCase());
-    if(!String(a.logradouro || "").trim()) put("logradouro", String(res.logradouro || "").trim());
-    if(!String(a.bairro || "").trim()) put("bairro", String(res.bairro || "").trim());
-    owner.address = composeAddress(a);
-    if(addrOwner(p) === owner){                       // só mexe na tela se esta proposta ainda é a que está aberta
-      var host = document.getElementById("addr-"+p+"-box");
-      if(host) changed.forEach(function(k){
-        var el = host.querySelector('[data-ak="'+k+'"]');
-        if(el && el.value !== a[k]) el.value = a[k];
-      });
-      updateAddrLegacy(p);
-      renderPreview();
+    var a = addrOf(owner), snap = {}, changed = [];
+    function put(key, val){
+      val = String(val == null ? "" : val).trim();
+      if(val !== "" && a[key] !== val){ snap[key] = a[key]; a[key] = val; changed.push(key); }
     }
+    var prevCity = String(a.cidade || "").trim(), prevUf = String(a.uf || "").trim();
+    put("cidade", res.cidade);
+    put("uf", String(res.uf || "").toUpperCase());
+    if(!String(a.logradouro || "").trim()) put("logradouro", res.logradouro);
+    if(!String(a.bairro || "").trim()) put("bairro", res.bairro);
+    owner.address = composeAddress(a);
+    paintAddrKeys(p, owner, changed);
+    scheduleSave();
+    var overwrote = (prevCity && libNorm(prevCity) !== libNorm(a.cidade)) || (prevUf && prevUf.toUpperCase() !== String(a.uf || "").toUpperCase());
+    return { snap:snap, changed:changed, overwrote:!!overwrote,
+             from: prevCity + (prevUf ? "/"+prevUf : ""), to: a.cidade + (a.uf ? "/"+a.uf : "") };
+  }
+  function undoCepResult(p, owner, snap){
+    var a = addrOf(owner);
+    Object.keys(snap).forEach(function(k){ a[k] = snap[k]; });
+    owner.address = composeAddress(a);
+    paintAddrKeys(p, owner, Object.keys(snap));
     scheduleSave();
   }
   function maybeLookupCep(p, value){
@@ -2336,13 +2374,24 @@
     if(digits.length !== 8){ if(cepDone) cepDone.delete(owner); return; }   // CEP editado: uma nova digitação volta a consultar
     if(cepDone && cepDone.get(owner) === digits) return;
     if(cepDone) cepDone.set(owner, digits);
-    fetchCep(digits).then(function(res){
-      if(!res || !(res.cidade || res.uf)){ toast("CEP não encontrado: confira o número"); return; }
-      applyCepResult(p, owner, res);
-      toast(res.logradouro || res.bairro ? "Endereço preenchido pelo CEP" : "Cidade e UF preenchidos pelo CEP");
+    var cached = cepCacheGet(digits);
+    var source = cached ? Promise.resolve(cached) : fetchCep(digits).then(function(res){
+      if(res && (res.cidade || res.uf)) cepCachePut(digits, res);
+      return res;
+    });
+    source.then(function(res){
+      var current = addrOwner(p) === owner;
+      if(!res || !(res.cidade || res.uf)){ if(current) toast("CEP não encontrado: confira o número"); return; }
+      var r = applyCepResult(p, owner, res);
+      if(!current) return;                              // a proposta mudou enquanto a consulta andava: nada de aviso
+      if(r.overwrote){
+        toastUndo("Cidade alterada de "+r.from+" para "+r.to+" pelo CEP", function(){ undoCepResult(p, owner, r.snap); });
+      } else {
+        toast(res.logradouro || res.bairro ? "Endereço preenchido pelo CEP" : "Cidade e UF preenchidos pelo CEP");
+      }
     }).catch(function(){
-      if(cepDone) cepDone.delete(owner);              // permite tentar de novo
-      toast("Não foi possível buscar o CEP agora. Preencha a cidade manualmente.");
+      if(cepDone) cepDone.delete(owner);                // permite tentar de novo
+      if(addrOwner(p) === owner) toast("Não foi possível buscar o CEP agora. Preencha a cidade manualmente.");
     });
   }
   function attachAddressBlocks(){
