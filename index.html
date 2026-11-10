@@ -276,10 +276,10 @@
   .combo-opt:hover, .combo-opt.active{background:var(--paper);}
   .combo-foot{padding:7px 10px 5px; font-size:11.5px; color:var(--ink-faint); border-top:1px solid var(--line); margin-top:4px;}
   .combo-foot:first-child{border-top:none; margin-top:0;}
-  .act-row input{flex:1; min-width:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; font:inherit;}
-  .act-row input:hover{border-color:var(--line);}
-  .act-row input:focus{border-color:var(--line-strong); background:var(--paper);}
-  .act-add input{border:1px dashed var(--line-strong);}
+  .act-box .act-row input:not([type="checkbox"]){flex:1; min-width:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; font:inherit;}
+  .act-box .act-row input:not([type="checkbox"]):hover{border-color:var(--line);}
+  .act-box .act-row input:not([type="checkbox"]):focus{border-color:var(--line-strong); background:var(--paper);}
+  .act-box .act-add input{border:1px dashed var(--line-strong);}
   .act-mv{padding:2px 6px; font-size:11px; line-height:1; margin-top:4px;}
   .lib-split{display:grid; grid-template-columns:minmax(220px,300px) minmax(0,1fr); gap:16px; align-items:start;}
   .lib-list{position:sticky; top:calc(var(--lib-head-h,110px) + 6px); max-height:calc(100vh - var(--lib-head-h,110px) - 100px); overflow-y:auto; padding-right:4px;}
@@ -296,16 +296,16 @@
   .lib-ed-cat{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-soft);}
   .lib-ed-cat .cat-ico{color:var(--accent);}
   .act-box{display:flex; flex-direction:column; gap:1px; border:1px solid var(--line-strong); border-radius:8px; background:var(--paper-raised); padding:4px;}
-  .act-row{display:flex; align-items:flex-start; gap:6px; padding:2px 4px; border-radius:6px;}
-  .act-row.over{box-shadow:0 -2px 0 var(--accent);}
-  .act-row.dragging{opacity:.4;}
+  .act-box .act-row{display:flex; align-items:flex-start; gap:6px; padding:2px 4px; border-radius:6px; border-top:none;}
+  .act-box .act-row.over{box-shadow:0 -2px 0 var(--accent);}
+  .act-box .act-row.dragging{opacity:.4;}
   .act-grip{color:var(--ink-faint); cursor:grab; padding:9px 2px 0; flex-shrink:0; line-height:0;}
   .act-n{color:var(--ink-faint); font-size:11px; width:18px; text-align:right; padding-top:9px; flex-shrink:0;}
-  .act-row textarea{flex:1; min-height:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; resize:none; overflow:hidden; line-height:1.4;}
-  .act-row textarea:hover{border-color:var(--line);}
-  .act-row textarea:focus{border-color:var(--line-strong); background:var(--paper);}
+  .act-box .act-row textarea{flex:1; min-height:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; resize:none; overflow:hidden; line-height:1.4;}
+  .act-box .act-row textarea:hover{border-color:var(--line);}
+  .act-box .act-row textarea:focus{border-color:var(--line-strong); background:var(--paper);}
   .act-rm{padding:2px 7px; font-size:16px; line-height:1; margin-top:3px;}
-  .act-add textarea{border:1px dashed var(--line-strong);}
+  .act-box .act-add textarea{border:1px dashed var(--line-strong);}
   @media (min-width:901px){
     /* aba Modelos > Serviços: o painel não rola; cada lado (lista e edição) rola sozinho */
     .form-panel.lib-fixed{overflow:hidden; padding-bottom:18px;}
@@ -2871,9 +2871,9 @@
     if(entry && pj().priceMode === "item"){
       var bill = entry.billing || "global";
       var billOpts = BILLING_OPTIONS.map(function(b){ return '<option value="'+b[0]+'"'+(b[0]===bill?' selected':'')+'>'+b[1]+'</option>'; }).join("");
-      h += '<div class="field-row">' +
-        (bill === "global" ? '' : '<div class="field"><label>Quantidade ('+BILLING_UNIT[bill]+')</label><input type="number" min="0" step="0.01" data-sp-qty="'+sid+'" value="'+(entry.qty||"")+'"></div>') +
-        '<div class="field"><label>'+(bill === "global" ? 'Valor (R$)' : 'Preço por unidade (R$)')+'</label><input type="number" min="0" step="0.01" data-sp-price="'+sid+'" value="'+(entry.price||"")+'"></div>' +
+      h += '<div class="field-row" style="align-items:flex-end;">' +
+        (bill === "global" ? '' : '<div class="field" style="flex:.85;"><label title="Quantidade">Qtd. ('+BILLING_UNIT[bill]+')</label><input type="number" min="0" step="0.01" data-sp-qty="'+sid+'" value="'+(entry.qty||"")+'"></div>') +
+        '<div class="field"><label title="'+(bill === "global" ? 'Valor do serviço' : 'Preço por unidade')+'">'+(bill === "global" ? 'Valor (R$)' : 'Preço/unid. (R$)')+'</label><input type="number" min="0" step="0.01" data-sp-price="'+sid+'" value="'+(entry.price||"")+'"></div>' +
         '<div class="field"><label>Cobrança</label><select data-sp-bill="'+sid+'">'+billOpts+'</select></div></div>' +
         '<div class="hint">Total do serviço: <b data-sp-total="'+sid+'">'+fmtBRL((Number(entry.qty)||0)*(Number(entry.price)||0))+'</b></div>';
     }
