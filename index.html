@@ -637,14 +637,36 @@
         <legend>Dados da obra</legend>
         <div id="addr-obra-box"></div>
         <div class="field-row">
-          <div class="field"><label for="f-obra-floors">Pavimentos</label><input id="f-obra-floors" placeholder="Ex.: térreo e três pavimentos"></div>
-          <div class="field" style="flex:0 0 112px;"><label for="f-obra-area" title="Área total construída, em m²">Área (m²)</label><input type="number" min="0" step="0.01" id="f-obra-area" title="Área total construída, em m²"></div>
+          <div class="field"><label for="f-obra-kind">Tipo de local</label>
+            <select id="f-obra-kind">
+              <option value="edificacao">Edificação</option>
+              <option value="residencia">Residência</option>
+              <option value="empreendimento">Empreendimento</option>
+              <option value="instalacao">Instalação</option>
+              <option value="subestacao">Subestação</option>
+              <option value="uc">Unidade consumidora</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-obra-area" title="Área total construída, em m²">Área (m²)</label><input type="number" min="0" step="0.01" id="f-obra-area" title="Área total construída, em m²"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label for="f-obra-subsolos">Subsolos</label><input type="number" min="0" step="1" id="f-obra-subsolos" placeholder="0"></div>
+          <div class="field"><label for="f-obra-superiores" title="Pavimentos acima do térreo">Pav. superiores</label><input type="number" min="0" step="1" id="f-obra-superiores" placeholder="ex.: 3"></div>
+        </div>
+        <div class="field"><label for="f-obra-floors">Outra descrição dos pavimentos (opcional)</label><input id="f-obra-floors" placeholder="Só para casos fora do padrão. Ex.: térreo, mezanino e cobertura"></div>
+        <div class="field"><label>Base do levantamento</label>
+          <div style="display:flex; gap:6px 16px; flex-wrap:wrap;">
+            <label class="checkbox-field"><input type="checkbox" id="f-base-vistoria"> Vistoria no local</label>
+            <label class="checkbox-field"><input type="checkbox" id="f-base-projeto"> Projeto arquitetônico</label>
+            <label class="checkbox-field"><input type="checkbox" id="f-base-info"> Informações do contratante</label>
+          </div>
         </div>
         <div class="field"><label for="f-intro">Texto de abertura (opcional)</label><textarea id="f-intro" placeholder="Em branco: o texto é montado sozinho com os dados acima."></textarea></div>
         <div class="hint" id="intro-hint"></div>
         <div style="display:flex; gap:14px; flex-wrap:wrap;">
           <button type="button" class="btn-ghost btn-sm" id="btn-intro-auto" style="padding:0;">Voltar ao texto automático</button>
           <button type="button" class="btn-ghost btn-sm" id="btn-intro-template" style="padding:0;">Gerar texto para editar</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-intro-new" style="padding:0; display:none;">Usar o novo texto automático</button>
         </div>
       </div>
 
@@ -1432,7 +1454,8 @@
       accept:false, annex:false
     };
     Object.keys(base).forEach(function(k){ if(dr[k] == null) dr[k] = base[k]; });
-    dr.obra = Object.assign({ address:"", floors:"", area:0 }, dr.obra);
+    dr.obra = Object.assign({ address:"", floors:"", area:0, kind:"edificacao", subsolos:"", superiores:"" }, dr.obra);
+    dr.obra.base = Object.assign({ vistoria:true, projeto:false, info:false }, dr.obra.base);
     dr.deadline = Object.assign({ days:0, unit:"corridos", triggers:[] }, dr.deadline);
     dr.payment = Object.assign({ parcels:[] }, dr.payment);
     dr.nf = Object.assign({ mode:"none", percent:10 }, dr.nf);
@@ -1461,7 +1484,7 @@
       layout:2, issuer:issuer, revision:0, subject:"",
       city: issuer==="pf" ? (p.city||"") : companyCity(),
       greeting:"Prezado(a) Senhor(a),",
-      obra:{ address:"", floors:"", area:0 }, intro:"",
+      obra:{ address:"", floors:"", area:0, kind:"edificacao", subsolos:"", superiores:"", base:{ vistoria:true, projeto:false, info:false } }, intro:"", introV:2,
       scope:[], scopePrice:0, priceMode:"item", showItemValues:true,
       deadline:{ days:30, unit:"corridos", triggers:defaultDeadlineTriggers() },
       payment:{ parcels:defaultParcels() },
@@ -2046,6 +2069,9 @@
     ["f-greeting", function(s){return pj().greeting;}, function(s,v){pj().greeting=v;}],
     ["f-obra-floors", function(s){return pj().obra.floors;}, function(s,v){pj().obra.floors=v;}],
     ["f-obra-area", function(s){return pj().obra.area||"";}, function(s,v){pj().obra.area=nonNeg(v); syncAutoQty();}],
+    ["f-obra-kind", function(s){return pj().obra.kind||"edificacao";}, function(s,v){pj().obra.kind=v;}],
+    ["f-obra-subsolos", function(s){var v=pj().obra.subsolos; return (v===""||v==null)?"":v;}, function(s,v){pj().obra.subsolos = v==="" ? "" : Math.max(0, Math.floor(Number(v)||0));}],
+    ["f-obra-superiores", function(s){var v=pj().obra.superiores; return (v===""||v==null)?"":v;}, function(s,v){pj().obra.superiores = v==="" ? "" : Math.max(0, Math.floor(Number(v)||0));}],
     ["f-intro", function(s){return pj().intro;}, function(s,v){pj().intro=v;}],
     ["f-scope-price", function(s){return pj().scopePrice||"";}, function(s,v){pj().scopePrice=nonNeg(v);}],
     ["f-nf-mode", function(s){return pj().nf.mode;}, function(s,v){pj().nf.mode=v;}],
@@ -2097,7 +2123,7 @@
     });
     // mesmo ajuste para os campos numéricos da proposta de projeto
     bindings.forEach(function(b){
-      if(["f-obra-area","f-scope-price","f-nf-percent","f-dl-days"].indexOf(b[0]) < 0) return;
+      if(["f-obra-area","f-obra-subsolos","f-obra-superiores","f-scope-price","f-nf-percent","f-dl-days"].indexOf(b[0]) < 0) return;
       var el = document.getElementById(b[0]);
       el.addEventListener("focusout", function(){ var v = b[1](state); el.value = (v==null) ? "" : v; });
     });
@@ -2246,7 +2272,26 @@
       hint.hidden = false;
     } else { hint.hidden = true; hint.innerHTML = ""; }
   }
+  var BASE_IDS = { "f-base-vistoria":"vistoria", "f-base-projeto":"projeto", "f-base-info":"info" };
+  function syncObraExtras(){
+    var base = (pj().obra && pj().obra.base) || {};
+    Object.keys(BASE_IDS).forEach(function(id){
+      var el = document.getElementById(id); if(el) el.checked = !!base[BASE_IDS[id]];
+    });
+  }
+  function attachObraExtras(){
+    Object.keys(BASE_IDS).forEach(function(id){
+      var el = document.getElementById(id); if(!el) return;
+      el.addEventListener("change", function(){
+        var o = pj().obra;
+        if(!o.base || typeof o.base !== "object") o.base = { vistoria:true, projeto:false, info:false };
+        o.base[BASE_IDS[id]] = el.checked;
+        scheduleSave(); renderPreview();
+      });
+    });
+  }
   function syncAddressFields(){
+    syncObraExtras();
     ["client", "obra"].forEach(function(p){
       var host = document.getElementById("addr-"+p+"-box"); if(!host || !host.firstChild) return;
       var o = addrOwner(p), a = (o && o.addr) || {};
@@ -2825,12 +2870,15 @@
       var custom = !!(dr.intro && dr.intro.trim());
       var pend = unresolvedIntroTokens(dr);
       ih.style.color = pend.length ? "var(--danger)" : "";
+      var oldAuto = !custom && (Number(dr.introV) || 1) < 2;
       ih.textContent = !custom
-        ? "Texto automático: montado com endereço, pavimentos e área acima."
+        ? (oldAuto ? "Esta proposta usa o texto automático antigo. O novo considera o assunto, o tipo de local, os pavimentos e a base do levantamento."
+                   : "Texto automático: montado com o assunto, o endereço, os pavimentos, a área e a base do levantamento.")
         : pend.length
           ? "Faltam dados para "+pend.join(", ")+": preencha o campo correspondente acima."
-          : "Texto personalizado em uso. Endereço, pavimentos e área acima só aparecem se você escrever {endereco}, {pavimentos} e {area} no texto.";
+          : "Texto personalizado em uso. Para os dados acima aparecerem, escreva os marcadores no texto (ex.: {objeto}, {local_endereco}, {pavimentos_area}, {avaliacao}).";
       document.getElementById("btn-intro-auto").style.display = custom ? "" : "none";
+      document.getElementById("btn-intro-new").style.display = oldAuto ? "" : "none";
     }
     var ah = document.getElementById("annex-hint");
     if(ah){
@@ -3084,6 +3132,11 @@
       toast("Emitente alterado — impostos, nota fiscal e anexo ajustados ao perfil");
     });
     document.getElementById("btn-new-revision").addEventListener("click", newRevision);
+    document.getElementById("btn-intro-new").addEventListener("click", function(){
+      pj().introV = 2;
+      scheduleSave(); renderPreview(); syncFormFromState();
+      toast("Novo texto automático em uso");
+    });
     document.getElementById("btn-intro-auto").addEventListener("click", function(){
       pj().intro = "";
       var el = document.getElementById("f-intro"); el.value = "";
@@ -3091,7 +3144,7 @@
       toast("Texto de abertura automático");
     });
     document.getElementById("btn-intro-template").addEventListener("click", function(){
-      if(pj().intro && pj().intro.trim() && !confirm("Substituir o texto de abertura atual por um modelo com os marcadores {endereco}, {pavimentos} e {area}?")) return;
+      if(pj().intro && pj().intro.trim() && !confirm("Substituir o texto de abertura atual por um modelo com marcadores ({objeto}, {local_endereco}, {pavimentos_area}, {avaliacao})?")) return;
       pj().intro = introTemplateText();
       var el = document.getElementById("f-intro"); el.value = pj().intro;
       scheduleSave(); renderPreview();
@@ -4748,20 +4801,126 @@
   }
 
   // ---------- conteúdo da proposta de projeto (usado pela prévia e pelo PDF) ----------
-  // Texto de abertura personalizado: {endereco}, {pavimentos}, {area} e {cliente} puxam os dados da
-  // proposta. Marcador com campo vazio fica visível no texto (e o download avisa) para não sair em branco.
-  var INTRO_TOKEN_RE = /\{(endere[cç]o|pavimentos|area|área|cliente)\}/gi;
+  // ---------- texto de abertura ----------
+  // O texto automático é o modelo abaixo preenchido com os dados da proposta; os trechos que dependem de
+  // dados opcionais (endereço, pavimentos, área) somem sozinhos quando vazios. Propostas antigas
+  // (sem introV) continuam com o texto de antes, para o que já foi emitido não mudar.
+  var INTRO_TOKEN_RE = /\{(endere[cç]o|pavimentos|area|área|cliente|objeto|local_endereco|pavimentos_area|avalia[cç][aã]o|local|endereco_texto|logradouro|n[uú]mero|complemento|bairro|cidade|uf|cep)\}/gi;
+  var INTRO_PHRASE = { objeto:1, local_endereco:1, pavimentos_area:1, avaliacao:1, local:1, endereco_texto:1, logradouro:1, numero:1, complemento:1, bairro:1, cidade:1, uf:1, cep:1 };
+  var INTRO_KINDS = {
+    edificacao:{ n:"edificação", art:"da", fem:true }, residencia:{ n:"residência", art:"da", fem:true },
+    empreendimento:{ n:"empreendimento", art:"do", fem:false }, instalacao:{ n:"instalação", art:"da", fem:true },
+    subestacao:{ n:"subestação", art:"da", fem:true }, uc:{ n:"unidade consumidora", art:"da", fem:true }
+  };
+  function ptPlain(s){ return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+  var PT_MASC_A = { sistema:1, programa:1, diagrama:1, mapa:1, problema:1, tema:1, telefonema:1, dia:1 };
+  function ptNoun(word){
+    var w = ptPlain(word).replace(/[^a-z-]/g, ""), plural = false, base = w;
+    if(/(oes|aes)$/.test(w)){ plural = true; base = w.replace(/(oes|aes)$/, "ao"); }
+    else if(/[^s]s$/.test(w) && w.length > 3){ plural = true; base = w.replace(/s$/, ""); }
+    var fem = /(cao|sao|dade|ria|ise|ura|gem|ncia|nca|cia)$/.test(base) || (/a$/.test(base) && !PT_MASC_A[base]);
+    return { plural:plural, fem:fem };
+  }
+  function ptLowerFirst(s){
+    var first = String(s).split(/\s+/)[0];
+    if(first.length >= 2 && first === first.toUpperCase() && /[A-ZÀ-Ú]/.test(first)) return s;   // sigla (SPDA...) fica como está
+    return s.charAt(0).toLowerCase() + s.slice(1);
+  }
+  var PT_UNITS = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez","onze","doze","treze","quatorze","quinze","dezesseis","dezessete","dezoito","dezenove"];
+  var PT_TENS = ["","","vinte","trinta","quarenta","cinquenta","sessenta","setenta","oitenta","noventa"];
+  function ptWords(n){
+    if(n < 20) return PT_UNITS[n];
+    if(n < 100) return PT_TENS[Math.floor(n/10)] + (n % 10 ? " e " + PT_UNITS[n % 10] : "");
+    return String(n);
+  }
+  // consultoria, acompanhamento, medição etc. não "se elaboram": usam "prestação de serviços de"
+  var PT_PRESTACAO = /^(consultoria|acompanhamento|medicao|parametrizacao|comissionamento|aprovacao|mudanca|analise|revisao|visita|correcao|rateio)$/;
+  var PT_COISAS = /^(instalacao|instalacoes|spda|rede|redes|subestacao|subestacoes|malha|aterramento|sistema|sistemas|quadro|quadros|painel|paineis|iluminacao|usina)$/;
+  function introObjeto(subject){
+    var s = String(subject || "").replace(/\s+/g, " ").trim().replace(/[.;:,]+$/, "");
+    if(!s) return "elaboração do projeto de instalações elétricas";
+    var first = s.split(/\s+/)[0], fp = ptPlain(first).replace(/[^a-z-]/g, "");
+    if(PT_PRESTACAO.test(fp)) return "prestação de serviços de " + ptLowerFirst(s);
+    if(fp === "horas") return "prestação de " + ptLowerFirst(s);
+    if(fp === "padrao") return "elaboração do projeto do " + ptLowerFirst(s);               // "padrão de entrada" é o objeto do projeto
+    if(PT_COISAS.test(fp)) return "elaboração do projeto de " + ptLowerFirst(s);             // "instalações elétricas e SPDA", "rede de MT"...
+    var n = ptNoun(first), art = n.plural ? (n.fem ? "das" : "dos") : (n.fem ? "da" : "do");
+    return "elaboração " + art + " " + ptLowerFirst(s);
+  }
+  // "na Avenida…" / "no Condomínio…" (mesma regra do DocVolt)
+  var ART_MASC = /^(conjunto|conj|cj|ramal|sítio|sitio|loteamento|lot|residencial|res|condomínio|condominio|cond|beco|largo|km|quilômetro|lote|núcleo|nucleo|parque|bairro|distrito|povoado|assentamento|edifício|edificio|ed|edif|setor|polo|pólo|complexo|galpão|galpao|centro|shopping|hospital|aeroporto|jardim|jd|bosque)\b/i;
+  function introArtigoLogr(lg){ return ART_MASC.test(String(lg).trim()) ? "no" : "na"; }
+  function introEnderecoTexto(o){
+    if(hasAddrParts(o)){
+      var a = o.addr, t = function(v){ return String(v == null ? "" : v).trim(); }, parts = [];
+      var lg = t(a.logradouro), num = t(a.numero), cityUf = [t(a.cidade), t(a.uf)].filter(Boolean).join("/"), first = "";
+      if(lg){
+        first = introArtigoLogr(lg) + " " + lg;
+        if(num) first += ", " + (/^s\/?n$/i.test(num) ? "s/nº" : "nº " + num);
+      } else if(num){ first = "nº " + num; }
+      if(first) parts.push(first);
+      if(t(a.complemento)) parts.push(t(a.complemento));
+      if(t(a.bairro)) parts.push("bairro " + t(a.bairro));
+      if(cityUf) parts.push(cityUf);
+      if(!parts.length) return "";
+      if(!/^(na|no|em)\s/i.test(parts[0])) parts[0] = "em " + parts[0];
+      return parts.join(", ");
+    }
+    var legacy = String(o.address || "").trim().replace(/[.,;\s]+$/, "");
+    return legacy ? "em " + legacy : "";
+  }
+  function intOrNull(v){
+    if(v === "" || v == null) return null;
+    var n = Math.floor(Number(v));
+    return isFinite(n) && n >= 0 ? n : null;
+  }
+  function introPavimentos(o){
+    var free = String(o.floors || "").trim().replace(/[.,;\s]+$/, "");
+    if(free) return free;
+    var sub = intOrNull(o.subsolos), sup = intOrNull(o.superiores);
+    if(sub == null && sup == null) return "";
+    var parts = [];
+    if(sub) parts.push(sub === 1 ? "subsolo" : ptWords(sub) + " subsolos");
+    parts.push("pavimento térreo");
+    if(sup) parts.push(sup === 1 ? "um pavimento superior" : ptWords(sup) + " pavimentos superiores");
+    return parts.length > 1 ? parts.slice(0, -1).join(", ") + " e " + parts[parts.length - 1] : parts[0];
+  }
+  function introAvaliacao(o){
+    var K = INTRO_KINDS[o.kind] || INTRO_KINDS.edificacao, b = o.base || {};
+    var items = [], an = [];
+    if(b.vistoria) items.push("vistoria no local");
+    if(b.projeto) an.push("do projeto arquitetônico");
+    if(b.info) an.push("das informações fornecidas pelo contratante");
+    if(an.length) items.push("análise " + an.join(" e "));
+    if(b.vistoria || b.projeto)
+      return "na avaliação técnica " + K.art + " " + K.n + ", realizada mediante " + items.join(" e ") + ", bem como nas demandas apresentadas pelo contratante";
+    if(b.info) return "nas informações e nas demandas apresentadas pelo contratante";
+    return "nas demandas apresentadas pelo contratante";
+  }
   function introTokenValues(dr){
-    var o = dr.obra, clean = function(s){ return String(s||"").trim().replace(/[.,;\s]+$/,""); };
+    var o = dr.obra, clean = function(s){ return String(s || "").trim().replace(/[.,;\s]+$/, ""); };
+    var K = INTRO_KINDS[o.kind] || INTRO_KINDS.edificacao;
+    var end = introEnderecoTexto(o), pav = introPavimentos(o), areaTxt = (Number(o.area) || 0) > 0 ? fmtNum(o.area, 2) + " m²" : "";
+    var local = "";
+    if(end || pav || areaTxt){ local = " " + K.art + " " + K.n; if(end) local += " " + (K.fem ? "situada" : "situado") + " " + end; }
+    var pa = "";
+    if(pav) pa += ", " + (K.fem ? "composta" : "composto") + " por " + pav;
+    if(areaTxt) pa += ", com área total construída de " + areaTxt;
+    var a = hasAddrParts(o) ? o.addr : {};
     return {
-      endereco: clean(o.address), pavimentos: clean(o.floors),
-      area: (Number(o.area)||0) > 0 ? fmtNum(o.area,2)+" m²" : "", cliente: clean(dr.client.name)
+      endereco: clean(o.address), pavimentos: pav, area: areaTxt, cliente: clean(dr.client.name),
+      objeto: introObjeto(dr.subject), local_endereco: local, pavimentos_area: pa, avaliacao: introAvaliacao(o),
+      local: K.n, endereco_texto: end,
+      logradouro: clean(a.logradouro), numero: clean(a.numero), complemento: clean(a.complemento), bairro: clean(a.bairro),
+      cidade: clean(a.cidade), uf: clean(a.uf), cep: clean(a.cep)
     };
   }
+  function introKey(k){ return ptPlain(k); }
   function fillIntroTokens(txt, dr){
     var vals = introTokenValues(dr);
     return txt.replace(INTRO_TOKEN_RE, function(m, k){
-      var key = k.toLowerCase().replace("ç","c").replace("á","a");
+      var key = introKey(k);
+      if(INTRO_PHRASE[key]) return vals[key] || "";
       return vals[key] ? vals[key] : m;
     });
   }
@@ -4769,17 +4928,22 @@
     if(!dr.intro || !dr.intro.trim()) return [];
     var vals = introTokenValues(dr), out = [];
     (dr.intro.match(INTRO_TOKEN_RE) || []).forEach(function(m){
-      var key = m.slice(1,-1).toLowerCase().replace("ç","c").replace("á","a");
+      var key = introKey(m.slice(1, -1));
+      if(INTRO_PHRASE[key]) return;
       if(!vals[key] && out.indexOf(m) < 0) out.push(m);
     });
     return out;
   }
   function introTemplateText(){
-    return "Em atenção à solicitação recebida, apresenta-se a presente proposta comercial para a elaboração dos projetos elétricos da edificação situada em {endereco}, composta por {pavimentos}, com área total construída de {area}.\n\nOs serviços foram estruturados conforme o detalhamento apresentado na Tabela 1 a seguir:";
+    return "Em atenção à solicitação recebida, apresentamos a presente proposta comercial para a {objeto}{local_endereco}{pavimentos_area}.\n\nCom base {avaliacao}, estruturamos os serviços que compõem esta proposta, conforme detalhado na Tabela 1 a seguir:";
+  }
+  function introParagraphs(txt){
+    return txt.replace(/ {2,}/g, " ").split(/\n+/).map(function(s){ return s.trim(); }).filter(Boolean);
   }
   function projetoIntro(dr){
-    if(dr.intro && dr.intro.trim()) return fillIntroTokens(dr.intro, dr).trim().split(/\n+/).map(function(s){ return s.trim(); }).filter(Boolean);
-    var o = dr.obra;
+    if(dr.intro && dr.intro.trim()) return introParagraphs(fillIntroTokens(dr.intro, dr));
+    if((Number(dr.introV) || 1) >= 2) return introParagraphs(fillIntroTokens(introTemplateText(), dr));
+    var o = dr.obra;                                        // texto automático antigo (propostas anteriores ao novo modelo)
     var p1 = "Em atenção à solicitação recebida, apresenta-se a presente proposta comercial para a elaboração dos projetos elétricos";
     if(o.address && o.address.trim()) p1 += " da edificação situada em "+o.address.trim().replace(/[.,;\s]+$/,"");
     if(o.floors && o.floors.trim()) p1 += ", composta por "+o.floors.trim().replace(/[.,;\s]+$/,"");
@@ -6891,6 +7055,7 @@
     loadHistoryCollapseState();
     attachProjetoHandlers();
     attachAddressBlocks();
+    attachObraExtras();
     attachBindings();
     attachSubjectCombo();
     attachObraAddressImport();
