@@ -1344,12 +1344,12 @@
 
   function defaultSubjects(){
     return [
-      "Projeto elétrico em baixa tensão",
-      "Projeto elétrico e padrão de entrada",
+      "Projeto de instalações elétricas em baixa tensão",
+      "Projeto de instalações elétricas e padrão de entrada",
       "Padrão de entrada em baixa tensão",
       "Padrão de entrada provisório de obra",
       "Projeto de SPDA",
-      "Projeto elétrico e SPDA",
+      "Projeto de instalações elétricas e SPDA",
       "Projeto de subestação abrigada",
       "Projeto de subestação aérea",
       "Projeto de rede de média tensão",
@@ -1489,6 +1489,20 @@
     }
     if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.subjects)){
       d.projectLibrary.subjects = parsed.projectLibrary.subjects.map(function(t){ return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }).filter(function(t){ return t; });
+    }
+    if(Array.isArray(d.projectLibrary.subjects)){
+      // nomes antigos da lista padrão viram os nomes técnicos; só atinge linhas ainda idênticas ao texto original
+      var SUBJECT_RENAMES = {
+        "Projeto elétrico em baixa tensão": "Projeto de instalações elétricas em baixa tensão",
+        "Projeto elétrico e padrão de entrada": "Projeto de instalações elétricas e padrão de entrada",
+        "Projeto elétrico e SPDA": "Projeto de instalações elétricas e SPDA"
+      };
+      var seenSubj = {};
+      d.projectLibrary.subjects = d.projectLibrary.subjects.map(function(t){ return SUBJECT_RENAMES[t] || t; }).filter(function(t){
+        if(seenSubj[t]) return false;
+        seenSubj[t] = true;
+        return true;
+      });
     }
     if(parsed.projectLibrary){
       d.projectLibrary.version = parsed.projectLibrary.version || 1;
