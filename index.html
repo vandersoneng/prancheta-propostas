@@ -4893,11 +4893,11 @@
     if(b.info) an.push("das informações fornecidas pelo contratante");
     if(an.length) items.push("análise " + an.join(" e "));
     if(b.vistoria || b.projeto){
-      // "contratante" já apareceu nas informações: a segunda menção vira "por ele"
-      var tail = b.info ? "bem como nas demandas por ele apresentadas" : "bem como nas demandas apresentadas pelo contratante";
-      return "na avaliação técnica " + K.art + " " + K.n + ", realizada mediante " + items.join(" e ") + ", " + tail;
+      // as informações do contratante já contêm as demandas dele: nesse caso a cláusula das demandas sai
+      var tail = b.info ? "" : ", bem como nas demandas apresentadas pelo contratante";
+      return "na avaliação técnica " + K.art + " " + K.n + ", realizada mediante " + items.join(" e ") + tail;
     }
-    if(b.info) return "nas informações e nas demandas apresentadas pelo contratante";
+    if(b.info) return "nas informações fornecidas pelo contratante";
     return "nas demandas apresentadas pelo contratante";
   }
   function introTokenValues(dr){
