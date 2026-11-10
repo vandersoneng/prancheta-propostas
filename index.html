@@ -198,6 +198,9 @@
   .field textarea{resize:vertical; min-height:56px;}
   .field-row{display:flex; gap:10px;}
   .field-row > .field{flex:1; min-width:0;}
+  /* nas linhas de campos, caixas, seletores, data e botões têm a mesma altura */
+  .field-row .field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .field-row .field select, .field-row .field .btn-field{height:40px; box-sizing:border-box;}
+  .field-row .field .btn-field{padding-top:0; padding-bottom:0;}
 
   .logo-row{display:flex; align-items:center; gap:10px;}
   .logo-preview{
@@ -595,7 +598,7 @@
         <div class="field-row">
           <div class="field" style="flex:0 0 100px;"><label for="f-meta-validade" title="Validade da proposta, em dias">Validade (dias)</label><input type="number" min="0" id="f-meta-validade"></div>
           <div class="field" data-mode="projeto" style="flex:0 0 88px;"><label for="f-revision">Revisão</label><input id="f-revision" readonly style="font-family:var(--font-mono); color:var(--ink-soft);"></div>
-          <div class="field" data-mode="projeto"><label>&nbsp;</label><button type="button" class="btn btn-sm" id="btn-new-revision" title="Mantém o número da proposta, sobe a revisão (rev01, rev02...) e atualiza a data. A versão anterior fica guardada no histórico." style="justify-content:center; height:35px;">Nova revisão</button></div>
+          <div class="field" data-mode="projeto"><label>&nbsp;</label><button type="button" class="btn btn-sm btn-field" id="btn-new-revision" title="Mantém o número da proposta, sobe a revisão (rev01, rev02...) e atualiza a data. A versão anterior fica guardada no histórico." style="justify-content:center;">Nova revisão</button></div>
         </div>
       </div>
 
