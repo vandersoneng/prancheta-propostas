@@ -329,6 +329,9 @@
     font-size:12.5px; font-weight:600; opacity:0; pointer-events:none;
   }
   .toast.show{opacity:1;}
+  .toast.has-action{pointer-events:auto; display:flex; align-items:center; gap:12px;}
+  .toast .toast-undo{background:transparent; border:1px solid currentColor; color:inherit; border-radius:14px; padding:3px 11px; font:inherit; font-weight:700; cursor:pointer;}
+  .toast .toast-undo:hover{background:rgba(255,255,255,.18);}
   @media (prefers-reduced-motion: no-preference){
     .toast{transition:opacity .25s ease;}
   }
@@ -758,6 +761,16 @@
         <div class="field-row">
           <button type="button" class="btn btn-sm" id="btn-pick-folder">Escolher pasta</button>
           <button type="button" class="btn-ghost btn-sm" id="btn-clear-folder">Remover pasta</button>
+        </div>
+      </div>
+
+      <div class="field-group" data-panel="empresa">
+        <legend>Cópia de segurança</legend>
+        <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Baixa um arquivo com tudo que está cadastrado (modelos de serviços e cláusulas, catálogo, histórico de propostas, dados da empresa). Ao restaurar, o sistema só <strong>traz de volta o que estiver faltando</strong> — nada do que já existe é apagado ou sobrescrito.</div>
+        <div class="field-row">
+          <button type="button" class="btn btn-sm" id="btn-backup-export">Baixar backup</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-backup-import">Restaurar de um backup…</button>
+          <input type="file" id="backup-file" accept="application/json,.json" hidden>
         </div>
       </div>
 
@@ -1302,7 +1315,7 @@
       deadline:{ days:30, unit:"corridos", triggers:defaultDeadlineTriggers() },
       payment:{ parcels:defaultParcels() },
       nf:{ mode: issuer==="pf" ? "note" : "none", percent:10 },
-      clauses: clausesFromLibrary(),
+      clauses: clausesFromLibrary(), clausesInit:true,
       accept:true, annex: issuer==="pf"
     };
   }
@@ -1313,7 +1326,9 @@
   // "Considerações finais". Se ainda não foi emitida (não está no histórico), carrega as dos modelos.
   function ensureDraftClauses(){
     var dr = state.drafts.projeto;
-    if(!dr || dr.clauses.length) return;
+    if(!dr || dr.clausesInit) return;
+    dr.clausesInit = true;                 // só uma vez: quem apagou as cláusulas de propósito não as vê voltar
+    if(dr.clauses.length) return;
     var issued = state.proposalHistory.some(function(h){ return h.mode === "projeto" && h.number === dr.number; });
     if(!issued) dr.clauses = clausesFromLibrary();
   }
@@ -1389,19 +1404,179 @@
 
   var APP_STATE_TABLE = "app_state";
   var APP_STATE_ROW_ID = "singleton";
-  function loadFromCloud(){
-    return sb.from(APP_STATE_TABLE).select("data").eq("id", APP_STATE_ROW_ID).maybeSingle()
-      .then(function(res){
-        if(res.error) throw res.error;
-        return res.data ? normalizeState(res.data.data) : null;
-      });
+  var DIRTY_KEY = "prancheta-sync-pendente";
+
+  // ---------- combinação de versões (3 vias) ----------
+  // Todo o sistema é UMA linha na nuvem. Quando dois computadores (ou duas abas) salvam, o último a
+  // salvar não pode apagar o que o outro cadastrou. Por isso, antes de gravar, o sistema compara três
+  // versões: a que lemos por último ("base"), a deste computador e a que está na nuvem agora, e junta
+  // as duas. Regra de ouro: nada que foi criado ou alterado é descartado; um item só some se uma
+  // pessoa o apagou e ninguém mais mexeu nele.
+  function isObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+  function deepClone(o){ return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
+  function deepEq(x, y){
+    if(x === y) return true;
+    if(x == null || y == null || typeof x !== "object" || typeof y !== "object") return false;
+    if(Array.isArray(x) !== Array.isArray(y)) return false;
+    if(Array.isArray(x)){
+      if(x.length !== y.length) return false;
+      for(var i=0; i<x.length; i++) if(!deepEq(x[i], y[i])) return false;
+      return true;
+    }
+    var kx = Object.keys(x), ky = Object.keys(y);
+    if(kx.length !== ky.length) return false;
+    for(var j=0; j<kx.length; j++){ var k = kx[j]; if(!(k in y) || !deepEq(x[k], y[k])) return false; }
+    return true;
   }
-  function saveToCloud(s){
-    return sb.from(APP_STATE_TABLE).upsert({ id:APP_STATE_ROW_ID, data:s, updated_at:new Date().toISOString() });
+  function itemKey(x){
+    if(x && typeof x === "object") return x.id != null ? "id:"+x.id : null;
+    return "v:"+typeof x+":"+x;
+  }
+  function mergeLists(base, local, remote){
+    var all = local.concat(remote);
+    if(!all.every(function(x){ return itemKey(x) !== null; })) return local; // sem identificador: vale a lista de quem está salvando
+    var bMap = {}, lMap = {}, rMap = {};
+    (base || []).forEach(function(x){ var k = itemKey(x); if(k !== null) bMap[k] = x; });
+    local.forEach(function(x){ lMap[itemKey(x)] = x; });
+    remote.forEach(function(x){ rMap[itemKey(x)] = x; });
+    var out = [];
+    local.forEach(function(x){
+      var k = itemKey(x), r = rMap[k], b0 = bMap[k];
+      if(r !== undefined) out.push(merge3(b0, x, r));
+      else if(b0 !== undefined && deepEq(x, b0)) { /* apagado na nuvem e não mexi: acompanha */ }
+      else out.push(x);                                                  // criado ou alterado aqui: mantém
+    });
+    remote.forEach(function(x){
+      var k = itemKey(x), b0 = bMap[k];
+      if(lMap[k] !== undefined) return;
+      if(b0 !== undefined && deepEq(x, b0)) { /* apagado aqui e a nuvem não mexeu: acompanha */ }
+      else out.push(x);                                                  // criado ou alterado na nuvem: mantém
+    });
+    return out;
+  }
+  function merge3(base, local, remote, path){
+    if(deepEq(local, remote)) return local;
+    if(path === "counters" && isObj(local) && isObj(remote)){            // contadores de numeração: vale o maior
+      var m = {};
+      Object.keys(local).concat(Object.keys(remote)).forEach(function(k){ m[k] = Math.max(Number(local[k])||0, Number(remote[k])||0); });
+      return m;
+    }
+    if(base !== undefined && deepEq(local, base)) return remote;         // só a nuvem mudou
+    if(base !== undefined && deepEq(remote, base)) return local;         // só este computador mudou
+    if(Array.isArray(local) && Array.isArray(remote)) return mergeLists(Array.isArray(base) ? base : null, local, remote);
+    if(isObj(local) && isObj(remote)){
+      var bo = isObj(base) ? base : {}, out = {}, seen = {};
+      Object.keys(local).concat(Object.keys(remote)).forEach(function(k){
+        if(seen[k]) return;
+        seen[k] = true;
+        var inL = k in local, inR = k in remote, inB = k in bo, cp = (path ? path+"." : "") + k;
+        if(inL && inR) out[k] = merge3(inB ? bo[k] : undefined, local[k], remote[k], cp);
+        else if(inL){ if(!(inB && deepEq(local[k], bo[k]))) out[k] = local[k]; }
+        else { if(!(inB && deepEq(remote[k], bo[k]))) out[k] = remote[k]; }
+      });
+      return out;
+    }
+    return local;                                                        // valor simples alterado nos dois lados: vale o de quem salva
+  }
+  function mergeStates(base, local, remote){
+    var m = merge3(base, local, remote, "");
+    if(m && Array.isArray(m.proposalHistory)){                           // histórico: mais recente primeiro
+      m.proposalHistory.sort(function(p, q){ return p.savedAt < q.savedAt ? 1 : (p.savedAt > q.savedAt ? -1 : 0); });
+    }
+    return m;
   }
 
+  // ---------- leitura e gravação na nuvem ----------
+  var cloudBase = null;      // o que está na nuvem, como lemos ou gravamos por último (cópia bruta)
+  var cloudStamp = null;     // updated_at da linha nessa leitura/gravação (null = ainda não lemos a nuvem)
+  var cloudBusy = false, cloudDirty = false, cloudPromise = Promise.resolve(), cloudRetry = null, appReady = false;
+
+  function readRemote(){
+    return sb.from(APP_STATE_TABLE).select("data, updated_at").eq("id", APP_STATE_ROW_ID).maybeSingle()
+      .then(function(res){
+        if(res.error) throw res.error;
+        return res.data || null;
+      });
+  }
+  function loadFromCloud(){
+    return readRemote().then(function(row){
+      if(!row) return null;
+      cloudBase = deepClone(row.data);
+      cloudStamp = row.updated_at || "";
+      return { raw:row.data, state:normalizeState(row.data) };
+    });
+  }
+  function setDirtyFlag(on){
+    try{ if(on) localStorage.setItem(DIRTY_KEY, "1"); else localStorage.removeItem(DIRTY_KEY); }catch(e){}
+  }
+  function isDirtyFlag(){
+    try{ return localStorage.getItem(DIRTY_KEY) === "1"; }catch(e){ return false; }
+  }
+  function loadLocalCacheRaw(){
+    try{
+      var raw = localStorage.getItem(LS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  // Troca o estado em memória pelo estado combinado (e redesenha a tela, se o app já abriu)
+  function applyMergedState(raw, msg){
+    var keepMode = state.mode, before = state;
+    state = normalizeState(raw);
+    state.mode = keepMode;
+    persistLocal();
+    if(appReady && !deepEq(before, state)) syncFormFromState();
+    if(msg) toast(msg);
+  }
+  function runCloudSave(attempt){
+    attempt = attempt || 0;
+    if(attempt > 6) return Promise.reject(new Error("sincronização não estabilizou"));
+    var payload = deepClone(state), now = new Date().toISOString();
+    if(cloudStamp === null){
+      // ainda não lemos a nuvem nesta sessão (abriu sem conexão, ou a linha não existia): lê antes de gravar,
+      // para nunca sobrescrever às cegas o que outro computador já salvou
+      return readRemote().then(function(row){
+        if(row){
+          cloudBase = deepClone(row.data);
+          cloudStamp = row.updated_at || "";
+          applyMergedState(mergeStates(undefined, deepClone(state), row.data), "Os dados da nuvem foram combinados com os deste navegador");
+          return runCloudSave(attempt+1);
+        }
+        return sb.from(APP_STATE_TABLE).upsert({ id:APP_STATE_ROW_ID, data:payload, updated_at:now }).select("updated_at")
+          .then(function(res){
+            if(res.error) throw res.error;
+            cloudBase = payload;
+            cloudStamp = (res.data && res.data[0] && res.data[0].updated_at) || now;
+          });
+      });
+    }
+    var q = sb.from(APP_STATE_TABLE).update({ data:payload, updated_at:now }).eq("id", APP_STATE_ROW_ID);
+    if(attempt < 3 && cloudStamp) q = q.eq("updated_at", cloudStamp);                  // só grava se ninguém salvou depois da nossa leitura
+    return q.select("updated_at").then(function(res){
+      if(res.error) throw res.error;
+      if(res.data && res.data.length){
+        cloudBase = payload;
+        cloudStamp = res.data[0].updated_at || "";
+        return;
+      }
+      // nenhuma linha atualizada: outro computador salvou depois da nossa última leitura
+      return readRemote().then(function(row){
+        if(!row){ cloudStamp = null; return runCloudSave(attempt+1); }
+        if(deepEq(row.data, cloudBase)){ cloudStamp = row.updated_at || ""; return runCloudSave(attempt+1); } // só o carimbo mudou
+        var merged = mergeStates(cloudBase, deepClone(state), row.data);
+        cloudBase = deepClone(row.data);
+        cloudStamp = row.updated_at || "";
+        applyMergedState(merged, "Alterações feitas em outro computador foram combinadas com as suas");
+        return runCloudSave(attempt+1);
+      });
+    });
+  }
+
+  var localCacheWarned = false;
   function persistLocal(){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    catch(e){
+      if(!localCacheWarned){ localCacheWarned = true; toast("O cache deste navegador está cheio — os dados seguem sendo salvos na nuvem"); }
+    }
   }
   // Estado real do salvamento, mostrado no rodapé do formulário
   var syncAt = null;
@@ -1416,36 +1591,76 @@
       : "Sem conexão com a nuvem — salvo só neste navegador";
     dot.className = "save-dot" + (kind === "saving" ? " saving" : kind === "offline" ? " bad" : "");
   }
+  // Uma gravação por vez: se algo mudar durante a gravação, grava de novo logo depois (nunca em paralelo,
+  // para uma gravação antiga não chegar depois de uma nova)
   function persistCloud(){
+    setDirtyFlag(true);
+    if(cloudBusy){ cloudDirty = true; return cloudPromise; }
+    cloudBusy = true;
     setSyncStatus("saving");
-    saveToCloud(state).then(function(res){
-      if(res && res.error){ toast("Sem conexão com a nuvem — salvo só neste navegador"); setSyncStatus("offline"); }
-      else setSyncStatus("ok");
+    cloudPromise = runCloudSave().then(function(){
+      setSyncStatus("ok");
+      if(!cloudDirty && !saveTimer) setDirtyFlag(false);
     }).catch(function(){
       toast("Sem conexão com a nuvem — salvo só neste navegador");
       setSyncStatus("offline");
+      if(!cloudRetry) cloudRetry = setTimeout(function(){ cloudRetry = null; if(isDirtyFlag()) persistCloud(); }, 20000);
+    }).then(function(){
+      cloudBusy = false;
+      if(cloudDirty){ cloudDirty = false; return persistCloud(); }
     });
+    return cloudPromise;
   }
   function scheduleSave(){
+    setDirtyFlag(true);
     if(saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
+      saveTimer = null;
       persistLocal();
       persistCloud();
-      toast("Salvo");
+      if(!document.getElementById("toast").classList.contains("has-action")) toast("Salvo"); // não apaga o botão "Desfazer"
     }, 500);
   }
   function saveNow(){
-    if(saveTimer) clearTimeout(saveTimer);
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
     persistLocal();
     persistCloud();
+  }
+  // Ao fechar/recarregar a aba ou trocar de aplicativo: não espera o atraso de 0,5 s
+  function flushSave(){
+    if(saveTimer){
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      persistLocal();
+      persistCloud();
+    }
   }
 
   function toast(msg){
     var el = document.getElementById("toast");
     el.textContent = msg;
+    el.classList.remove("has-action");
     el.classList.add("show");
     clearTimeout(toast._t);
     toast._t = setTimeout(function(){ el.classList.remove("show"); }, 1400);
+  }
+  // Aviso com botão "Desfazer" (8 s): usado ao remover itens cadastrados, para nada sumir de vez por clique errado
+  function toastUndo(msg, undoFn){
+    var el = document.getElementById("toast");
+    el.textContent = "";
+    var span = document.createElement("span");
+    span.textContent = msg;
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "toast-undo"; btn.textContent = "Desfazer";
+    btn.addEventListener("click", function(){
+      clearTimeout(toast._t);
+      el.classList.remove("show", "has-action");
+      undoFn();
+    });
+    el.appendChild(span); el.appendChild(btn);
+    el.classList.add("show", "has-action");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ el.classList.remove("show", "has-action"); }, 8000);
   }
 
   function escapeHtml(str){
@@ -1922,6 +2137,7 @@
   }
 
   function syncFormFromState(){
+    scopeEditing = null;
     bindings.forEach(function(b){
       var el = document.getElementById(b[0]);
       var v = b[1](state);
@@ -2602,7 +2818,13 @@
       else if(rm){
         var idx = parseInt(rm.getAttribute("data-ls-rm"), 10);
         if(!confirm('Remover o serviço "'+lib[idx].title+'" dos modelos? Propostas já emitidas não mudam.')) return;
-        lib.splice(idx, 1);
+        var gone = lib.splice(idx, 1)[0];
+        renderLibrary(); renderScopeList(); scheduleSave();
+        toastUndo('Serviço "'+gone.title+'" removido', function(){
+          lib.splice(Math.min(idx, lib.length), 0, gone);
+          renderLibrary(); renderScopeList(); scheduleSave();
+        });
+        return;
       } else return;
       renderLibrary(); renderScopeList(); scheduleSave();
     });
@@ -2635,7 +2857,14 @@
       else if(down) moveInArray(lib, parseInt(down.getAttribute("data-lc-down"), 10), 1);
       else if(rm){
         if(!confirm("Remover esta cláusula dos modelos? Propostas já emitidas não mudam.")) return;
-        lib.splice(parseInt(rm.getAttribute("data-lc-rm"), 10), 1);
+        var cidx = parseInt(rm.getAttribute("data-lc-rm"), 10);
+        var cgone = lib.splice(cidx, 1)[0];
+        renderLibrary(); scheduleSave();
+        toastUndo("Cláusula removida dos modelos", function(){
+          lib.splice(Math.min(cidx, lib.length), 0, cgone);
+          renderLibrary(); scheduleSave();
+        });
+        return;
       } else return;
       renderLibrary(); scheduleSave();
     });
@@ -2969,10 +3198,17 @@
       var btn = e.target.closest(".remove-catalog");
       if(btn){
         var idx = parseInt(btn.getAttribute("data-index"), 10);
-        state.cableCatalog.splice(idx,1);
+        var cat0 = state.cableCatalog[idx];
+        if(!cat0) return;
+        if(!confirm('Remover "'+(cat0.desc||"produto")+(cat0.detail?" ("+cat0.detail+")":"")+'" do catálogo?'+((Number(cat0.stock)||0) ? "\n\nEle tem estoque cadastrado ("+fmtNum(cat0.stock,2)+" "+(cat0.unit||"un")+")." : "")+"\n\nPropostas já emitidas não mudam.")) return;
+        var catGone = state.cableCatalog.splice(idx,1)[0];
         renderCatalogList();
         renderCatalogPicker();
         scheduleSave();
+        toastUndo('"'+(catGone.desc||"Produto")+'" removido do catálogo', function(){
+          state.cableCatalog.splice(Math.min(idx, state.cableCatalog.length), 0, catGone);
+          renderCatalogList(); renderCatalogPicker(); scheduleSave();
+        });
         return;
       }
       var addBtn = e.target.closest(".stock-add");
@@ -4021,7 +4257,7 @@
 
   function wrapText(ctx, text, maxWidth){
     if(!text) return [];
-    var words = String(text).split(/\s+/);
+    var words = pdfSafe(text).split(/\s+/);
     var lines = [];
     var cur = "";
     for(var i=0;i<words.length;i++){
@@ -4309,11 +4545,32 @@
     ];
   }
 
-  var WINANSI_SPECIAL = { 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2013:0x96, 0x2014:0x97, 0x2022:0x95, 0x2026:0x85, 0x20AC:0x80 };
+  var WINANSI_SPECIAL = { 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2013:0x96, 0x2014:0x97, 0x2022:0x95, 0x2026:0x85, 0x20AC:0x80,
+    0x201A:0x82, 0x201E:0x84, 0x2020:0x86, 0x2021:0x87, 0x2030:0x89, 0x2039:0x8B, 0x203A:0x9B, 0x2122:0x99,
+    0x0152:0x8C, 0x0153:0x9C, 0x0160:0x8A, 0x0161:0x9A, 0x0178:0x9F, 0x017D:0x8E, 0x017E:0x9E, 0x0192:0x83, 0x02C6:0x88, 0x02DC:0x98 };
+  // O PDF usa a fonte Helvetica padrão (WinAnsi), que não tem Ω, ≤, ≥, −, →... Em vez de sair "?", troca por
+  // um equivalente legível. A prévia usa o mesmo texto, então tela e PDF continuam idênticos.
+  var PDF_TRANSLIT = { 0x03A9:"ohm", 0x2126:"ohm", 0x2264:"<=", 0x2265:">=", 0x2212:"-", 0x2010:"-", 0x2011:"-", 0x2012:"-", 0x2015:"-",
+    0x2192:"->", 0x2190:"<-", 0x2194:"<->", 0x2248:"~", 0x2260:"!=", 0x221E:"inf.", 0x2713:"", 0x2714:"",
+    0x2002:" ", 0x2003:" ", 0x2009:" ", 0x200A:" ", 0x202F:" ", 0x3000:" ", 0x200B:"", 0x200C:"", 0x200D:"", 0xFEFF:"",
+    0x03BC:"\u00B5", 0x2080:"0", 0x2081:"1", 0x2082:"2", 0x2083:"3", 0x2074:"4", 0x2075:"5", 0x2076:"6", 0x2077:"7", 0x2078:"8", 0x2079:"9",
+    0x25CF:"\u2022", 0x25AA:"\u2022", 0x2023:"\u2022", 0x00AD:"" };
+  function pdfSafe(str){
+    var s = String(str == null ? "" : str), out = "";
+    for(var i=0; i<s.length; i++){
+      var cp = s.codePointAt(i);
+      if(cp > 0xFFFF) i++;                                   // par substituto (emoji etc.): um único caractere
+      if(cp <= 0xFF || WINANSI_SPECIAL[cp] !== undefined) out += String.fromCodePoint(cp);
+      else if(PDF_TRANSLIT[cp] !== undefined) out += PDF_TRANSLIT[cp];
+      else out += (cp >= 0x300 && cp <= 0x36F) ? "" : "?";   // acento solto some; o restante vira "?"
+    }
+    return out;
+  }
   function toWinAnsiBytes(str){
     var out = [];
     for(var i=0;i<str.length;i++){
       var cp = str.codePointAt(i);
+      if(cp > 0xFFFF) i++;
       if(WINANSI_SPECIAL[cp] !== undefined) out.push(WINANSI_SPECIAL[cp]);
       else if(cp <= 0xFF) out.push(cp);
       else out.push(0x3F);
@@ -4488,6 +4745,7 @@
       ctx.font = (bold?"700 ":"") + size + "px " + (mono?CV_MONO:CV_SANS);
     }
     function text(o){
+      o.text = pdfSafe(o.text);
       var bold=!!o.bold, mono=!!o.mono, align=o.align||"left";
       setFontFor(bold, o.size, mono);
       var w = ctx.measureText(o.text).width;
@@ -5600,8 +5858,27 @@
     saveNow();
   }
 
+  // A proposta só vai para o histórico quando o PDF é baixado. Se o rascunho atual tem conteúdo e ainda
+  // não foi emitido (ou foi alterado depois), "Nova proposta" o substituiria — por isso pergunta antes.
+  function draftHasContent(dr, mode){
+    if(!dr) return false;
+    var c = dr.client || {};
+    if(String(c.name||"").trim() || String(c.doc||"").trim() || String(c.contact||"").trim()) return true;
+    if(mode === "projeto"){
+      if(String(dr.subject||"").trim() || (dr.scope && dr.scope.length)) return true;
+      return (dr.items||[]).some(function(it){ return (Number(it.price)||0) > 0; }) || (dr.items||[]).length > 1;
+    }
+    return (dr.items||[]).length > 0;
+  }
   function newProposal(){
     var mode = state.mode;
+    var cur = state.drafts[mode];
+    if(draftHasContent(cur, mode)){
+      var issued = state.proposalHistory.find(function(x){ return x.number === cur.number; });
+      if(!issued || !deepEq(issued.draft, cur)){
+        if(!confirm("A proposta "+cur.number+" ainda não foi emitida (PDF não baixado) ou tem alterações depois da última emissão. Criar uma nova proposta vai descartar esse rascunho.\n\nDescartar e criar a nova?")) return;
+      }
+    }
     var d = mode==="cabos" ? demoCabosDraft(1) : demoProjetoDraft(1);
     d.number = nextProposalNumber(mode);
     d.client = emptyClient();
@@ -5626,6 +5903,49 @@
     syncFormFromState();
     saveNow();
     toast("Nova proposta "+d.number+" criada");
+  }
+
+  // ---------- cópia de segurança ----------
+  function countItems(s){
+    return { servicos:(s.projectLibrary.services||[]).length, clausulas:(s.projectLibrary.clauses||[]).length,
+             produtos:(s.cableCatalog||[]).length, propostas:(s.proposalHistory||[]).length };
+  }
+  function initBackup(){
+    var file = document.getElementById("backup-file");
+    document.getElementById("btn-backup-export").addEventListener("click", function(){
+      flushSave();
+      var blob = new Blob([JSON.stringify(state, null, 1)], { type:"application/json" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "orcavolt-backup-"+todayISO()+".json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+      toast("Backup baixado");
+    });
+    document.getElementById("btn-backup-import").addEventListener("click", function(){ file.value = ""; file.click(); });
+    file.addEventListener("change", function(){
+      var fl = file.files && file.files[0];
+      if(!fl) return;
+      var rd = new FileReader();
+      rd.onload = function(){
+        var parsed;
+        try{ parsed = JSON.parse(String(rd.result)); }catch(e){ alert("Este arquivo não é um backup válido do OrçaVolt."); return; }
+        var ok = isObj(parsed) && (isObj(parsed.projectLibrary) || Array.isArray(parsed.proposalHistory) || Array.isArray(parsed.cableCatalog) || isObj(parsed.company));
+        if(!ok){ alert("Este arquivo não parece ser um backup do OrçaVolt."); return; }
+        if(!confirm("Restaurar de \""+fl.name+"\"?\n\nSó serão acrescentados os itens que estiverem faltando aqui (serviços, cláusulas, produtos, propostas). Nada do que já existe será apagado ou sobrescrito.")) return;
+        var before = countItems(state);
+        applyMergedState(mergeStates(undefined, deepClone(state), normalizeState(parsed)));
+        saveNow();
+        var after = countItems(state);
+        var parts = [];
+        if(after.servicos > before.servicos) parts.push((after.servicos-before.servicos)+" serviço(s)");
+        if(after.clausulas > before.clausulas) parts.push((after.clausulas-before.clausulas)+" cláusula(s)");
+        if(after.produtos > before.produtos) parts.push((after.produtos-before.produtos)+" produto(s)");
+        if(after.propostas > before.propostas) parts.push((after.propostas-before.propostas)+" proposta(s)");
+        alert(parts.length ? "Recuperado: "+parts.join(", ")+"." : "Nada faltava: tudo que está no backup já existe aqui.");
+      };
+      rd.readAsText(fl);
+    });
   }
 
   // ---------- login (Supabase Auth) ----------
@@ -5671,7 +5991,12 @@
     if(!btn) return;
     btn.addEventListener("click", function(){
       if(!confirm("Sair da conta neste dispositivo?")) return;
-      sb.auth.signOut().then(function(){ location.reload(); }).catch(function(){ location.reload(); });
+      flushSave();
+      var wait = (cloudBusy || cloudDirty) ? cloudPromise : Promise.resolve();
+      Promise.race([wait, new Promise(function(r){ setTimeout(r, 4000); })]).then(function(){
+        if(isDirtyFlag() && !confirm("Há alterações que ainda não chegaram à nuvem (sem conexão?). Elas continuam guardadas neste navegador e serão enviadas na próxima vez que você entrar aqui. Sair mesmo assim?")) return;
+        return sb.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); });
+      });
     });
   }
 
@@ -5680,23 +6005,33 @@
   // assim ninguém perde dados já cadastrados ao ligar a nuvem pela primeira vez.
   function bootstrapAfterAuth(){
     setAuthStatus("Carregando seus dados…");
-    loadFromCloud().then(function(cloudState){
-      if(cloudState){
-        state = cloudState;
-        setSyncStatus("loaded");
+    loadFromCloud().then(function(cloud){
+      var pushAfterInit = false;
+      if(cloud){
+        state = cloud.state;
+        var pending = isDirtyFlag() ? loadLocalCacheRaw() : null;
+        if(pending){
+          // este navegador tinha alterações que não chegaram à nuvem (aba fechada antes de salvar, ou sem conexão): junta
+          state = normalizeState(mergeStates(undefined, pending, cloud.raw));
+          pushAfterInit = true;
+        } else {
+          setSyncStatus("loaded");
+        }
       } else {
         var local = loadLocalCache();
         state = hasRealData(local) ? local : defaultState();
-        persistCloud();
+        pushAfterInit = true;
       }
       persistLocal();
       finishInit();
+      if(pushAfterInit) persistCloud();
     }).catch(function(){
       var local = loadLocalCache();
       if(local){
         state = local;
         finishInit();
         setSyncStatus("offline");
+        setDirtyFlag(true);
         toast("Sem conexão com a nuvem — usando dados salvos neste navegador");
       } else {
         setAuthError("Não foi possível carregar seus dados. Verifique sua conexão e tente novamente.");
@@ -5753,6 +6088,11 @@
     }
 
     syncFormFromState();
+    appReady = true;
+    initBackup();
+    window.addEventListener("pagehide", flushSave);
+    document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "hidden") flushSave(); });
+    window.addEventListener("online", function(){ if(isDirtyFlag()) persistCloud(); });
   }
 
   function boot(){
