@@ -215,6 +215,27 @@
   .item-card{border:1px solid var(--line); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px; background:var(--paper);}
   .lc-sum{cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:400; color:var(--ink-soft);}
   .lc-sum b{font-weight:700; color:var(--ink);}
+  .lib-head{position:sticky; top:-18px; z-index:8; margin:-18px -18px -8px; padding:16px 18px 10px;
+    background:var(--paper-raised); border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:9px;}
+  .lib-tabs{display:flex; align-items:center; gap:2px; flex-wrap:wrap;}
+  .lib-tab{background:transparent; border:none; border-bottom:2px solid transparent; padding:6px 10px; font-size:13.5px; font-weight:700; color:var(--ink-soft); cursor:pointer;}
+  .lib-tab:hover{color:var(--ink);}
+  .lib-tab[aria-selected="true"]{color:var(--accent); border-bottom-color:var(--accent);}
+  .lib-count{font-weight:500; color:var(--ink-faint); margin-left:3px;}
+  .lib-spacer{flex:1;}
+  .lib-tools{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .lib-tools input[type="search"]{flex:1; min-width:150px; padding:7px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink);}
+  .lib-cat{display:block;}
+  .lib-cat + .lib-cat{margin-top:12px;}
+  .lib-cat-sum{cursor:pointer; font-family:var(--font-mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); padding:4px 0 6px;}
+  .lib-cat-sum .hint{text-transform:none; letter-spacing:0;}
+  .lib-cat-body{display:flex; flex-direction:column; gap:10px; padding-top:6px;}
+  [data-lsd], [data-lcd]{scroll-margin-top:120px;}
+  @media (max-width:900px){
+    /* no celular a página inteira rola e a barra de abas já fica fixa: o cabeçalho dos modelos segue o fluxo normal */
+    .lib-head{position:static; margin:0 0 -8px; padding:0 0 10px;}
+    [data-lsd], [data-lcd]{scroll-margin-top:80px;}
+  }
   .lib-bulk{display:flex; gap:14px; margin:-2px 0 0;}
   .item-card-top{display:flex; gap:8px; align-items:flex-start;}
   .item-card-top .field{flex:1;}
@@ -672,19 +693,28 @@
         <div class="field" id="wrap-cond-obs"><label for="f-cond-obs">Observações</label><textarea id="f-cond-obs"></textarea></div>
       </div>
 
-      <div class="field-group" data-panel="modelos" data-mode="projeto">
-        <legend>Modelos de serviços <button type="button" class="add-row-btn" id="btn-add-lib-service">+ serviço</button></legend>
+      <div class="lib-head" data-panel="modelos" data-mode="projeto">
+        <div class="lib-tabs" role="tablist" aria-label="Modelos">
+          <button type="button" class="lib-tab" role="tab" data-libtab-btn="servicos" aria-selected="true">Serviços <span class="lib-count" id="lib-count-s"></span></button>
+          <button type="button" class="lib-tab" role="tab" data-libtab-btn="clausulas" aria-selected="false">Cláusulas <span class="lib-count" id="lib-count-c"></span></button>
+          <span class="lib-spacer"></span>
+          <button type="button" class="add-row-btn" id="btn-add-lib-service">+ serviço</button>
+          <button type="button" class="add-row-btn" id="btn-add-lib-clause" style="display:none;">+ cláusula</button>
+        </div>
+        <div class="lib-tools">
+          <input type="search" id="lib-search" placeholder="Buscar serviço ou atividade…" autocomplete="off" aria-label="Buscar nos modelos">
+          <button type="button" class="btn-ghost btn-sm" id="btn-lib-collapse" style="padding:0;">Recolher todos</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-lib-expand" style="padding:0;">Expandir todos</button>
+        </div>
+      </div>
+
+      <div class="field-group" data-panel="modelos" data-mode="projeto" data-libtab="servicos">
         <div class="hint">Cada serviço vira um bloco marcável na aba Itens. Escreva uma atividade por linha. Mudanças valem para propostas novas; as já emitidas não mudam.</div>
         <div id="lib-services" style="display:flex; flex-direction:column; gap:10px;"></div>
       </div>
 
-      <div class="field-group" data-panel="modelos" data-mode="projeto">
-        <legend>Modelos de cláusulas <button type="button" class="add-row-btn" id="btn-add-lib-clause">+ cláusula</button></legend>
+      <div class="field-group" data-panel="modelos" data-mode="projeto" data-libtab="clausulas">
         <div class="hint">Os modelos valem para propostas NOVAS. Numa proposta que já está aberta, use a aba Condições → "+ adicionar cláusulas do modelo que faltam". "Marcada por padrão" define se a cláusula já vem selecionada em toda proposta nova.</div>
-        <div class="lib-bulk">
-          <button type="button" class="btn-ghost btn-sm" id="btn-lc-collapse" style="padding:0;">Recolher todas</button>
-          <button type="button" class="btn-ghost btn-sm" id="btn-lc-expand" style="padding:0;">Expandir todas</button>
-        </div>
         <div id="lib-clauses" style="display:flex; flex-direction:column; gap:10px;"></div>
       </div>
 
@@ -2050,6 +2080,8 @@
       if(el.id === "fg-cond-commercial" && state.mode === "projeto" && name === activeTab && hasLegacyConditions()) visible = true;
       // nota fiscal como acréscimo só faz sentido para o profissional liberal
       if(el.id === "fg-nf" && state.drafts.projeto.issuer !== "pf") visible = false;
+      // dentro de Modelos: só o bloco da sub-aba escolhida (Serviços ou Cláusulas)
+      if(visible && el.getAttribute("data-libtab") && el.getAttribute("data-libtab") !== libTab) visible = false;
       el.style.display = visible ? "" : "none";
     });
     document.querySelectorAll("[data-mode]:not([data-panel])").forEach(function(el){
@@ -2466,14 +2498,51 @@
 
   // ----- modelos (biblioteca de serviços e cláusulas) -----
   var libOpen = {}; // serviços abertos na aba Modelos (só interface)
+  var libTab = "servicos", libQuery = "", libCatClosed = {};   // sub-aba, busca e categorias recolhidas (só interface)
+  var LIB_UI_KEY = "prancheta-modelos-ui";
+  function loadLibUi(){
+    try{
+      var u = JSON.parse(localStorage.getItem(LIB_UI_KEY) || "null");
+      if(u){
+        if(u.tab === "clausulas") libTab = "clausulas";
+        if(u.closed && typeof u.closed === "object") libCatClosed = u.closed;
+      }
+    }catch(e){}
+  }
+  function saveLibUi(){ try{ localStorage.setItem(LIB_UI_KEY, JSON.stringify({ tab:libTab, closed:libCatClosed })); }catch(e){} }
+  loadLibUi();
+  function libNorm(s){ return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+  function libMatch(text){ return !libQuery || libNorm(text).indexOf(libQuery) >= 0; }
+  function clearLibSearch(){ libQuery = ""; var se = document.getElementById("lib-search"); if(se) se.value = ""; }
+  function updateLibHead(shownS, shownC){
+    var lib = state.projectLibrary, q = !!libQuery;
+    var cs = document.getElementById("lib-count-s"), cc = document.getElementById("lib-count-c");
+    if(cs) cs.textContent = "("+(q && libTab === "servicos" ? shownS+" de " : "")+lib.services.length+")";
+    if(cc) cc.textContent = "("+(q && libTab === "clausulas" ? shownC+" de " : "")+lib.clauses.length+")";
+    document.querySelectorAll("[data-libtab-btn]").forEach(function(b){
+      b.setAttribute("aria-selected", b.getAttribute("data-libtab-btn") === libTab ? "true" : "false");
+    });
+    var as = document.getElementById("btn-add-lib-service"), ac = document.getElementById("btn-add-lib-clause");
+    if(as) as.style.display = libTab === "servicos" ? "" : "none";
+    if(ac) ac.style.display = libTab === "clausulas" ? "" : "none";
+    var se = document.getElementById("lib-search");
+    if(se) se.placeholder = libTab === "servicos" ? "Buscar serviço ou atividade…" : "Buscar cláusula…";
+  }
   function renderLibrary(){
     var lib = state.projectLibrary;
-    var html = "";
+    var html = "", shownS = 0;
     SERVICE_CATEGORIES.concat([SERVICE_OTHER]).forEach(function(cat){
-      var items = [];
-      lib.services.forEach(function(s, i){ if(serviceCategory(s) === cat) items.push({ s:s, i:i }); });
+      var items = [], total = 0;
+      lib.services.forEach(function(s, i){
+        if(serviceCategory(s) !== cat) return;
+        total++;
+        if(libMatch(s.title+" "+s.acts.join(" "))) items.push({ s:s, i:i });
+      });
       if(!items.length) return;
-      html += '<div class="sub-label">'+escapeHtml(cat)+' ('+items.length+')</div>';
+      shownS += items.length;
+      var catOpen = libQuery ? true : !libCatClosed[cat];   // na busca, as categorias com resultado abrem
+      html += '<details class="lib-cat" data-lcat="'+escapeHtml(cat)+'"'+(catOpen?' open':'')+'><summary class="lib-cat-sum">'+escapeHtml(cat)+
+        ' <span class="hint">('+(libQuery ? items.length+' de '+total : total)+')</span></summary><div class="lib-cat-body">';
       items.forEach(function(x){
         var s = x.s, i = x.i;
         var catOpts = SERVICE_CATEGORIES.concat([SERVICE_OTHER]).map(function(c){
@@ -2496,9 +2565,14 @@
           '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer">▼</button>' +
           '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div></details>';
       });
+      html += '</div></details>';
     });
+    if(!html) html = '<div class="hint">Nenhum serviço encontrado'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
     document.getElementById("lib-services").innerHTML = html;
+    var shownC = 0;
     document.getElementById("lib-clauses").innerHTML = lib.clauses.map(function(c, i){
+      if(!libMatch(c.group+" "+c.text)) return "";
+      shownC++;
       var opts = CLAUSE_GROUPS.concat(CLAUSE_GROUPS.indexOf(c.group) < 0 ? [c.group] : []).map(function(g){
         return '<option value="'+escapeHtml(g)+'"'+(g===c.group?' selected':'')+'>'+escapeHtml(g)+'</option>';
       }).join("");
@@ -2510,7 +2584,8 @@
         '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-lc-up="'+i+'" title="Subir">▲</button>' +
         '<button type="button" class="btn-ghost btn-sm" data-lc-down="'+i+'" title="Descer">▼</button>' +
         '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></details>';
-    }).join("");
+    }).join("") || '<div class="hint">Nenhuma cláusula encontrada'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
+    updateLibHead(shownS, shownC);
   }
   // Resumo de uma linha da cláusula recolhida: grupo + início do texto (o recorte é feito por CSS)
   function clauseSummaryHtml(c){
@@ -2808,6 +2883,12 @@
       renderScopeList(); scheduleSave();
     });
     lsBox.addEventListener("toggle", function(e){
+      var cat = e.target.getAttribute && e.target.getAttribute("data-lcat");
+      if(cat != null){
+        if(!libQuery){ libCatClosed[cat] = !e.target.open; saveLibUi(); }
+        if(e.target.open) growTextareas();
+        return;
+      }
       var id = e.target.getAttribute && e.target.getAttribute("data-lsd");
       if(id){ libOpen[id] = e.target.open; growTextareas(); }
     }, true);
@@ -2846,10 +2927,13 @@
       renderLibrary(); renderScopeList(); scheduleSave();
     });
     document.getElementById("btn-add-lib-service").addEventListener("click", function(){
+      clearLibSearch();
       var ns = { id:genId(), title:"Novo serviço", category:SERVICE_OTHER, billing:"global", top:false, acts:[] };
       state.projectLibrary.services.push(ns);
-      libOpen[ns.id] = true;
-      renderLibrary(); renderScopeList(); scheduleSave();
+      libOpen[ns.id] = true; libCatClosed[SERVICE_OTHER] = false; saveLibUi();
+      renderLibrary(); renderScopeList(); growTextareas(); scheduleSave();
+      var dn = document.querySelector('#lib-services [data-lsd="'+ns.id+'"]');
+      if(dn){ dn.scrollIntoView({ block:"nearest" }); var ti = dn.querySelector("input"); if(ti){ ti.focus(); ti.select(); } }
     });
 
     var lcBox = document.getElementById("lib-clauses");
@@ -2874,12 +2958,27 @@
       var id = e.target.getAttribute && e.target.getAttribute("data-lcd");
       if(id){ libOpen[id] = e.target.open; growTextareas(); }
     }, true);
-    function setAllClauses(open){
-      state.projectLibrary.clauses.forEach(function(c){ libOpen[c.id] = open; });
+    // Serviços: recolher/expandir as CATEGORIAS (cada serviço continua como estava). Cláusulas: todas as cláusulas.
+    function setAllLibrary(open){
+      if(libTab === "clausulas") state.projectLibrary.clauses.forEach(function(c){ libOpen[c.id] = open; });
+      else { SERVICE_CATEGORIES.concat([SERVICE_OTHER]).forEach(function(cat){ libCatClosed[cat] = !open; }); saveLibUi(); }
       renderLibrary(); growTextareas();
     }
-    document.getElementById("btn-lc-collapse").addEventListener("click", function(){ setAllClauses(false); });
-    document.getElementById("btn-lc-expand").addEventListener("click", function(){ setAllClauses(true); });
+    document.getElementById("btn-lib-collapse").addEventListener("click", function(){ setAllLibrary(false); });
+    document.getElementById("btn-lib-expand").addEventListener("click", function(){ setAllLibrary(true); });
+    document.querySelectorAll("[data-libtab-btn]").forEach(function(b){
+      b.addEventListener("click", function(){
+        libTab = b.getAttribute("data-libtab-btn");
+        clearLibSearch();
+        saveLibUi();
+        applyTabVisibility(); renderLibrary(); growTextareas();
+        var panel = document.querySelector(".form-panel"); if(panel) panel.scrollTop = 0;
+      });
+    });
+    document.getElementById("lib-search").addEventListener("input", function(e){
+      libQuery = libNorm(e.target.value).trim();
+      renderLibrary(); growTextareas();
+    });
     lcBox.addEventListener("click", function(e){
       var lib = state.projectLibrary.clauses;
       var up = e.target.closest("[data-lc-up]"), down = e.target.closest("[data-lc-down]"), rm = e.target.closest("[data-lc-rm]");
@@ -2899,6 +2998,7 @@
       renderLibrary(); scheduleSave();
     });
     document.getElementById("btn-add-lib-clause").addEventListener("click", function(){
+      clearLibSearch();
       var nc = { id:genId(), group:CLAUSE_GROUPS[0], text:"", on:true };
       state.projectLibrary.clauses.push(nc);
       libOpen[nc.id] = true;
