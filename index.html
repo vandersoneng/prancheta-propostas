@@ -213,6 +213,9 @@
 
   .items-list{display:flex; flex-direction:column; gap:10px;}
   .item-card{border:1px solid var(--line); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px; background:var(--paper);}
+  .lc-sum{cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:400; color:var(--ink-soft);}
+  .lc-sum b{font-weight:700; color:var(--ink);}
+  .lib-bulk{display:flex; gap:14px; margin:-2px 0 0;}
   .item-card-top{display:flex; gap:8px; align-items:flex-start;}
   .item-card-top .field{flex:1;}
   .item-grid{display:grid; grid-template-columns:1fr 1fr 1.2fr 1.2fr; gap:8px;}
@@ -678,6 +681,10 @@
       <div class="field-group" data-panel="modelos" data-mode="projeto">
         <legend>Modelos de cláusulas <button type="button" class="add-row-btn" id="btn-add-lib-clause">+ cláusula</button></legend>
         <div class="hint">Os modelos valem para propostas NOVAS. Numa proposta que já está aberta, use a aba Condições → "+ adicionar cláusulas do modelo que faltam". "Marcada por padrão" define se a cláusula já vem selecionada em toda proposta nova.</div>
+        <div class="lib-bulk">
+          <button type="button" class="btn-ghost btn-sm" id="btn-lc-collapse" style="padding:0;">Recolher todas</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-lc-expand" style="padding:0;">Expandir todas</button>
+        </div>
         <div id="lib-clauses" style="display:flex; flex-direction:column; gap:10px;"></div>
       </div>
 
@@ -2495,14 +2502,24 @@
       var opts = CLAUSE_GROUPS.concat(CLAUSE_GROUPS.indexOf(c.group) < 0 ? [c.group] : []).map(function(g){
         return '<option value="'+escapeHtml(g)+'"'+(g===c.group?' selected':'')+'>'+escapeHtml(g)+'</option>';
       }).join("");
-      return '<div class="item-card">' +
+      return '<details class="item-card" data-lcd="'+c.id+'"'+(libOpen[c.id]?' open':'')+'>' +
+        '<summary class="lc-sum">'+clauseSummaryHtml(c)+'</summary>' +
         '<div class="field-row"><div class="field"><label>Grupo</label><select data-lc-group="'+i+'">'+opts+'</select></div></div>' +
         '<div class="field"><label>Texto</label><textarea rows="3" data-lc-text="'+i+'">'+escapeHtml(c.text)+'</textarea></div>' +
         '<label class="checkbox-field"><input type="checkbox" data-lc-on="'+i+'"'+(c.on?' checked':'')+'> Marcada por padrão nas propostas novas</label>' +
         '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-lc-up="'+i+'" title="Subir">▲</button>' +
         '<button type="button" class="btn-ghost btn-sm" data-lc-down="'+i+'" title="Descer">▼</button>' +
-        '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></div>';
+        '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></details>';
     }).join("");
+  }
+  // Resumo de uma linha da cláusula recolhida: grupo + início do texto (o recorte é feito por CSS)
+  function clauseSummaryHtml(c){
+    var t = String(c.text||"").replace(/\s+/g, " ").trim().slice(0, 200);
+    return '<b>'+escapeHtml(c.group||"")+'</b> · '+(t ? escapeHtml(t) : '<i>(sem texto)</i>')+(c.on ? '' : ' <span class="hint">· não marcada por padrão</span>');
+  }
+  function refreshClauseSummary(el, c){
+    var d = el.closest && el.closest("details"), s = d && d.querySelector("summary");
+    if(s && c) s.innerHTML = clauseSummaryHtml(c);
   }
   function moveInArray(arr, i, delta){
     var j = i + delta;
@@ -2839,7 +2856,9 @@
     lcBox.addEventListener("input", function(e){
       var ti = e.target.getAttribute("data-lc-text");
       if(ti == null) return;
-      state.projectLibrary.clauses[parseInt(ti, 10)].text = e.target.value;
+      var cc = state.projectLibrary.clauses[parseInt(ti, 10)];
+      cc.text = e.target.value;
+      refreshClauseSummary(e.target, cc);
       scheduleSave();
     });
     lcBox.addEventListener("change", function(e){
@@ -2848,8 +2867,19 @@
       if(gi != null) lib[parseInt(gi, 10)].group = e.target.value;
       else if(oi != null) lib[parseInt(oi, 10)].on = e.target.checked;
       else return;
+      refreshClauseSummary(e.target, lib[parseInt(gi != null ? gi : oi, 10)]);
       scheduleSave();
     });
+    lcBox.addEventListener("toggle", function(e){
+      var id = e.target.getAttribute && e.target.getAttribute("data-lcd");
+      if(id){ libOpen[id] = e.target.open; growTextareas(); }
+    }, true);
+    function setAllClauses(open){
+      state.projectLibrary.clauses.forEach(function(c){ libOpen[c.id] = open; });
+      renderLibrary(); growTextareas();
+    }
+    document.getElementById("btn-lc-collapse").addEventListener("click", function(){ setAllClauses(false); });
+    document.getElementById("btn-lc-expand").addEventListener("click", function(){ setAllClauses(true); });
     lcBox.addEventListener("click", function(e){
       var lib = state.projectLibrary.clauses;
       var up = e.target.closest("[data-lc-up]"), down = e.target.closest("[data-lc-down]"), rm = e.target.closest("[data-lc-rm]");
@@ -2869,8 +2899,12 @@
       renderLibrary(); scheduleSave();
     });
     document.getElementById("btn-add-lib-clause").addEventListener("click", function(){
-      state.projectLibrary.clauses.push({ id:genId(), group:CLAUSE_GROUPS[0], text:"", on:true });
-      renderLibrary(); scheduleSave();
+      var nc = { id:genId(), group:CLAUSE_GROUPS[0], text:"", on:true };
+      state.projectLibrary.clauses.push(nc);
+      libOpen[nc.id] = true;
+      renderLibrary(); growTextareas(); scheduleSave();
+      var added = document.querySelector('#lib-clauses [data-lcd="'+nc.id+'"]');
+      if(added){ added.scrollIntoView({ block:"nearest" }); var ta = added.querySelector("textarea"); if(ta) ta.focus(); }
     });
   }
 
