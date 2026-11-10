@@ -237,6 +237,35 @@
     [data-lsd], [data-lcd]{scroll-margin-top:80px;}
   }
   .lib-bulk{display:flex; gap:14px; margin:-2px 0 0;}
+  .lib-split{display:grid; grid-template-columns:minmax(220px,300px) minmax(0,1fr); gap:16px; align-items:start;}
+  .lib-list{position:sticky; top:calc(var(--lib-head-h,110px) + 6px); max-height:calc(100vh - var(--lib-head-h,110px) - 100px); overflow-y:auto; padding-right:4px;}
+  .lib-list .lib-cat-body{gap:2px; padding-top:2px;}
+  .lib-row{display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:transparent; border:none; border-radius:8px; padding:7px 8px; font:inherit; font-size:13px; color:var(--ink); cursor:pointer;}
+  .lib-row:hover{background:var(--paper);}
+  .lib-row.on{background:var(--paper-raised); box-shadow:inset 0 0 0 1px var(--line-strong), inset 3px 0 0 var(--accent); font-weight:700; color:var(--accent);}
+  .lib-row .cat-ico{flex-shrink:0; color:var(--ink-faint);}
+  .lib-row.on .cat-ico{color:var(--accent);}
+  .lib-row-t{flex:1; min-width:0; line-height:1.3;}
+  .lib-star{color:#B9770E; font-size:12px; flex-shrink:0;}
+  .lib-ok{color:var(--good); font-size:13px; flex-shrink:0;}
+  .lib-editor{display:flex; flex-direction:column; gap:12px; min-width:0; border:1px solid var(--line); border-radius:10px; background:var(--paper); padding:14px;}
+  .lib-ed-cat{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-soft);}
+  .lib-ed-cat .cat-ico{color:var(--accent);}
+  .act-box{display:flex; flex-direction:column; gap:1px; border:1px solid var(--line-strong); border-radius:8px; background:var(--paper-raised); padding:4px;}
+  .act-row{display:flex; align-items:flex-start; gap:6px; padding:2px 4px; border-radius:6px;}
+  .act-row.over{box-shadow:0 -2px 0 var(--accent);}
+  .act-row.dragging{opacity:.4;}
+  .act-grip{color:var(--ink-faint); cursor:grab; padding:9px 2px 0; flex-shrink:0; line-height:0;}
+  .act-n{color:var(--ink-faint); font-size:11px; width:18px; text-align:right; padding-top:9px; flex-shrink:0;}
+  .act-row textarea{flex:1; min-height:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; resize:none; overflow:hidden; line-height:1.4;}
+  .act-row textarea:hover{border-color:var(--line);}
+  .act-row textarea:focus{border-color:var(--line-strong); background:var(--paper);}
+  .act-rm{padding:2px 7px; font-size:16px; line-height:1; margin-top:3px;}
+  .act-add textarea{border:1px dashed var(--line-strong);}
+  @media (max-width:900px){
+    .lib-split{grid-template-columns:1fr;}
+    .lib-list{position:static; max-height:280px;}
+  }
   .item-card-top{display:flex; gap:8px; align-items:flex-start;}
   .item-card-top .field{flex:1;}
   .item-grid{display:grid; grid-template-columns:1fr 1fr 1.2fr 1.2fr; gap:8px;}
@@ -1384,6 +1413,7 @@
       d.projectLibrary.services = parsed.projectLibrary.services.map(function(s){
         if(!s.id) s.id = genId();
         if(!Array.isArray(s.acts)) s.acts = [];
+        s.acts = s.acts.filter(function(a){ return String(a == null ? "" : a).trim() !== ""; });
         return s;
       });
     }
@@ -2098,6 +2128,7 @@
       btn.setAttribute("aria-selected", btn.getAttribute("data-tab")===tab ? "true":"false");
     });
     applyTabVisibility();
+    if(tab === "modelos") updateLibHeadVar();
     if(typeof growTextareas === "function"){ growTextareas(); setTimeout(growTextareas, 280); } // de novo após a animação de largura do painel
     var isManageTab = tab==="catalogo" || tab==="historico" || tab==="modelos";
     var panel = document.querySelector(".form-panel");
@@ -2461,7 +2492,7 @@
   }
 
   // textareas dos modelos/cláusulas crescem com o texto (em vez de rolar dentro de uma caixa pequena)
-  var GROW_SEL = "textarea[data-cl-text], textarea[data-scope-acttext], textarea[data-ls-acts], textarea[data-lc-text], textarea[data-tg-text], textarea[data-pay-label]";
+  var GROW_SEL = "textarea[data-cl-text], textarea[data-scope-acttext], textarea[data-ls-acts], textarea[data-lc-text], textarea[data-tg-text], textarea[data-pay-label], textarea[data-act-text], textarea[data-act-add]";
   function growOne(t){
     t.style.height = "auto";
     if(t.scrollHeight > 0) t.style.height = (t.scrollHeight + 2) + "px";
@@ -2498,18 +2529,19 @@
 
   // ----- modelos (biblioteca de serviços e cláusulas) -----
   var libOpen = {}; // serviços abertos na aba Modelos (só interface)
-  var libTab = "servicos", libQuery = "", libCatClosed = {};   // sub-aba, busca e categorias recolhidas (só interface)
+  var libTab = "servicos", libQuery = "", libCatClosed = {}, libSel = null;   // sub-aba, busca e categorias recolhidas (só interface)
   var LIB_UI_KEY = "prancheta-modelos-ui";
   function loadLibUi(){
     try{
       var u = JSON.parse(localStorage.getItem(LIB_UI_KEY) || "null");
       if(u){
         if(u.tab === "clausulas") libTab = "clausulas";
+        if(typeof u.sel === "string") libSel = u.sel;
         if(u.closed && typeof u.closed === "object") libCatClosed = u.closed;
       }
     }catch(e){}
   }
-  function saveLibUi(){ try{ localStorage.setItem(LIB_UI_KEY, JSON.stringify({ tab:libTab, closed:libCatClosed })); }catch(e){} }
+  function saveLibUi(){ try{ localStorage.setItem(LIB_UI_KEY, JSON.stringify({ tab:libTab, closed:libCatClosed, sel:libSel })); }catch(e){} }
   loadLibUi();
   function libNorm(s){ return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
   function libMatch(text){ return !libQuery || libNorm(text).indexOf(libQuery) >= 0; }
@@ -2527,48 +2559,93 @@
     if(ac) ac.style.display = libTab === "clausulas" ? "" : "none";
     var se = document.getElementById("lib-search");
     if(se) se.placeholder = libTab === "servicos" ? "Buscar serviço ou atividade…" : "Buscar cláusula…";
+    updateLibHeadVar();
+  }
+  function updateLibHeadVar(){
+    var hd = document.querySelector(".lib-head");
+    if(hd && hd.offsetHeight) document.documentElement.style.setProperty("--lib-head-h", hd.offsetHeight+"px");
+  }
+  window.addEventListener("resize", updateLibHeadVar);
+  var CAT_ICONS = [
+    '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>',
+    '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+    '<path d="M3 21h18"/><path d="M5 21V10l5 3v-3l5 3V6h4v15"/>',
+    '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+    '<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M12 11 5 17M12 11l7 6"/>',
+    '<path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/>',
+    '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="m9 14 2 2 4-4"/>',
+    '<path d="m14 10-9 9"/><path d="m12 4 8 8-3 3-8-8z"/>',
+    '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>'
+  ];
+  function catIcon(cat, size){
+    var n = SERVICE_CATEGORIES.indexOf(cat); if(n < 0) n = 8;
+    return '<svg class="cat-ico" viewBox="0 0 24 24" width="'+(size||18)+'" height="'+(size||18)+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+CAT_ICONS[n]+'</svg>';
+  }
+  var GRIP_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
+  function libRowHtml(s){
+    var n = s.acts.length;
+    return '<button type="button" class="lib-row'+(s.id===libSel?' on':'')+'" data-lrow="'+s.id+'" title="'+n+(n===1?' atividade':' atividades')+'">'+catIcon(serviceCategory(s), 17)+
+      '<span class="lib-row-t">'+escapeHtml(s.title||"(sem título)")+'</span>'+
+      (s.top?'<span class="lib-star" title="Mais usado">★</span>':'')+(s.reviewed?'<span class="lib-ok" title="Revisado">✓</span>':'')+'</button>';
+  }
+  function actRowsHtml(s){
+    return '<div class="act-box">'+s.acts.map(function(a, k){
+      return '<div class="act-row" data-act-row="'+k+'"><span class="act-grip" data-act-grip title="Arraste para reordenar">'+GRIP_SVG+'</span><span class="act-n">'+(k+1)+'</span>'+
+        '<textarea rows="1" data-act-text="'+k+'" aria-label="Atividade '+(k+1)+'">'+escapeHtml(a)+'</textarea>'+
+        '<button type="button" class="btn-ghost btn-sm act-rm" data-act-rm="'+k+'" aria-label="Remover atividade" title="Remover">&times;</button></div>';
+    }).join("")+
+    '<div class="act-row act-add"><span class="act-grip" style="visibility:hidden">'+GRIP_SVG+'</span><span class="act-n">+</span>'+
+    '<textarea rows="1" data-act-add placeholder="Adicionar atividade… (cole uma lista para criar várias de uma vez)" aria-label="Nova atividade"></textarea></div></div>';
+  }
+  function libEditorHtml(){
+    var lib = state.projectLibrary, i = -1, s = null;
+    lib.services.forEach(function(x, k){ if(x.id === libSel){ s = x; i = k; } });
+    if(!s) return '<div class="hint">Escolha um serviço na lista ou crie um novo em "+ serviço".</div>';
+    var cat = serviceCategory(s);
+    var catOpts = SERVICE_CATEGORIES.concat([SERVICE_OTHER]).map(function(c){
+      return '<option value="'+escapeHtml(c)+'"'+(c===cat?' selected':'')+'>'+escapeHtml(c)+'</option>';
+    }).join("");
+    var billOpts = BILLING_OPTIONS.map(function(bo){
+      return '<option value="'+bo[0]+'"'+(bo[0]===(s.billing||"global")?' selected':'')+'>'+bo[1]+'</option>';
+    }).join("");
+    return '<div class="lib-ed-cat">'+catIcon(cat, 18)+'<span>'+escapeHtml(cat)+'</span></div>' +
+      '<div class="field"><label>Título do serviço</label><input data-ls-title="'+i+'" value="'+escapeHtml(s.title)+'"></div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Categoria</label><select data-ls-cat="'+i+'">'+catOpts+'</select></div>' +
+        '<div class="field"><label>Base de cobrança</label><select data-ls-bill="'+i+'">'+billOpts+'</select></div>' +
+        '<div class="field"><label title="Opcional. Já vem preenchido ao marcar o serviço na proposta.">Preço padrão (R$)</label><input type="number" min="0" step="0.01" data-ls-rate="'+i+'" value="'+(s.rate||"")+'" placeholder="opcional"></div>' +
+      '</div>' +
+      '<div style="display:flex; gap:18px; flex-wrap:wrap;">' +
+        '<label class="checkbox-field"><input type="checkbox" data-ls-top="'+i+'"'+(s.top?' checked':'')+'> Mostrar em "Mais usados"</label>' +
+        '<label class="checkbox-field"><input type="checkbox" data-ls-rev="'+i+'"'+(s.reviewed?' checked':'')+'> Revisado</label>' +
+      '</div>' +
+      '<div class="field"><label>Atividades <span class="hint">(arraste para reordenar · Enter vai para a próxima)</span></label><div id="act-rows">'+actRowsHtml(s)+'</div></div>' +
+      '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir na lista">▲</button>' +
+      '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer na lista">▼</button>' +
+      '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div>';
   }
   function renderLibrary(){
     var lib = state.projectLibrary;
-    var html = "", shownS = 0;
+    var box = document.getElementById("lib-services");
+    var prevList = document.getElementById("lib-list"), prevTop = prevList ? prevList.scrollTop : 0;
+    if(!lib.services.some(function(s){ return s.id === libSel; })) libSel = lib.services.length ? lib.services[0].id : null;
+    var listHtml = "", shownS = 0;
     SERVICE_CATEGORIES.concat([SERVICE_OTHER]).forEach(function(cat){
       var items = [], total = 0;
-      lib.services.forEach(function(s, i){
+      lib.services.forEach(function(s){
         if(serviceCategory(s) !== cat) return;
         total++;
-        if(libMatch(s.title+" "+s.acts.join(" "))) items.push({ s:s, i:i });
+        if(libMatch(s.title+" "+s.acts.join(" "))) items.push(s);
       });
       if(!items.length) return;
       shownS += items.length;
-      var catOpen = libQuery ? true : !libCatClosed[cat];   // na busca, as categorias com resultado abrem
-      html += '<details class="lib-cat" data-lcat="'+escapeHtml(cat)+'"'+(catOpen?' open':'')+'><summary class="lib-cat-sum">'+escapeHtml(cat)+
-        ' <span class="hint">('+(libQuery ? items.length+' de '+total : total)+')</span></summary><div class="lib-cat-body">';
-      items.forEach(function(x){
-        var s = x.s, i = x.i;
-        var catOpts = SERVICE_CATEGORIES.concat([SERVICE_OTHER]).map(function(c){
-          return '<option value="'+escapeHtml(c)+'"'+(c===serviceCategory(s)?' selected':'')+'>'+escapeHtml(c)+'</option>';
-        }).join("");
-        var billOpts = BILLING_OPTIONS.map(function(b){
-          return '<option value="'+b[0]+'"'+(b[0]===(s.billing||"global")?' selected':'')+'>'+b[1]+'</option>';
-        }).join("");
-        html += '<details class="item-card" data-lsd="'+s.id+'"'+(libOpen[s.id]?' open':'')+'>' +
-          '<summary style="cursor:pointer; font-weight:600;">'+escapeHtml(s.title||"(sem título)")+(s.top?' <span class="hint">· mais usado</span>':'')+'</summary>' +
-          '<div class="field"><label>Título do serviço</label><input data-ls-title="'+i+'" value="'+escapeHtml(s.title)+'"></div>' +
-          '<div class="field-row">' +
-            '<div class="field"><label>Categoria</label><select data-ls-cat="'+i+'">'+catOpts+'</select></div>' +
-            '<div class="field"><label>Base de cobrança (referência)</label><select data-ls-bill="'+i+'">'+billOpts+'</select></div>' +
-          '</div>' +
-          '<div class="field"><label>Preço padrão por unidade da base (R$, opcional — já vem preenchido ao marcar o serviço)</label><input type="number" min="0" step="0.01" data-ls-rate="'+i+'" value="'+(s.rate||"")+'"></div>' +
-          '<label class="checkbox-field"><input type="checkbox" data-ls-top="'+i+'"'+(s.top?' checked':'')+'> Mostrar em "Mais usados" (fixo no topo da lista de escopo)</label>' +
-          '<div class="field"><label>Atividades (uma por linha)</label><textarea rows="1" style="min-height:0;" data-ls-acts="'+i+'">'+escapeHtml(s.acts.join("\n"))+'</textarea></div>' +
-          '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir">▲</button>' +
-          '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer">▼</button>' +
-          '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div></details>';
-      });
-      html += '</div></details>';
+      var catOpen = libQuery ? true : !libCatClosed[cat];
+      listHtml += '<details class="lib-cat" data-lcat="'+escapeHtml(cat)+'"'+(catOpen?' open':'')+'><summary class="lib-cat-sum">'+escapeHtml(cat)+
+        ' <span class="hint">('+(libQuery ? items.length+' de '+total : total)+')</span></summary><div class="lib-cat-body">'+items.map(libRowHtml).join("")+'</div></details>';
     });
-    if(!html) html = '<div class="hint">Nenhum serviço encontrado'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
-    document.getElementById("lib-services").innerHTML = html;
+    if(!listHtml) listHtml = '<div class="hint">Nenhum serviço encontrado'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
+    box.innerHTML = '<div class="lib-split"><div class="lib-list" id="lib-list">'+listHtml+'</div><div class="lib-editor" id="lib-editor">'+libEditorHtml()+'</div></div>';
+    var nl = document.getElementById("lib-list"); if(nl) nl.scrollTop = prevTop;
     var shownC = 0;
     document.getElementById("lib-clauses").innerHTML = lib.clauses.map(function(c, i){
       if(!libMatch(c.group+" "+c.text)) return "";
@@ -2586,6 +2663,7 @@
         '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></details>';
     }).join("") || '<div class="hint">Nenhuma cláusula encontrada'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
     updateLibHead(shownS, shownC);
+    growTextareas();
   }
   // Resumo de uma linha da cláusula recolhida: grupo + início do texto (o recorte é feito por CSS)
   function clauseSummaryHtml(c){
@@ -2876,7 +2954,11 @@
     lsBox.addEventListener("input", function(e){
       var ti = e.target.getAttribute("data-ls-title"), ai = e.target.getAttribute("data-ls-acts"), ri = e.target.getAttribute("data-ls-rate");
       var lib = state.projectLibrary.services;
-      if(ti != null) lib[parseInt(ti, 10)].title = e.target.value;
+      if(ti != null){
+        lib[parseInt(ti, 10)].title = e.target.value;
+        var rowT = document.querySelector('[data-lrow="'+lib[parseInt(ti, 10)].id+'"] .lib-row-t');
+        if(rowT) rowT.textContent = e.target.value || "(sem título)";
+      }
       else if(ai != null) lib[parseInt(ai, 10)].acts = splitLines(e.target.value);
       else if(ri != null) lib[parseInt(ri, 10)].rate = nonNeg(e.target.value);
       else return;
@@ -2894,8 +2976,9 @@
     }, true);
     lsBox.addEventListener("change", function(e){
       var lib = state.projectLibrary.services;
-      var ci = e.target.getAttribute("data-ls-cat"), bi = e.target.getAttribute("data-ls-bill"), ti = e.target.getAttribute("data-ls-top");
-      if(ci != null) lib[parseInt(ci, 10)].category = e.target.value;
+      var ci = e.target.getAttribute("data-ls-cat"), bi = e.target.getAttribute("data-ls-bill"), ti = e.target.getAttribute("data-ls-top"), rv = e.target.getAttribute("data-ls-rev");
+      if(rv != null) lib[parseInt(rv, 10)].reviewed = e.target.checked;
+      else if(ci != null) lib[parseInt(ci, 10)].category = e.target.value;
       else if(bi != null) lib[parseInt(bi, 10)].billing = e.target.value;
       else if(ti != null) lib[parseInt(ti, 10)].top = e.target.checked;
       else return;
@@ -2908,6 +2991,178 @@
       if(j < 0 || j >= lib.length) return;
       var tmp = lib[i]; lib[i] = lib[j]; lib[j] = tmp;
     }
+    function selService(){
+      var arr = state.projectLibrary.services;
+      for(var k = 0; k < arr.length; k++) if(arr[k].id === libSel) return arr[k];
+      return null;
+    }
+    function actsChanged(){ renderScopeList(); scheduleSave(); }
+    function redrawActs(focusSel){
+      var s = selService(), box = document.getElementById("act-rows");
+      if(!s || !box) return;
+      box.innerHTML = actRowsHtml(s);
+      growTextareas();
+      if(focusSel){
+        var t = box.querySelector(focusSel);
+        if(t){ t.focus(); try{ t.setSelectionRange(t.value.length, t.value.length); }catch(er){} }
+      }
+    }
+    function cleanLine(v){ return String(v == null ? "" : v).replace(/\s+/g, " ").trim(); }
+    function addActivity(text, keepFocus){
+      var s = selService(), v = cleanLine(text);
+      if(!s || !v) return false;
+      s.acts.push(v);
+      var addEl = document.querySelector("#act-rows [data-act-add]");
+      if(addEl) addEl.value = "";
+      var addRow = addEl && addEl.closest(".act-row");
+      if(addRow){
+        var tmp = document.createElement("div");
+        tmp.innerHTML = actRowsHtml({ acts:[v] });
+        var neu = tmp.querySelector(".act-row[data-act-row]");
+        neu.setAttribute("data-act-row", String(s.acts.length - 1));
+        neu.querySelector("textarea").setAttribute("data-act-text", String(s.acts.length - 1));
+        neu.querySelector(".act-rm").setAttribute("data-act-rm", String(s.acts.length - 1));
+        neu.querySelector(".act-n").textContent = String(s.acts.length);
+        addRow.parentNode.insertBefore(neu, addRow);
+        growOne(neu.querySelector("textarea"));
+        if(addEl) growOne(addEl);
+      }
+      if(keepFocus && addEl) addEl.focus();
+      actsChanged();
+      return true;
+    }
+    function removeAct(k, undo){
+      var s = selService(); if(!s) return;
+      var removed = s.acts.splice(k, 1)[0];
+      redrawActs();
+      actsChanged();
+      if(undo && cleanLine(removed)){
+        toastUndo("Atividade removida", function(){
+          s.acts.splice(Math.min(k, s.acts.length), 0, removed);
+          if(selService() === s) redrawActs();
+          actsChanged();
+        });
+      }
+    }
+    lsBox.addEventListener("input", function(e){
+      var t = e.target, k = t.getAttribute && t.getAttribute("data-act-text");
+      if(k == null) return;
+      var s = selService(); if(!s) return;
+      s.acts[parseInt(k, 10)] = t.value.replace(/[\r\n]+/g, " ");
+      actsChanged();
+    });
+    lsBox.addEventListener("keydown", function(e){
+      var t = e.target; if(!t.getAttribute) return;
+      var kAttr = t.getAttribute("data-act-text"), isAdd = t.hasAttribute("data-act-add");
+      if(kAttr == null && !isAdd) return;
+      var s = selService(); if(!s) return;
+      var k = kAttr == null ? -1 : parseInt(kAttr, 10);
+      if(e.key === "Enter"){
+        e.preventDefault();
+        if(e.shiftKey) return;
+        if(isAdd) addActivity(t.value, true);
+        else {
+          var nx = document.querySelector('#act-rows [data-act-text="'+(k+1)+'"]') || document.querySelector("#act-rows [data-act-add]");
+          if(nx) nx.focus();
+        }
+        return;
+      }
+      if(e.altKey && !isAdd && (e.key === "ArrowUp" || e.key === "ArrowDown")){
+        e.preventDefault();
+        if(moveInArray(s.acts, k, e.key === "ArrowUp" ? -1 : 1)){
+          redrawActs('[data-act-text="'+(k + (e.key === "ArrowUp" ? -1 : 1))+'"]');
+          actsChanged();
+        }
+        return;
+      }
+      if(e.key === "Backspace" && !isAdd && t.value === ""){
+        e.preventDefault();
+        removeAct(k, false);
+        var pv = document.querySelector('#act-rows [data-act-text="'+(k-1)+'"]') || document.querySelector("#act-rows [data-act-add]");
+        if(pv){ pv.focus(); try{ pv.setSelectionRange(pv.value.length, pv.value.length); }catch(er){} }
+      }
+    });
+    lsBox.addEventListener("focusout", function(e){
+      var t = e.target; if(!t.getAttribute || !t.isConnected) return;
+      if(t.hasAttribute("data-act-add")){ if(cleanLine(t.value)) addActivity(t.value, false); return; }
+      var kAttr = t.getAttribute("data-act-text"); if(kAttr == null) return;
+      var s = selService(); if(!s) return;
+      var k = parseInt(kAttr, 10), v = cleanLine(s.acts[k]);
+      if(!v){ removeAct(k, false); return; }
+      if(v !== s.acts[k]){ s.acts[k] = v; t.value = v; actsChanged(); }
+    });
+    lsBox.addEventListener("paste", function(e){
+      var t = e.target; if(!t.getAttribute) return;
+      var kAttr = t.getAttribute("data-act-text"), isAdd = t.hasAttribute("data-act-add");
+      if(kAttr == null && !isAdd) return;
+      var txt = (e.clipboardData || window.clipboardData).getData("text");
+      if(!/\r?\n/.test(txt)) return;
+      var s = selService(); if(!s) return;
+      var lines = txt.split(/\r?\n/).map(cleanLine).filter(function(l){ return l; });
+      if(!lines.length) return;
+      e.preventDefault();
+      var before = t.value.slice(0, t.selectionStart), after = t.value.slice(t.selectionEnd);
+      lines[0] = cleanLine(before + " " + lines[0]);
+      lines[lines.length - 1] = cleanLine(lines[lines.length - 1] + " " + after);
+      if(isAdd){ s.acts.push.apply(s.acts, lines); redrawActs("[data-act-add]"); }
+      else {
+        var k = parseInt(kAttr, 10);
+        s.acts.splice.apply(s.acts, [k, 1].concat(lines));
+        redrawActs('[data-act-text="'+(k + lines.length - 1)+'"]');
+      }
+      actsChanged();
+    });
+    var dragK = null;
+    lsBox.addEventListener("mousedown", function(e){
+      var g = e.target.closest && e.target.closest("[data-act-grip]");
+      if(g){ var r = g.closest(".act-row"); if(r) r.draggable = true; }
+    });
+    lsBox.addEventListener("dragstart", function(e){
+      var r = e.target.closest && e.target.closest(".act-row[data-act-row]");
+      if(!r) return;
+      dragK = parseInt(r.getAttribute("data-act-row"), 10);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(dragK));
+      r.classList.add("dragging");
+    });
+    lsBox.addEventListener("dragover", function(e){
+      var r = e.target.closest && e.target.closest(".act-row[data-act-row]");
+      if(dragK == null || !r) return;
+      e.preventDefault();
+      lsBox.querySelectorAll(".act-row.over").forEach(function(x){ x.classList.remove("over"); });
+      r.classList.add("over");
+    });
+    lsBox.addEventListener("drop", function(e){
+      var r = e.target.closest && e.target.closest(".act-row[data-act-row]");
+      var s = selService();
+      if(dragK == null || !r || !s) return;
+      e.preventDefault();
+      var to = parseInt(r.getAttribute("data-act-row"), 10), from = dragK;
+      dragK = null;
+      if(to === from) return;
+      var it = s.acts.splice(from, 1)[0];
+      s.acts.splice(to, 0, it);
+      redrawActs();
+      actsChanged();
+    });
+    lsBox.addEventListener("dragend", function(){
+      dragK = null;
+      lsBox.querySelectorAll(".act-row.over, .act-row.dragging").forEach(function(x){ x.classList.remove("over", "dragging"); });
+      lsBox.querySelectorAll(".act-row[draggable]").forEach(function(x){ x.draggable = false; });
+    });
+    lsBox.addEventListener("click", function(e){
+      var rowBtn = e.target.closest && e.target.closest("[data-lrow]");
+      if(rowBtn){
+        libSel = rowBtn.getAttribute("data-lrow"); saveLibUi();
+        lsBox.querySelectorAll(".lib-row.on").forEach(function(x){ x.classList.remove("on"); });
+        rowBtn.classList.add("on");
+        var ed = document.getElementById("lib-editor");
+        if(ed){ ed.innerHTML = libEditorHtml(); growTextareas(); if(window.matchMedia("(max-width:900px)").matches) ed.scrollIntoView({ block:"nearest" }); }
+        return;
+      }
+      var arm = e.target.closest && e.target.closest("[data-act-rm]");
+      if(arm){ removeAct(parseInt(arm.getAttribute("data-act-rm"), 10), true); }
+    });
     lsBox.addEventListener("click", function(e){
       var lib = state.projectLibrary.services;
       var up = e.target.closest("[data-ls-up]"), down = e.target.closest("[data-ls-down]"), rm = e.target.closest("[data-ls-rm]");
@@ -2919,7 +3174,7 @@
         var gone = lib.splice(idx, 1)[0];
         renderLibrary(); renderScopeList(); scheduleSave();
         toastUndo('Serviço "'+gone.title+'" removido', function(){
-          lib.splice(Math.min(idx, lib.length), 0, gone);
+          lib.splice(Math.min(idx, lib.length), 0, gone); libSel = gone.id; saveLibUi();
           renderLibrary(); renderScopeList(); scheduleSave();
         });
         return;
@@ -2930,10 +3185,12 @@
       clearLibSearch();
       var ns = { id:genId(), title:"Novo serviço", category:SERVICE_OTHER, billing:"global", top:false, acts:[] };
       state.projectLibrary.services.push(ns);
-      libOpen[ns.id] = true; libCatClosed[SERVICE_OTHER] = false; saveLibUi();
-      renderLibrary(); renderScopeList(); growTextareas(); scheduleSave();
-      var dn = document.querySelector('#lib-services [data-lsd="'+ns.id+'"]');
-      if(dn){ dn.scrollIntoView({ block:"nearest" }); var ti = dn.querySelector("input"); if(ti){ ti.focus(); ti.select(); } }
+      libSel = ns.id; libCatClosed[SERVICE_OTHER] = false; saveLibUi();
+      renderLibrary(); renderScopeList(); scheduleSave();
+      var rowNew = document.querySelector('#lib-list [data-lrow="'+ns.id+'"]');
+      if(rowNew) rowNew.scrollIntoView({ block:"nearest" });
+      var tiNew = document.querySelector("#lib-editor [data-ls-title]");
+      if(tiNew){ tiNew.focus(); tiNew.select(); }
     });
 
     var lcBox = document.getElementById("lib-clauses");
