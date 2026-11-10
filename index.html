@@ -2491,7 +2491,7 @@
           '</div>' +
           '<div class="field"><label>Preço padrão por unidade da base (R$, opcional — já vem preenchido ao marcar o serviço)</label><input type="number" min="0" step="0.01" data-ls-rate="'+i+'" value="'+(s.rate||"")+'"></div>' +
           '<label class="checkbox-field"><input type="checkbox" data-ls-top="'+i+'"'+(s.top?' checked':'')+'> Mostrar em "Mais usados" (fixo no topo da lista de escopo)</label>' +
-          '<div class="field"><label>Atividades (uma por linha)</label><textarea rows="6" data-ls-acts="'+i+'">'+escapeHtml(s.acts.join("\n"))+'</textarea></div>' +
+          '<div class="field"><label>Atividades (uma por linha)</label><textarea rows="1" style="min-height:0;" data-ls-acts="'+i+'">'+escapeHtml(s.acts.join("\n"))+'</textarea></div>' +
           '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir">▲</button>' +
           '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer">▼</button>' +
           '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div></details>';
@@ -2505,7 +2505,7 @@
       return '<details class="item-card" data-lcd="'+c.id+'"'+(libOpen[c.id]?' open':'')+'>' +
         '<summary class="lc-sum">'+clauseSummaryHtml(c)+'</summary>' +
         '<div class="field-row"><div class="field"><label>Grupo</label><select data-lc-group="'+i+'">'+opts+'</select></div></div>' +
-        '<div class="field"><label>Texto</label><textarea rows="3" data-lc-text="'+i+'">'+escapeHtml(c.text)+'</textarea></div>' +
+        '<div class="field"><label>Texto</label><textarea rows="1" style="min-height:0;" data-lc-text="'+i+'">'+escapeHtml(c.text)+'</textarea></div>' +
         '<label class="checkbox-field"><input type="checkbox" data-lc-on="'+i+'"'+(c.on?' checked':'')+'> Marcada por padrão nas propostas novas</label>' +
         '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-lc-up="'+i+'" title="Subir">▲</button>' +
         '<button type="button" class="btn-ghost btn-sm" data-lc-down="'+i+'" title="Descer">▼</button>' +
