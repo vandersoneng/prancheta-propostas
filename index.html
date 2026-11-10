@@ -1348,15 +1348,17 @@
       "Projeto de instalações elétricas e padrão de entrada",
       "Padrão de entrada em baixa tensão",
       "Padrão de entrada provisório de obra",
-      "Projeto de SPDA",
+      "Projeto de SPDA e proteção contra surtos",
       "Projeto de instalações elétricas e SPDA",
       "Projeto de subestação abrigada",
       "Projeto de subestação aérea",
       "Projeto de rede de média tensão",
-      "Projeto de energia fotovoltaica",
-      "Estudo de proteção e seletividade",
+      "Projeto de sistema fotovoltaico conectado à rede",
+      "Estudo de proteção e seletividade em média tensão",
       "Dimensionamento de malha de aterramento",
-      "Laudo técnico",
+      "Laudo de SPDA",
+      "Laudo da malha de aterramento",
+      "Laudo de subestação de média tensão",
       "Consultoria técnica"
     ];
   }
@@ -1495,10 +1497,18 @@
       var SUBJECT_RENAMES = {
         "Projeto elétrico em baixa tensão": "Projeto de instalações elétricas em baixa tensão",
         "Projeto elétrico e padrão de entrada": "Projeto de instalações elétricas e padrão de entrada",
-        "Projeto elétrico e SPDA": "Projeto de instalações elétricas e SPDA"
+        "Projeto elétrico e SPDA": "Projeto de instalações elétricas e SPDA",
+        "Projeto de SPDA": "Projeto de SPDA e proteção contra surtos",
+        "Projeto de energia fotovoltaica": "Projeto de sistema fotovoltaico conectado à rede",
+        "Estudo de proteção e seletividade": "Estudo de proteção e seletividade em média tensão",
+        "Laudo técnico": ["Laudo de SPDA", "Laudo da malha de aterramento", "Laudo de subestação de média tensão"]
       };
-      var seenSubj = {};
-      d.projectLibrary.subjects = d.projectLibrary.subjects.map(function(t){ return SUBJECT_RENAMES[t] || t; }).filter(function(t){
+      var seenSubj = {}, renamed = [];
+      d.projectLibrary.subjects.forEach(function(t){
+        var r = SUBJECT_RENAMES[t]; if(r === undefined) r = t;
+        renamed = renamed.concat(r);
+      });
+      d.projectLibrary.subjects = renamed.filter(function(t){
         if(seenSubj[t]) return false;
         seenSubj[t] = true;
         return true;
