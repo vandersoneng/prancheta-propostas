@@ -853,8 +853,7 @@
           <div class="field"><label for="f-company-doc">CNPJ</label><input id="f-company-doc" placeholder="00.000.000/0000-00"></div>
           <div class="field"><label for="f-company-phone">Telefone</label><input id="f-company-phone" placeholder="(00) 00000-0000"></div>
         </div>
-        <div class="field"><label for="f-company-address">Endereço</label><input id="f-company-address" placeholder="Rua, nº - Bairro"></div>
-        <div class="field"><label for="f-company-address2">Endereço (linha 2)</label><input id="f-company-address2" placeholder="Cidade/UF"></div>
+        <div id="addr-company-box"></div>
         <div class="field-row">
           <div class="field"><label for="f-company-email">E-mail</label><input id="f-company-email" placeholder="contato@suaempresa.com.br"></div>
           <div class="field"><label for="f-company-site">Site</label><input id="f-company-site" placeholder="www.suaempresa.com.br"></div>
@@ -1507,6 +1506,8 @@
     if(!issued) dr.clauses = clausesFromLibrary();
   }
   function companyCity(){
+    var cc = state.company;
+    if(cc.addr && String(cc.addr.cidade || "").trim()) return String(cc.addr.cidade).trim();
     return String(state.company.address2||"").split(/[\/\-,]/)[0].trim();
   }
 
@@ -2039,8 +2040,6 @@
     ["f-company-name", function(s){return s.company.name;}, function(s,v){s.company.name=v;}],
     ["f-company-doc", function(s){return s.company.doc;}, function(s,v){s.company.doc=v;}],
     ["f-company-phone", function(s){return s.company.phone;}, function(s,v){s.company.phone=v;}],
-    ["f-company-address", function(s){return s.company.address;}, function(s,v){s.company.address=v;}],
-    ["f-company-address2", function(s){return s.company.address2;}, function(s,v){s.company.address2=v;}],
     ["f-company-email", function(s){return s.company.email;}, function(s,v){s.company.email=v;}],
     ["f-company-site", function(s){return s.company.site;}, function(s,v){s.company.site=v;}],
     ["f-company-pix-key", function(s){return s.company.pixKey;}, function(s,v){s.company.pixKey=v;}],
@@ -2244,7 +2243,27 @@
     a.complemento = comp.join(", ");
     return a;
   }
-  function addrOwner(p){ return p === "client" ? draft().client : pj().obra; }
+  function addrOwner(p){ return p === "client" ? draft().client : (p === "company" ? state.company : pj().obra); }
+  // A empresa mostra o endereço em duas linhas no cabeçalho: 1) rua, nº, complemento - bairro  2) cidade/UF - CEP
+  function companyAddrLines(a){
+    function t(v){ return String(v == null ? "" : v).trim(); }
+    var street = t(a.logradouro), num = t(a.numero);
+    if(street && num) street += ", " + num; else if(num) street = num;
+    if(t(a.complemento)) street = street ? street + ", " + t(a.complemento) : t(a.complemento);
+    if(t(a.bairro)) street = street ? street + " - " + t(a.bairro) : t(a.bairro);
+    var cityUf = [t(a.cidade), t(a.uf)].filter(Boolean).join("/"), cep = t(fmtCEP(a.cep)), line2 = cityUf;
+    if(cep) line2 = line2 ? line2 + " - CEP " + cep : "CEP " + cep;
+    return [street, line2];
+  }
+  function syncAddrText(p, owner){
+    var a = addrOf(owner);
+    if(p === "company"){ var L = companyAddrLines(a); owner.address = L[0]; owner.address2 = L[1]; }
+    else owner.address = composeAddress(a);
+  }
+  function addrLegacyText(p, o){
+    var parts = p === "company" ? [o && o.address, o && o.address2] : [o && o.address];
+    return parts.map(function(x){ return String(x || "").trim(); }).filter(Boolean).join(p === "company" ? ", " : "");
+  }
   function addrBlockHtml(p){
     var ufOpts = '<option value="">—</option>' + UF_LIST.map(function(u){ return '<option>'+u+'</option>'; }).join("");
     function fld(key, label, extra, style, head){
@@ -2266,7 +2285,7 @@
   function updateAddrLegacy(p){
     var host = document.getElementById("addr-"+p+"-box"); if(!host) return;
     var hint = host.querySelector(".addr-legacy"); if(!hint) return;
-    var o = addrOwner(p), txt = String((o && o.address) || "").trim();
+    var o = addrOwner(p), txt = addrLegacyText(p, o);
     if(txt && !hasAddrParts(o)){
       hint.innerHTML = 'Endereço atual em texto único: <b>'+escapeHtml(txt)+'</b> <button type="button" class="link-btn" data-addr-parse="'+p+'">Separar nos campos</button>';
       hint.hidden = false;
@@ -2292,7 +2311,7 @@
   }
   function syncAddressFields(){
     syncObraExtras();
-    ["client", "obra"].forEach(function(p){
+    ["client", "obra", "company"].forEach(function(p){
       var host = document.getElementById("addr-"+p+"-box"); if(!host || !host.firstChild) return;
       var o = addrOwner(p), a = (o && o.addr) || {};
       host.querySelectorAll("[data-ak]").forEach(function(el){ el.value = a[el.getAttribute("data-ak")] || ""; });
@@ -2354,7 +2373,7 @@
     put("uf", String(res.uf || "").toUpperCase());
     if(!String(a.logradouro || "").trim()) put("logradouro", res.logradouro);
     if(!String(a.bairro || "").trim()) put("bairro", res.bairro);
-    owner.address = composeAddress(a);
+    syncAddrText(p, owner);
     paintAddrKeys(p, owner, changed);
     scheduleSave();
     var overwrote = (prevCity && libNorm(prevCity) !== libNorm(a.cidade)) || (prevUf && prevUf.toUpperCase() !== String(a.uf || "").toUpperCase());
@@ -2364,7 +2383,7 @@
   function undoCepResult(p, owner, snap){
     var a = addrOf(owner);
     Object.keys(snap).forEach(function(k){ a[k] = snap[k]; });
-    owner.address = composeAddress(a);
+    syncAddrText(p, owner);
     paintAddrKeys(p, owner, Object.keys(snap));
     scheduleSave();
   }
@@ -2395,14 +2414,14 @@
     });
   }
   function attachAddressBlocks(){
-    ["client", "obra"].forEach(function(p){
+    ["client", "obra", "company"].forEach(function(p){
       var host = document.getElementById("addr-"+p+"-box"); if(!host) return;
       host.innerHTML = addrBlockHtml(p);
       function store(el){
         var k = el.getAttribute("data-ak"); if(!k) return;
         var o = addrOwner(p), a = addrOf(o);
         a[k] = el.value;
-        o.address = composeAddress(a);
+        syncAddrText(p, o);
         updateAddrLegacy(p);
         scheduleSave();
         renderPreview();
@@ -2424,8 +2443,8 @@
         var pb = e.target.closest && e.target.closest("[data-addr-parse]");
         if(!pb) return;
         var o = addrOwner(p);
-        o.addr = parseAddressText(o.address);
-        o.address = composeAddress(o.addr);
+        o.addr = parseAddressText(addrLegacyText(p, o));
+        syncAddrText(p, o);
         syncAddressFields();
         scheduleSave(); renderPreview();
         toast("Endereço separado automaticamente — confira os campos");
