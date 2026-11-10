@@ -251,6 +251,16 @@
   .addr-box .field label{font-weight:500; font-size:11.5px;}
   .addr-box .label-row label{font-weight:700; font-size:12px; color:var(--ink-soft);}
   .addr-box .label-row{flex-wrap:wrap; row-gap:2px;}
+  .sec-card{display:flex; flex-direction:column; gap:9px; background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:10px 10px 12px; margin:0 -11px;}
+  .sec-card .field input, .sec-card .field select, .sec-card .field textarea{background:var(--paper-raised);}
+  .sec-card .field label{font-weight:500; font-size:11.5px;}
+  .sec-title, details.sec-card > summary{font-size:12px; font-weight:700; color:var(--ink-soft);}
+  details.sec-card > summary{cursor:pointer; list-style:none; display:flex; align-items:baseline; gap:6px;}
+  details.sec-card > summary::-webkit-details-marker{display:none;}
+  details.sec-card > summary::before{content:"\25B8"; color:var(--ink-faint); font-size:11px; flex-shrink:0;}
+  details.sec-card[open] > summary::before{content:"\25BE";}
+  details.sec-card > summary .hint{margin-left:auto; padding-left:8px; font-weight:400; text-align:right;}
+  details.sec-card[open] > summary{margin-bottom:2px;}
   .addr-legacy{background:var(--paper); border:1px dashed var(--line-strong); border-radius:6px; padding:6px 8px; line-height:1.45;}
   .addr-legacy[hidden]{display:none;}
   .link-btn{background:none; border:none; padding:0; color:var(--blue); font:inherit; font-size:12px; font-weight:400; text-decoration:underline; cursor:pointer;}
@@ -874,30 +884,42 @@
       <div class="field-group" data-panel="empresa" data-mode="projeto">
         <legend>Perfil profissional (projetos sem logo)</legend>
         <div class="hint">Usado quando a proposta de projeto é emitida como profissional liberal: sem logo, com estes dados no cabeçalho, na assinatura e no Pix.</div>
-        <div class="field"><label for="f-prof-name">Nome completo</label><input id="f-prof-name"></div>
-        <div class="field"><label for="f-prof-title">Formação / título</label><input id="f-prof-title" placeholder="Ex.: Engenheiro Eletricista"></div>
-        <div class="field"><label for="f-prof-reg">Registro profissional</label><input id="f-prof-reg" placeholder="Ex.: CREA-PA nº 000000000-0"></div>
-        <div class="field"><label for="f-prof-tagline">Linha de atuação (assinatura)</label><input id="f-prof-tagline" placeholder="Ex.: Projetos, Serviços e Consultoria em Instalações Elétricas"></div>
-        <div class="field-row">
-          <div class="field"><label for="f-prof-email">E-mail</label><input id="f-prof-email"></div>
-          <div class="field"><label for="f-prof-phone">Telefone / WhatsApp</label><input id="f-prof-phone" placeholder="(00) 00000-0000"></div>
+        <div class="sec-card">
+          <div class="sec-title">Identificação</div>
+          <div class="field"><label for="f-prof-name">Nome completo</label><input id="f-prof-name"></div>
+          <div class="field"><label for="f-prof-title">Formação / título</label><input id="f-prof-title" placeholder="Ex.: Engenheiro Eletricista"></div>
+          <div class="field-row">
+            <div class="field"><label for="f-prof-reg">Registro profissional</label><input id="f-prof-reg" placeholder="Ex.: CREA-PA nº 000000000-0"></div>
+            <div class="field" style="flex:0 0 124px;"><label for="f-prof-city" title="Cidade que aparece na data da proposta">Cidade (data)</label><input id="f-prof-city" placeholder="Ex.: Belém"></div>
+          </div>
         </div>
-        <div class="field" style="max-width:240px;"><label for="f-prof-city">Cidade (data da proposta)</label><input id="f-prof-city" placeholder="Ex.: Belém"></div>
-        <div class="sub-label">Pix do profissional</div>
-        <div class="field-row">
-          <div class="field"><label for="f-prof-pix-key">Chave Pix</label><input id="f-prof-pix-key"></div>
-          <div class="field"><label for="f-prof-pix-type">Tipo da chave</label><select id="f-prof-pix-type"></select></div>
+        <div class="sec-card">
+          <div class="sec-title">Assinatura e contato</div>
+          <div class="field"><label for="f-prof-tagline">Linha de atuação (assinatura)</label><input id="f-prof-tagline" placeholder="Ex.: Projetos, Serviços e Consultoria em Instalações Elétricas"></div>
+          <div class="field-row">
+            <div class="field"><label for="f-prof-email">E-mail</label><input id="f-prof-email"></div>
+            <div class="field"><label for="f-prof-phone">Telefone / WhatsApp</label><input id="f-prof-phone" placeholder="(00) 00000-0000"></div>
+          </div>
         </div>
-        <div class="field-row">
-          <div class="field"><label for="f-prof-pix-bank">Banco</label><input id="f-prof-pix-bank" placeholder="Ex.: Banco do Brasil"></div>
-          <div class="field"><label for="f-prof-pix-city">Cidade do Pix</label><input id="f-prof-pix-city" maxlength="15" placeholder="Ex.: BELEM"></div>
-        </div>
-        <div class="field"><label for="f-prof-pix-holder">Favorecido (nome na conta)</label><input id="f-prof-pix-holder" placeholder="Em branco: usa o nome completo"></div>
-        <div class="sub-label">Anexo I — qualificação técnica</div>
-        <div class="field"><label for="f-prof-annex-intro">Apresentação do profissional</label><textarea id="f-prof-annex-intro" rows="5"></textarea></div>
-        <div class="field"><label for="f-prof-annex-formation">Formação e registro (um item por linha)</label><textarea id="f-prof-annex-formation" rows="4"></textarea></div>
-        <div class="field"><label for="f-prof-annex-portfolio">Portfólio técnico (um item por linha)</label><textarea id="f-prof-annex-portfolio" rows="6"></textarea></div>
-        <div class="hint">Só cite no portfólio clientes que autorizaram a divulgação.</div>
+        <details class="sec-card" open>
+          <summary>Pix do profissional <span class="hint">QR Code na proposta</span></summary>
+          <div class="field-row">
+            <div class="field"><label for="f-prof-pix-key">Chave Pix</label><input id="f-prof-pix-key"></div>
+            <div class="field"><label for="f-prof-pix-type">Tipo da chave</label><select id="f-prof-pix-type"></select></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="f-prof-pix-bank">Banco</label><input id="f-prof-pix-bank" placeholder="Ex.: Banco do Brasil"></div>
+            <div class="field"><label for="f-prof-pix-city">Cidade do Pix</label><input id="f-prof-pix-city" maxlength="15" placeholder="Ex.: BELEM"></div>
+          </div>
+          <div class="field"><label for="f-prof-pix-holder">Favorecido (nome na conta)</label><input id="f-prof-pix-holder" placeholder="Em branco: usa o nome completo"></div>
+        </details>
+        <details class="sec-card">
+          <summary>Anexo I — qualificação técnica <span class="hint">opcional</span></summary>
+          <div class="field"><label for="f-prof-annex-intro">Apresentação do profissional</label><textarea id="f-prof-annex-intro" rows="5"></textarea></div>
+          <div class="field"><label for="f-prof-annex-formation">Formação e registro (um item por linha)</label><textarea id="f-prof-annex-formation" rows="4"></textarea></div>
+          <div class="field"><label for="f-prof-annex-portfolio">Portfólio técnico (um item por linha)</label><textarea id="f-prof-annex-portfolio" rows="6"></textarea></div>
+          <div class="hint">Só cite no portfólio clientes que autorizaram a divulgação.</div>
+        </details>
       </div>
 
       <div class="field-group" data-panel="empresa">
