@@ -242,6 +242,24 @@
     [data-lsd], [data-lcd]{scroll-margin-top:80px;}
   }
   .lib-bulk{display:flex; gap:14px; margin:-2px 0 0;}
+  .link-btn{background:none; border:none; padding:0; color:var(--blue); font:inherit; font-size:12px; font-weight:400; text-decoration:underline; cursor:pointer;}
+  .link-btn:hover{color:var(--accent);}
+  .label-row{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+  .combo{position:relative;}
+  .combo input{padding-right:36px;}
+  .combo-btn{position:absolute; right:3px; top:3px; bottom:3px; width:30px; display:flex; align-items:center; justify-content:center; background:transparent; border:none; border-radius:5px; color:var(--ink-soft); cursor:pointer;}
+  .combo-btn:hover{background:var(--paper);}
+  .combo-menu{position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px); max-height:280px; overflow-y:auto; background:var(--paper-raised); border:1px solid var(--line-strong); border-radius:8px; box-shadow:var(--shadow); padding:4px;}
+  .combo-menu[hidden]{display:none;}
+  .combo-opt{display:block; width:100%; text-align:left; padding:7px 10px; border:none; background:transparent; border-radius:6px; font:inherit; font-size:13px; color:var(--ink); cursor:pointer;}
+  .combo-opt:hover, .combo-opt.active{background:var(--paper);}
+  .combo-foot{padding:7px 10px 5px; font-size:11.5px; color:var(--ink-faint); border-top:1px solid var(--line); margin-top:4px;}
+  .combo-foot:first-child{border-top:none; margin-top:0;}
+  .act-row input{flex:1; min-width:0; padding:6px 8px; border:1px solid transparent; border-radius:6px; background:transparent; font:inherit;}
+  .act-row input:hover{border-color:var(--line);}
+  .act-row input:focus{border-color:var(--line-strong); background:var(--paper);}
+  .act-add input{border:1px dashed var(--line-strong);}
+  .act-mv{padding:2px 6px; font-size:11px; line-height:1; margin-top:4px;}
   .lib-split{display:grid; grid-template-columns:minmax(220px,300px) minmax(0,1fr); gap:16px; align-items:start;}
   .lib-list{position:sticky; top:calc(var(--lib-head-h,110px) + 6px); max-height:calc(100vh - var(--lib-head-h,110px) - 100px); overflow-y:auto; padding-right:4px;}
   .lib-list .lib-cat-body{gap:2px; padding-top:2px;}
@@ -580,7 +598,13 @@
           <div class="field"><label for="f-city">Cidade (data)</label><input id="f-city" placeholder="Ex.: Belém"></div>
           <div class="field"><label for="f-greeting">Saudação</label><input id="f-greeting" placeholder="Prezado(a) Senhor(a),"></div>
         </div>
-        <div class="field"><label for="f-subject">Assunto</label><input id="f-subject" placeholder="Ex.: Projetos elétricos, SPDA e subestação abrigada"></div>
+        <div class="field"><label for="f-subject">Assunto</label>
+          <div class="combo" id="subject-combo">
+            <input id="f-subject" placeholder="Escolha um título da lista ou digite outro" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="subject-menu" aria-expanded="false">
+            <button type="button" class="combo-btn" id="btn-subject-menu" aria-label="Ver os títulos padrão" title="Títulos padrão"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+            <div class="combo-menu" id="subject-menu" role="listbox" hidden></div>
+          </div>
+        </div>
       </div>
 
       <div class="field-group" data-panel="proposta">
@@ -600,7 +624,7 @@
 
       <div class="field-group" data-panel="proposta" data-mode="projeto">
         <legend>Dados da obra</legend>
-        <div class="field"><label for="f-obra-address">Endereço da obra</label><input id="f-obra-address" placeholder="Rua, nº, bairro, cidade/UF"></div>
+        <div class="field"><div class="label-row"><label for="f-obra-address">Endereço da obra</label><button type="button" class="link-btn" id="btn-obra-from-client" title="Copia o endereço do cliente para este campo">Usar o endereço do cliente</button></div><input id="f-obra-address" placeholder="Rua, nº, bairro, cidade/UF"></div>
         <div class="field"><label for="f-obra-floors">Pavimentos</label><input id="f-obra-floors" placeholder="Ex.: pavimento térreo e três pavimentos superiores"></div>
         <div class="field"><label for="f-obra-area">Área construída (m²)</label><input type="number" min="0" step="0.01" id="f-obra-area"></div>
         <div class="field"><label for="f-intro">Texto de abertura (opcional)</label><textarea id="f-intro" placeholder="Em branco: o texto é montado sozinho com os dados acima."></textarea></div>
@@ -740,9 +764,11 @@
         <div class="lib-tabs" role="tablist" aria-label="Modelos">
           <button type="button" class="lib-tab" role="tab" data-libtab-btn="servicos" aria-selected="true">Serviços <span class="lib-count" id="lib-count-s"></span></button>
           <button type="button" class="lib-tab" role="tab" data-libtab-btn="clausulas" aria-selected="false">Cláusulas <span class="lib-count" id="lib-count-c"></span></button>
+          <button type="button" class="lib-tab" role="tab" data-libtab-btn="assuntos" aria-selected="false">Assuntos <span class="lib-count" id="lib-count-a"></span></button>
           <span class="lib-spacer"></span>
           <button type="button" class="add-row-btn" id="btn-add-lib-service">+ serviço</button>
           <button type="button" class="add-row-btn" id="btn-add-lib-clause" style="display:none;">+ cláusula</button>
+          <button type="button" class="add-row-btn" id="btn-add-lib-subject" style="display:none;">+ assunto</button>
         </div>
         <div class="lib-tools">
           <input type="search" id="lib-search" placeholder="Buscar serviço ou atividade…" autocomplete="off" aria-label="Buscar nos modelos">
@@ -759,6 +785,11 @@
       <div class="field-group" data-panel="modelos" data-mode="projeto" data-libtab="clausulas">
         <div class="hint">Os modelos valem para propostas NOVAS. Numa proposta que já está aberta, use a aba Condições → "+ adicionar cláusulas do modelo que faltam". "Marcada por padrão" define se a cláusula já vem selecionada em toda proposta nova.</div>
         <div id="lib-clauses" style="display:flex; flex-direction:column; gap:10px;"></div>
+      </div>
+
+      <div class="field-group" data-panel="modelos" data-mode="projeto" data-libtab="assuntos">
+        <div class="hint">Títulos curtos que aparecem na lista do campo "Assunto" da proposta, para identificar o que foi contratado. Na proposta, você também pode digitar um título que não esteja aqui. Propostas já emitidas não mudam.</div>
+        <div id="lib-subjects"></div>
       </div>
 
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
@@ -1311,11 +1342,30 @@
     lib.version = LIBRARY_VERSION;
   }
 
+  function defaultSubjects(){
+    return [
+      "Projeto elétrico em baixa tensão",
+      "Projeto elétrico e padrão de entrada",
+      "Padrão de entrada em baixa tensão",
+      "Padrão de entrada provisório de obra",
+      "Projeto de SPDA",
+      "Projeto elétrico e SPDA",
+      "Projeto de subestação abrigada",
+      "Projeto de subestação aérea",
+      "Projeto de rede de média tensão",
+      "Projeto de energia fotovoltaica",
+      "Estudo de proteção e seletividade",
+      "Dimensionamento de malha de aterramento",
+      "Laudo técnico",
+      "Consultoria técnica"
+    ];
+  }
   function defaultProjectLibrary(){
     function cl(group, text, on){ return { id:genId(), group:group, text:text, on:!!on }; }
     return {
       version: LIBRARY_VERSION,
       services: defaultServiceCatalog(),
+      subjects: defaultSubjects(),
       clauses: [
         cl("Premissas", "Os projetos serão elaborados em conformidade com as normas técnicas ABNT aplicáveis (NBR 5410, NBR 14039 e NBR 5419) e com as normas e padrões técnicos da concessionária de energia.", true),
         cl("Premissas", "O prazo de elaboração dos projetos não contempla o período de análise do projeto pela Equatorial/PA, o qual depende exclusivamente dos procedimentos e prazos da concessionária.", true),
@@ -1436,6 +1486,9 @@
         if(!c.id) c.id = genId();
         return c;
       });
+    }
+    if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.subjects)){
+      d.projectLibrary.subjects = parsed.projectLibrary.subjects.map(function(t){ return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }).filter(function(t){ return t; });
     }
     if(parsed.projectLibrary){
       d.projectLibrary.version = parsed.projectLibrary.version || 1;
@@ -1997,6 +2050,89 @@
     });
   }
 
+  // ---------- campo Assunto: títulos padrão ou texto livre ----------
+  function attachSubjectCombo(){
+    var input = document.getElementById("f-subject"), btn = document.getElementById("btn-subject-menu"),
+        menu = document.getElementById("subject-menu"), combo = document.getElementById("subject-combo");
+    if(!input || !btn || !menu || !combo) return;
+    var active = -1, shown = [];
+    function build(filter){
+      var all = (state.projectLibrary.subjects || []).filter(function(t){ return String(t).trim(); });
+      var q = filter ? libNorm(filter).trim() : "";
+      shown = q ? all.filter(function(t){ return libNorm(t).indexOf(q) >= 0; }) : all;
+      var html = shown.map(function(t, i){
+        return '<button type="button" class="combo-opt" role="option" data-i="'+i+'">'+escapeHtml(t)+'</button>';
+      }).join("");
+      if(!shown.length) html = '<div class="combo-foot">Nenhum título da lista combina. O texto digitado será usado como está.</div>';
+      html += '<div class="combo-foot">Digite para usar outro título. <button type="button" class="link-btn" id="btn-subject-edit">Editar lista</button></div>';
+      menu.innerHTML = html;
+      active = -1;
+    }
+    function isOpen(){ return !menu.hidden; }
+    function open(filter){ build(filter); menu.hidden = false; btn.setAttribute("aria-expanded", "true"); input.setAttribute("aria-expanded", "true"); }
+    function close(){ menu.hidden = true; btn.setAttribute("aria-expanded", "false"); input.setAttribute("aria-expanded", "false"); active = -1; }
+    function mark(){
+      menu.querySelectorAll(".combo-opt").forEach(function(o, i){ o.classList.toggle("active", i === active); });
+      var cur = menu.querySelector(".combo-opt.active"); if(cur && cur.scrollIntoView) cur.scrollIntoView({ block:"nearest" });
+    }
+    function choose(i){
+      var t = shown[i]; if(t == null) return;
+      close();
+      input.value = t;
+      input.dispatchEvent(new Event("input", { bubbles:true }));
+      input.focus();
+    }
+    btn.addEventListener("click", function(){ if(isOpen()) close(); else { open(null); input.focus(); } });
+    input.addEventListener("focus", function(){ if(!input.value.trim()) open(null); });
+    input.addEventListener("input", function(e){ if(e.isTrusted !== false && document.activeElement === input) open(input.value); });
+    input.addEventListener("keydown", function(e){
+      if(e.key === "ArrowDown"){
+        e.preventDefault();
+        if(!isOpen()) open(null);
+        if(shown.length){ active = Math.min(active + 1, shown.length - 1); mark(); }
+      } else if(e.key === "ArrowUp" && isOpen()){
+        e.preventDefault();
+        active = Math.max(active - 1, 0); mark();
+      } else if(e.key === "Enter" && isOpen() && active >= 0){
+        e.preventDefault(); choose(active);
+      } else if(e.key === "Escape" && isOpen()){
+        e.preventDefault(); close();
+      }
+    });
+    menu.addEventListener("mousedown", function(e){ e.preventDefault(); });
+    menu.addEventListener("click", function(e){
+      var opt = e.target.closest(".combo-opt");
+      if(opt){ choose(parseInt(opt.getAttribute("data-i"), 10)); return; }
+      if(e.target.closest("#btn-subject-edit")){
+        close();
+        libTab = "assuntos"; clearLibSearch(); saveLibUi();
+        setActiveTab("modelos"); renderLibrary();
+      }
+    });
+    combo.addEventListener("focusout", function(e){ if(!combo.contains(e.relatedTarget)) close(); });
+    document.addEventListener("click", function(e){ if(!combo.contains(e.target)) close(); });
+  }
+
+  // ---------- endereço da obra: copiar o do cliente, se quiser ----------
+  function attachObraAddressImport(){
+    var btn = document.getElementById("btn-obra-from-client");
+    if(!btn) return;
+    btn.addEventListener("click", function(){
+      var ca = String(draft().client.address || "").trim();
+      if(!ca){
+        toast("Preencha o endereço do cliente primeiro");
+        var cf = document.getElementById("f-client-address"); if(cf) cf.focus();
+        return;
+      }
+      var cur = String(pj().obra.address || "").trim();
+      if(cur && cur !== ca && !confirm("Substituir o endereço da obra pelo endereço do cliente?\n\nAtual: "+cur+"\nCliente: "+ca)) return;
+      var inp = document.getElementById("f-obra-address");
+      inp.value = ca;
+      inp.dispatchEvent(new Event("input", { bubbles:true }));
+      toast("Endereço do cliente copiado para a obra");
+    });
+  }
+
   // ---------- busca automática de dados por CNPJ ----------
   var cnpjLookupSeq = 0;
   function formatCnpjPhone(raw){
@@ -2551,7 +2687,7 @@
     try{
       var u = JSON.parse(localStorage.getItem(LIB_UI_KEY) || "null");
       if(u){
-        if(u.tab === "clausulas") libTab = "clausulas";
+        if(u.tab === "clausulas" || u.tab === "assuntos") libTab = u.tab;
         if(typeof u.sel === "string") libSel = u.sel;
         if(u.closed && typeof u.closed === "object") libCatClosed = u.closed;
       }
@@ -2562,11 +2698,18 @@
   function libNorm(s){ return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
   function libMatch(text){ return !libQuery || libNorm(text).indexOf(libQuery) >= 0; }
   function clearLibSearch(){ libQuery = ""; var se = document.getElementById("lib-search"); if(se) se.value = ""; }
-  function updateLibHead(shownS, shownC){
+  function updateLibHead(shownS, shownC, shownA){
     var lib = state.projectLibrary, q = !!libQuery;
     var cs = document.getElementById("lib-count-s"), cc = document.getElementById("lib-count-c");
     if(cs) cs.textContent = "("+(q && libTab === "servicos" ? shownS+" de " : "")+lib.services.length+")";
     if(cc) cc.textContent = "("+(q && libTab === "clausulas" ? shownC+" de " : "")+lib.clauses.length+")";
+    var ca = document.getElementById("lib-count-a");
+    if(ca) ca.textContent = "("+(q && libTab === "assuntos" ? shownA+" de " : "")+(lib.subjects || []).length+")";
+    var asb = document.getElementById("btn-add-lib-subject");
+    if(asb) asb.style.display = libTab === "assuntos" ? "" : "none";
+    ["btn-lib-collapse", "btn-lib-expand"].forEach(function(id){
+      var be = document.getElementById(id); if(be) be.style.display = libTab === "assuntos" ? "none" : "";
+    });
     document.querySelectorAll("[data-libtab-btn]").forEach(function(b){
       b.setAttribute("aria-selected", b.getAttribute("data-libtab-btn") === libTab ? "true" : "false");
     });
@@ -2574,7 +2717,7 @@
     if(as) as.style.display = libTab === "servicos" ? "" : "none";
     if(ac) ac.style.display = libTab === "clausulas" ? "" : "none";
     var se = document.getElementById("lib-search");
-    if(se) se.placeholder = libTab === "servicos" ? "Buscar serviço ou atividade…" : "Buscar cláusula…";
+    if(se) se.placeholder = libTab === "servicos" ? "Buscar serviço ou atividade…" : (libTab === "clausulas" ? "Buscar cláusula…" : "Buscar assunto…");
     updateLibHeadVar();
   }
   function updateLibHeadVar(){
@@ -2640,6 +2783,26 @@
       '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer na lista">▼</button>' +
       '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div>';
   }
+  function renderLibSubjects(){
+    var box = document.getElementById("lib-subjects");
+    var arr = state.projectLibrary.subjects || [], shown = 0, html = "";
+    arr.forEach(function(t, k){
+      if(!libMatch(t)) return;
+      shown++;
+      html += '<div class="act-row" data-sb-row="'+k+'"><span class="act-n">'+(k+1)+'</span>'+
+        '<input data-sb-text="'+k+'" value="'+escapeHtml(t)+'" aria-label="Assunto '+(k+1)+'">'+
+        '<button type="button" class="btn-ghost btn-sm act-mv" data-sb-up="'+k+'" title="Subir" aria-label="Subir">▲</button>'+
+        '<button type="button" class="btn-ghost btn-sm act-mv" data-sb-down="'+k+'" title="Descer" aria-label="Descer">▼</button>'+
+        '<button type="button" class="btn-ghost btn-sm act-rm" data-sb-rm="'+k+'" aria-label="Remover assunto" title="Remover">&times;</button></div>';
+    });
+    if(!libQuery){
+      html += '<div class="act-row act-add"><span class="act-n">+</span><input data-sb-add placeholder="Novo título… (Enter para adicionar)" aria-label="Novo assunto"></div>';
+    } else if(!shown){
+      html = '<div class="hint">Nenhum assunto encontrado.</div>';
+    }
+    if(box) box.innerHTML = '<div class="act-box">'+html+'</div>';
+    return shown;
+  }
   function renderLibrary(){
     var lib = state.projectLibrary;
     var box = document.getElementById("lib-services");
@@ -2678,7 +2841,8 @@
         '<button type="button" class="btn-ghost btn-sm" data-lc-down="'+i+'" title="Descer">▼</button>' +
         '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></details>';
     }).join("") || '<div class="hint">Nenhuma cláusula encontrada'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
-    updateLibHead(shownS, shownC);
+    var shownA = renderLibSubjects();
+    updateLibHead(shownS, shownC, shownA);
     growTextareas();
   }
   // Resumo de uma linha da cláusula recolhida: grupo + início do texto (o recorte é feito por CSS)
@@ -3269,6 +3433,72 @@
         return;
       } else return;
       renderLibrary(); scheduleSave();
+    });
+    // --- lista de assuntos (títulos padrão do campo "Assunto") ---
+    var sbBox = document.getElementById("lib-subjects");
+    function subjectsArr(){
+      var l = state.projectLibrary;
+      if(!Array.isArray(l.subjects)) l.subjects = [];
+      return l.subjects;
+    }
+    function cleanSubject(v){ return String(v == null ? "" : v).replace(/\s+/g, " ").trim(); }
+    function addSubject(text, keepFocus){
+      var v = cleanSubject(text);
+      if(!v) return false;
+      var arr = subjectsArr();
+      if(arr.some(function(x){ return libNorm(x) === libNorm(v); })){ toast("Esse assunto já está na lista"); return false; }
+      arr.push(v);
+      updateLibHead(0, 0, renderLibSubjects()); scheduleSave();
+      if(keepFocus){ var ai = sbBox.querySelector("[data-sb-add]"); if(ai) ai.focus(); }
+      return true;
+    }
+    function removeSubject(k, undo){
+      var arr = subjectsArr(), gone = arr.splice(k, 1)[0];
+      updateLibHead(0, 0, renderLibSubjects()); scheduleSave();
+      if(undo && gone){
+        toastUndo('Assunto "'+gone+'" removido', function(){
+          arr.splice(Math.min(k, arr.length), 0, gone);
+          updateLibHead(0, 0, renderLibSubjects()); scheduleSave();
+        });
+      }
+    }
+    sbBox.addEventListener("input", function(e){
+      var k = e.target.getAttribute && e.target.getAttribute("data-sb-text");
+      if(k == null) return;
+      subjectsArr()[parseInt(k, 10)] = e.target.value;
+      scheduleSave();
+    });
+    sbBox.addEventListener("keydown", function(e){
+      var t = e.target; if(!t.getAttribute) return;
+      var kAttr = t.getAttribute("data-sb-text"), isAdd = t.hasAttribute("data-sb-add");
+      if(kAttr == null && !isAdd) return;
+      if(e.key !== "Enter") return;
+      e.preventDefault();
+      if(isAdd) addSubject(t.value, true);
+      else {
+        var nx = sbBox.querySelector('[data-sb-text="'+(parseInt(kAttr, 10)+1)+'"]') || sbBox.querySelector("[data-sb-add]");
+        if(nx) nx.focus();
+      }
+    });
+    sbBox.addEventListener("focusout", function(e){
+      var t = e.target; if(!t.getAttribute || !t.isConnected) return;
+      if(t.hasAttribute("data-sb-add")){ if(cleanSubject(t.value)) addSubject(t.value, false); return; }
+      var kAttr = t.getAttribute("data-sb-text"); if(kAttr == null) return;
+      var arr = subjectsArr(), k = parseInt(kAttr, 10), v = cleanSubject(arr[k]);
+      if(!v){ removeSubject(k, false); return; }
+      if(v !== arr[k]){ arr[k] = v; t.value = v; scheduleSave(); }
+    });
+    sbBox.addEventListener("click", function(e){
+      var arr = subjectsArr();
+      var up = e.target.closest("[data-sb-up]"), down = e.target.closest("[data-sb-down]"), rm = e.target.closest("[data-sb-rm]");
+      if(up){ if(moveInArray(arr, parseInt(up.getAttribute("data-sb-up"), 10), -1)){ renderLibSubjects(); scheduleSave(); } }
+      else if(down){ if(moveInArray(arr, parseInt(down.getAttribute("data-sb-down"), 10), 1)){ renderLibSubjects(); scheduleSave(); } }
+      else if(rm){ removeSubject(parseInt(rm.getAttribute("data-sb-rm"), 10), true); }
+    });
+    document.getElementById("btn-add-lib-subject").addEventListener("click", function(){
+      clearLibSearch(); renderLibSubjects();
+      var ai = sbBox.querySelector("[data-sb-add]");
+      if(ai){ ai.scrollIntoView({ block:"nearest" }); ai.focus(); }
     });
     document.getElementById("btn-add-lib-clause").addEventListener("click", function(){
       clearLibSearch();
@@ -6464,6 +6694,8 @@
     loadHistoryCollapseState();
     attachProjetoHandlers();
     attachBindings();
+    attachSubjectCombo();
+    attachObraAddressImport();
     attachCnpjLookup();
     attachItemsDelegation();
     attachTaxesDelegation();
