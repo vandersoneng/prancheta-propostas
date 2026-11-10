@@ -2299,6 +2299,52 @@
       updateAddrLegacy(p);
     });
   }
+  // ---------- CEP: cidade e UF (e, se vazios, logradouro e bairro) vêm da consulta ----------
+  var cepDone = (typeof WeakMap === "function") ? new WeakMap() : null;   // CEP já consultado por endereço (evita repetir)
+  function fetchCep(digits){
+    return fetch("https://brasilapi.com.br/api/cep/v1/"+digits)
+      .then(function(r){ if(!r.ok) throw new Error("brasilapi"); return r.json(); })
+      .then(function(d){ return { cidade:d.city, uf:d.state, bairro:d.neighborhood, logradouro:d.street }; })
+      .catch(function(){
+        return fetch("https://viacep.com.br/ws/"+digits+"/json/")
+          .then(function(r){ if(!r.ok) throw new Error("viacep"); return r.json(); })
+          .then(function(d){ return d && !d.erro ? { cidade:d.localidade, uf:d.uf, bairro:d.bairro, logradouro:d.logradouro } : null; });
+      });
+  }
+  function applyCepResult(p, owner, res){
+    var a = addrOf(owner), changed = [];
+    function put(key, val){ if(val != null && String(val).trim() !== "" && a[key] !== val){ a[key] = val; changed.push(key); } }
+    put("cidade", String(res.cidade || "").trim());
+    put("uf", String(res.uf || "").trim().toUpperCase());
+    if(!String(a.logradouro || "").trim()) put("logradouro", String(res.logradouro || "").trim());
+    if(!String(a.bairro || "").trim()) put("bairro", String(res.bairro || "").trim());
+    owner.address = composeAddress(a);
+    if(addrOwner(p) === owner){                       // só mexe na tela se esta proposta ainda é a que está aberta
+      var host = document.getElementById("addr-"+p+"-box");
+      if(host) changed.forEach(function(k){
+        var el = host.querySelector('[data-ak="'+k+'"]');
+        if(el && el.value !== a[k]) el.value = a[k];
+      });
+      updateAddrLegacy(p);
+      renderPreview();
+    }
+    scheduleSave();
+  }
+  function maybeLookupCep(p, value){
+    var digits = String(value || "").replace(/D/g, "");
+    var owner = addrOwner(p);
+    if(digits.length !== 8){ if(cepDone) cepDone.delete(owner); return; }   // CEP editado: uma nova digitação volta a consultar
+    if(cepDone && cepDone.get(owner) === digits) return;
+    if(cepDone) cepDone.set(owner, digits);
+    fetchCep(digits).then(function(res){
+      if(!res || !(res.cidade || res.uf)){ toast("CEP não encontrado: confira o número"); return; }
+      applyCepResult(p, owner, res);
+      toast(res.logradouro || res.bairro ? "Endereço preenchido pelo CEP" : "Cidade e UF preenchidos pelo CEP");
+    }).catch(function(){
+      if(cepDone) cepDone.delete(owner);              // permite tentar de novo
+      toast("Não foi possível buscar o CEP agora. Preencha a cidade manualmente.");
+    });
+  }
   function attachAddressBlocks(){
     ["client", "obra"].forEach(function(p){
       var host = document.getElementById("addr-"+p+"-box"); if(!host) return;
@@ -2312,13 +2358,18 @@
         scheduleSave();
         renderPreview();
       }
-      host.addEventListener("input", function(e){ if(e.target.tagName !== "SELECT") store(e.target); });
+      host.addEventListener("input", function(e){
+        if(e.target.tagName === "SELECT") return;
+        store(e.target);
+        if(e.target.getAttribute("data-ak") === "cep") maybeLookupCep(p, e.target.value);
+      });
       host.addEventListener("change", function(e){ if(e.target.tagName === "SELECT") store(e.target); });
       host.addEventListener("focusout", function(e){
         var el = e.target;
         if(!el.getAttribute || el.getAttribute("data-ak") !== "cep") return;
         var v = fmtCEP(el.value);
         if(v !== el.value){ el.value = v; store(el); }
+        maybeLookupCep(p, el.value);
       });
       host.addEventListener("click", function(e){
         var pb = e.target.closest && e.target.closest("[data-addr-parse]");
