@@ -1342,6 +1342,10 @@
     lib.version = LIBRARY_VERSION;
   }
 
+  // Versão da lista padrão de assuntos. Quando sobe, os títulos novos são acrescentados UMA vez às listas já
+  // existentes (e a marca é gravada, então quem apagar um título não o vê voltar).
+  var SUBJECTS_SEED = 2;
+  var SUBJECTS_ADDED_IN_V2 = [{ text:"Projetos de instalações elétricas em baixa tensão, SPDA e subestação", after:"Projeto de instalações elétricas e SPDA" }];
   function defaultSubjects(){
     return [
       "Projeto de instalações elétricas em baixa tensão",
@@ -1350,6 +1354,7 @@
       "Padrão de entrada provisório de obra",
       "Projeto de SPDA e proteção contra surtos",
       "Projeto de instalações elétricas e SPDA",
+      "Projetos de instalações elétricas em baixa tensão, SPDA e subestação",
       "Projeto de subestação abrigada",
       "Projeto de subestação aérea",
       "Projeto de rede de média tensão",
@@ -1368,6 +1373,7 @@
       version: LIBRARY_VERSION,
       services: defaultServiceCatalog(),
       subjects: defaultSubjects(),
+      subjectsSeed: SUBJECTS_SEED,
       clauses: [
         cl("Premissas", "Os projetos serão elaborados em conformidade com as normas técnicas ABNT aplicáveis (NBR 5410, NBR 14039 e NBR 5419) e com as normas e padrões técnicos da concessionária de energia.", true),
         cl("Premissas", "O prazo de elaboração dos projetos não contempla o período de análise do projeto pela Equatorial/PA, o qual depende exclusivamente dos procedimentos e prazos da concessionária.", true),
@@ -1513,6 +1519,18 @@
         seenSubj[t] = true;
         return true;
       });
+    }
+    if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.subjects)){
+      var seedNow = Number(parsed.projectLibrary.subjectsSeed) || 1;
+      if(seedNow < 2){
+        SUBJECTS_ADDED_IN_V2.forEach(function(ad){
+          if(d.projectLibrary.subjects.indexOf(ad.text) >= 0) return;
+          var at = d.projectLibrary.subjects.indexOf(ad.after);
+          if(at >= 0) d.projectLibrary.subjects.splice(at + 1, 0, ad.text);
+          else d.projectLibrary.subjects.push(ad.text);
+        });
+      }
+      d.projectLibrary.subjectsSeed = SUBJECTS_SEED;
     }
     if(parsed.projectLibrary){
       d.projectLibrary.version = parsed.projectLibrary.version || 1;
