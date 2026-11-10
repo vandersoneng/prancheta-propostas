@@ -242,6 +242,10 @@
     [data-lsd], [data-lcd]{scroll-margin-top:80px;}
   }
   .lib-bulk{display:flex; gap:14px; margin:-2px 0 0;}
+  .addr-head{display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:-2px;}
+  .addr-box{display:flex; flex-direction:column; gap:8px;}
+  .addr-legacy{background:var(--paper); border:1px dashed var(--line-strong); border-radius:6px; padding:6px 8px; line-height:1.45;}
+  .addr-legacy[hidden]{display:none;}
   .link-btn{background:none; border:none; padding:0; color:var(--blue); font:inherit; font-size:12px; font-weight:400; text-decoration:underline; cursor:pointer;}
   .link-btn:hover{color:var(--accent);}
   .label-row{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
@@ -615,7 +619,7 @@
           <div class="field"><label for="f-client-doc">CNPJ/CPF</label><input id="f-client-doc" placeholder="Digite o CNPJ para buscar os dados" title="Para CNPJ, os dados da empresa são buscados automaticamente ao sair do campo"></div>
           <div class="field"><label for="f-client-phone">Telefone</label><input id="f-client-phone"></div>
         </div>
-        <div class="field"><label for="f-client-address">Endereço</label><input id="f-client-address"></div>
+        <div><div class="addr-head"><span>Endereço</span></div><div id="addr-client-box"></div></div>
         <div class="field-row">
           <div class="field"><label for="f-client-contact" id="lbl-client-contact">Contato</label><input id="f-client-contact" placeholder="Pessoa de contato"></div>
           <div class="field"><label for="f-client-email">E-mail</label><input id="f-client-email"></div>
@@ -624,7 +628,7 @@
 
       <div class="field-group" data-panel="proposta" data-mode="projeto">
         <legend>Dados da obra</legend>
-        <div class="field"><div class="label-row"><label for="f-obra-address">Endereço da obra</label><button type="button" class="link-btn" id="btn-obra-from-client" title="Copia o endereço do cliente para este campo">Usar o endereço do cliente</button></div><input id="f-obra-address" placeholder="Rua, nº, bairro, cidade/UF"></div>
+        <div><div class="addr-head"><span>Endereço da obra</span><button type="button" class="link-btn" id="btn-obra-from-client" title="Copia o endereço do cliente para a obra">Usar o endereço do cliente</button></div><div id="addr-obra-box"></div></div>
         <div class="field"><label for="f-obra-floors">Pavimentos</label><input id="f-obra-floors" placeholder="Ex.: pavimento térreo e três pavimentos superiores"></div>
         <div class="field"><label for="f-obra-area">Área construída (m²)</label><input type="number" min="0" step="0.01" id="f-obra-area"></div>
         <div class="field"><label for="f-intro">Texto de abertura (opcional)</label><textarea id="f-intro" placeholder="Em branco: o texto é montado sozinho com os dados acima."></textarea></div>
@@ -2016,7 +2020,6 @@
     ["f-client-name", function(s){return draft().client.name;}, function(s,v){draft().client.name=v;}],
     ["f-client-doc", function(s){return draft().client.doc;}, function(s,v){draft().client.doc=v;}],
     ["f-client-phone", function(s){return draft().client.phone;}, function(s,v){draft().client.phone=v;}],
-    ["f-client-address", function(s){return draft().client.address;}, function(s,v){draft().client.address=v;}],
     ["f-client-contact", function(s){return draft().client.contact;}, function(s,v){draft().client.contact=v;}],
     ["f-client-email", function(s){return draft().client.email;}, function(s,v){draft().client.email=v;}],
 
@@ -2032,7 +2035,6 @@
     ["f-subject", function(s){return pj().subject;}, function(s,v){pj().subject=v;}],
     ["f-city", function(s){return pj().city;}, function(s,v){pj().city=v;}],
     ["f-greeting", function(s){return pj().greeting;}, function(s,v){pj().greeting=v;}],
-    ["f-obra-address", function(s){return pj().obra.address;}, function(s,v){pj().obra.address=v;}],
     ["f-obra-floors", function(s){return pj().obra.floors;}, function(s,v){pj().obra.floors=v;}],
     ["f-obra-area", function(s){return pj().obra.area||"";}, function(s,v){pj().obra.area=nonNeg(v); syncAutoQty();}],
     ["f-intro", function(s){return pj().intro;}, function(s,v){pj().intro=v;}],
@@ -2155,22 +2157,140 @@
     document.addEventListener("click", function(e){ if(!combo.contains(e.target)) close(); });
   }
 
+  // ---------- endereço em campos separados (cliente e obra) ----------
+  // Cada endereço guarda as partes em .addr e o texto montado em .address. Tudo o que já usava o texto
+  // único (PDF, histórico, DocVolt) continua lendo .address; as partes servem para editar e para os textos padrão.
+  var UF_LIST = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+  var ADDR_KEYS = ["logradouro","numero","complemento","bairro","cep","cidade","uf"];
+  function emptyAddr(){ return { logradouro:"", numero:"", complemento:"", bairro:"", cep:"", cidade:"", uf:"" }; }
+  function fmtCEP(s){ var d = String(s == null ? "" : s).replace(/\D/g, ""); return d.length === 8 ? d.slice(0,5)+"-"+d.slice(5) : String(s == null ? "" : s); }
+  function addrOf(owner){
+    if(!owner.addr || typeof owner.addr !== "object") owner.addr = emptyAddr();
+    ADDR_KEYS.forEach(function(k){ if(owner.addr[k] == null) owner.addr[k] = ""; });
+    return owner.addr;
+  }
+  function hasAddrParts(owner){
+    return !!(owner && owner.addr && typeof owner.addr === "object" && ADDR_KEYS.some(function(k){ return String(owner.addr[k] || "").trim() !== ""; }));
+  }
+  function composeAddress(a){
+    function t(v){ return String(v == null ? "" : v).trim(); }
+    var street = t(a.logradouro), num = t(a.numero);
+    if(street && num) street += ", " + num; else if(num) street = num;
+    var cityUf = [t(a.cidade), t(a.uf)].filter(Boolean).join("/");
+    var cep = t(fmtCEP(a.cep));
+    return [street, t(a.complemento), t(a.bairro), cityUf, cep ? "CEP "+cep : ""].filter(Boolean).join(", ");
+  }
+  // Separa um endereço escrito em um campo só (melhor esforço: o usuário confere depois)
+  function parseAddressText(text){
+    var a = emptyAddr(), s = " " + String(text || "") + " ";
+    var m = s.match(/(\d{2}\.?\d{3}-?\d{3})/);
+    if(m){ a.cep = fmtCEP(m[1].replace(/\D/g, "")); s = s.replace(m[1], " "); }
+    s = s.replace(/\bCEP\b\s*[:.]?/ig, " ");
+    var mc = s.match(/([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'. ]*?)\s*\/\s*([A-Za-z]{2})\b/);
+    if(mc && UF_LIST.indexOf(mc[2].toUpperCase()) >= 0){
+      a.cidade = mc[1].trim(); a.uf = mc[2].toUpperCase(); s = s.replace(mc[0], " ");
+    } else {
+      var mu = s.match(/[\s,\-–]+([A-Za-z]{2})[\s.,;]*$/);
+      if(mu && UF_LIST.indexOf(mu[1].toUpperCase()) >= 0){ a.uf = mu[1].toUpperCase(); s = s.slice(0, mu.index); }
+    }
+    var toks = s.split(/\s+[-–]\s+|,/).map(function(x){ return x.replace(/\s+/g, " ").trim(); }).filter(Boolean);
+    if(toks.length) a.logradouro = toks.shift();
+    if(toks.length && /^(\d+[A-Za-z]?|s\/?n)$/i.test(toks[0])) a.numero = toks.shift();
+    else if(a.logradouro){
+      var mn = a.logradouro.match(/^(.*\D)\s+(\d+[A-Za-z]?)$/);
+      if(mn){ a.logradouro = mn[1].trim(); a.numero = mn[2]; }
+    }
+    var COMP = /^(sala|apto?\.?|apartamento|bloco|bl\.?|casa|lote|lt\.?|quadra|qd\.?|andar|loja|torre|conjunto|cj\.?|edif|ed\.|edifício|fundos|galpão|km)\b/i;
+    var comp = [], nc = [];
+    toks.forEach(function(x){ if(COMP.test(x)) comp.push(x); else nc.push(x); });
+    if(!a.cidade && nc.length >= 2) a.cidade = nc.pop();
+    if(nc.length) a.bairro = nc.shift();
+    comp = comp.concat(nc);
+    a.complemento = comp.join(", ");
+    return a;
+  }
+  function addrOwner(p){ return p === "client" ? draft().client : pj().obra; }
+  function addrBlockHtml(p){
+    var ufOpts = '<option value="">—</option>' + UF_LIST.map(function(u){ return '<option>'+u+'</option>'; }).join("");
+    function fld(key, label, extra, style){
+      return '<div class="field"'+(style ? ' style="'+style+'"' : '')+'><label for="f-'+p+'-'+key+'">'+label+'</label><input id="f-'+p+'-'+key+'" data-ak="'+key+'"'+(extra||"")+' autocomplete="off"></div>';
+    }
+    return '<div class="addr-box">' +
+      fld("logradouro", "Logradouro", ' placeholder="Rua, Travessa, Avenida…"') +
+      '<div class="field-row">' + fld("numero", "Nº", ' placeholder="s/n"', "flex:0 0 84px") + fld("complemento", "Complemento", ' placeholder="opcional"') + '</div>' +
+      '<div class="field-row">' + fld("bairro", "Bairro", "") + fld("cep", "CEP", ' inputmode="numeric" placeholder="00000-000"', "flex:0 0 118px") + '</div>' +
+      '<div class="field-row">' + fld("cidade", "Cidade", "") +
+        '<div class="field" style="flex:0 0 84px"><label for="f-'+p+'-uf">UF</label><select id="f-'+p+'-uf" data-ak="uf">'+ufOpts+'</select></div></div>' +
+      '<div class="hint addr-legacy" hidden></div></div>';
+  }
+  function updateAddrLegacy(p){
+    var host = document.getElementById("addr-"+p+"-box"); if(!host) return;
+    var hint = host.querySelector(".addr-legacy"); if(!hint) return;
+    var o = addrOwner(p), txt = String((o && o.address) || "").trim();
+    if(txt && !hasAddrParts(o)){
+      hint.innerHTML = 'Endereço atual em texto único: <b>'+escapeHtml(txt)+'</b> <button type="button" class="link-btn" data-addr-parse="'+p+'">Separar nos campos</button>';
+      hint.hidden = false;
+    } else { hint.hidden = true; hint.innerHTML = ""; }
+  }
+  function syncAddressFields(){
+    ["client", "obra"].forEach(function(p){
+      var host = document.getElementById("addr-"+p+"-box"); if(!host || !host.firstChild) return;
+      var o = addrOwner(p), a = (o && o.addr) || {};
+      host.querySelectorAll("[data-ak]").forEach(function(el){ el.value = a[el.getAttribute("data-ak")] || ""; });
+      updateAddrLegacy(p);
+    });
+  }
+  function attachAddressBlocks(){
+    ["client", "obra"].forEach(function(p){
+      var host = document.getElementById("addr-"+p+"-box"); if(!host) return;
+      host.innerHTML = addrBlockHtml(p);
+      function store(el){
+        var k = el.getAttribute("data-ak"); if(!k) return;
+        var o = addrOwner(p), a = addrOf(o);
+        a[k] = el.value;
+        o.address = composeAddress(a);
+        updateAddrLegacy(p);
+        scheduleSave();
+        renderPreview();
+      }
+      host.addEventListener("input", function(e){ if(e.target.tagName !== "SELECT") store(e.target); });
+      host.addEventListener("change", function(e){ if(e.target.tagName === "SELECT") store(e.target); });
+      host.addEventListener("focusout", function(e){
+        var el = e.target;
+        if(!el.getAttribute || el.getAttribute("data-ak") !== "cep") return;
+        var v = fmtCEP(el.value);
+        if(v !== el.value){ el.value = v; store(el); }
+      });
+      host.addEventListener("click", function(e){
+        var pb = e.target.closest && e.target.closest("[data-addr-parse]");
+        if(!pb) return;
+        var o = addrOwner(p);
+        o.addr = parseAddressText(o.address);
+        o.address = composeAddress(o.addr);
+        syncAddressFields();
+        scheduleSave(); renderPreview();
+        toast("Endereço separado automaticamente — confira os campos");
+      });
+    });
+  }
+
   // ---------- endereço da obra: copiar o do cliente, se quiser ----------
   function attachObraAddressImport(){
     var btn = document.getElementById("btn-obra-from-client");
     if(!btn) return;
     btn.addEventListener("click", function(){
-      var ca = String(draft().client.address || "").trim();
+      var c = draft().client, ca = String(c.address || "").trim();
       if(!ca){
         toast("Preencha o endereço do cliente primeiro");
-        var cf = document.getElementById("f-client-address"); if(cf) cf.focus();
+        var cf = document.getElementById("f-client-logradouro"); if(cf) cf.focus();
         return;
       }
-      var cur = String(pj().obra.address || "").trim();
+      var o = pj().obra, cur = String(o.address || "").trim();
       if(cur && cur !== ca && !confirm("Substituir o endereço da obra pelo endereço do cliente?\n\nAtual: "+cur+"\nCliente: "+ca)) return;
-      var inp = document.getElementById("f-obra-address");
-      inp.value = ca;
-      inp.dispatchEvent(new Event("input", { bubbles:true }));
+      o.addr = hasAddrParts(c) ? Object.assign(emptyAddr(), c.addr) : emptyAddr();
+      o.address = ca;
+      syncAddressFields();
+      scheduleSave(); renderPreview();
       toast("Endereço do cliente copiado para a obra");
     });
   }
@@ -2218,7 +2338,21 @@
           if(isCurrent){ var el = document.getElementById(fieldId); if(el) el.value = value; }
         }
         apply("f-client-name", "name", data.razao_social || data.nome_fantasia || "");
-        apply("f-client-address", "address", formatCnpjAddress(data));
+        (function(){
+          var ad = emptyAddr();
+          var tipo = String(data.descricao_tipo_de_logradouro || "").trim(), lg = String(data.logradouro || "").trim();
+          ad.logradouro = (tipo && lg && lg.toUpperCase().indexOf(tipo.toUpperCase()) !== 0) ? tipo+" "+lg : lg;
+          ad.numero = String(data.numero || "").trim();
+          ad.complemento = String(data.complemento || "").trim();
+          ad.bairro = String(data.bairro || "").trim();
+          ad.cep = fmtCEP(data.cep);
+          ad.cidade = String(data.municipio || "").trim();
+          ad.uf = String(data.uf || "").trim().toUpperCase();
+          if(!ADDR_KEYS.some(function(k){ return ad[k]; })) return;
+          targetClient.addr = ad;
+          targetClient.address = composeAddress(ad);
+          if(isCurrent) syncAddressFields();
+        })();
         apply("f-client-phone", "phone", formatCnpjPhone(data.ddd_telefone_1));
         apply("f-client-email", "email", data.email || "");
         if(isCurrent) renderPreview();
@@ -2274,11 +2408,17 @@
       var match = findMostRecentClientByName(cl.name);
       if(!match) return;
       var changed = false;
-      ["doc","phone","address","contact","email"].forEach(function(prop){
+      if(!cl.address && match.address){
+        cl.address = match.address;
+        if(match.addr && typeof match.addr === "object") cl.addr = Object.assign(emptyAddr(), match.addr);
+        changed = true;
+        syncAddressFields();
+      }
+      ["doc","phone","contact","email"].forEach(function(prop){
         if(cl[prop] || !match[prop]) return; // nunca sobrescreve o que o usuário já preencheu
         cl[prop] = match[prop];
         changed = true;
-        var fieldId = { doc:"f-client-doc", phone:"f-client-phone", address:"f-client-address", contact:"f-client-contact", email:"f-client-email" }[prop];
+        var fieldId = { doc:"f-client-doc", phone:"f-client-phone", contact:"f-client-contact", email:"f-client-email" }[prop];
         var el = document.getElementById(fieldId);
         if(el) el.value = match[prop];
       });
@@ -2402,6 +2542,7 @@
 
   function syncFormFromState(){
     scopeEditing = null;
+    syncAddressFields();
     bindings.forEach(function(b){
       var el = document.getElementById(b[0]);
       var v = b[1](state);
@@ -6735,6 +6876,7 @@
     ensureDraftClauses();
     loadHistoryCollapseState();
     attachProjetoHandlers();
+    attachAddressBlocks();
     attachBindings();
     attachSubjectCombo();
     attachObraAddressImport();
