@@ -3638,7 +3638,7 @@
 
   // ----- modelos (biblioteca de serviços e cláusulas) -----
   var libOpen = {}; // serviços abertos na aba Modelos (só interface)
-  var libTab = "servicos", libQuery = "", libCatClosed = {}, libSel = null;   // sub-aba, busca e categorias recolhidas (só interface)
+  var libTab = "servicos", libQuery = "", libCatClosed = {}, libSel = null, libClgOpen = {};   // sub-aba, busca e categorias recolhidas (só interface)
   var LIB_UI_KEY = "prancheta-modelos-ui";
   function loadLibUi(){
     try{
@@ -3647,10 +3647,11 @@
         if(u.tab === "clausulas" || u.tab === "assuntos") libTab = u.tab;
         if(typeof u.sel === "string") libSel = u.sel;
         if(u.closed && typeof u.closed === "object") libCatClosed = u.closed;
+        if(u.clg && typeof u.clg === "object") libClgOpen = u.clg;
       }
     }catch(e){}
   }
-  function saveLibUi(){ try{ localStorage.setItem(LIB_UI_KEY, JSON.stringify({ tab:libTab, closed:libCatClosed, sel:libSel })); }catch(e){} }
+  function saveLibUi(){ try{ localStorage.setItem(LIB_UI_KEY, JSON.stringify({ tab:libTab, closed:libCatClosed, sel:libSel, clg:libClgOpen })); }catch(e){} }
   loadLibUi();
   function libNorm(s){ return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
   function libMatch(text){ return !libQuery || libNorm(text).indexOf(libQuery) >= 0; }
@@ -3784,29 +3785,49 @@
     box.innerHTML = '<div class="lib-split"><div class="lib-list" id="lib-list">'+listHtml+'</div><div class="lib-editor" id="lib-editor">'+libEditorHtml()+'</div></div>';
     var nl = document.getElementById("lib-list"); if(nl) nl.scrollTop = prevTop;
     var shownC = 0;
-    document.getElementById("lib-clauses").innerHTML = lib.clauses.map(function(c, i){
-      if(!libMatch(c.group+" "+c.text)) return "";
-      shownC++;
-      var opts = CLAUSE_GROUPS.concat(CLAUSE_GROUPS.indexOf(c.group) < 0 ? [c.group] : []).map(function(g){
-        return '<option value="'+escapeHtml(g)+'"'+(g===c.group?' selected':'')+'>'+escapeHtml(g)+'</option>';
-      }).join("");
-      return '<details class="item-card" data-lcd="'+c.id+'"'+(libOpen[c.id]?' open':'')+'>' +
-        '<summary class="lc-sum">'+clauseSummaryHtml(c)+'</summary>' +
-        '<div class="field-row"><div class="field"><label>Grupo</label><select data-lc-group="'+i+'">'+opts+'</select></div></div>' +
-        '<div class="field"><label>Texto</label><textarea rows="1" style="min-height:0;" data-lc-text="'+i+'">'+escapeHtml(c.text)+'</textarea></div>' +
-        '<label class="checkbox-field"><input type="checkbox" data-lc-on="'+i+'"'+(c.on?' checked':'')+'> Marcada por padrão nas propostas novas</label>' +
-        '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-lc-up="'+i+'" title="Subir">▲</button>' +
-        '<button type="button" class="btn-ghost btn-sm" data-lc-down="'+i+'" title="Descer">▼</button>' +
-        '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></details>';
-    }).join("") || '<div class="hint">Nenhuma cláusula encontrada'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
+    var clHtml = "";
+    clauseGroupNames().forEach(function(g){
+      var rows = "", n = 0, total = 0, off = 0;
+      lib.clauses.forEach(function(c, i){
+        if(c.group !== g) return;
+        total++;
+        if(!libMatch(c.group+" "+c.text)) return;
+        n++; if(!c.on) off++;
+        var opts = clauseGroupNames().map(function(gg){
+          return '<option value="'+escapeHtml(gg)+'"'+(gg===c.group?' selected':'')+'>'+escapeHtml(gg)+'</option>';
+        }).join("");
+        rows += '<details class="item-card" data-lcd="'+c.id+'"'+(libOpen[c.id]?' open':'')+'>' +
+          '<summary class="lc-sum">'+clauseSummaryHtml(c)+'</summary>' +
+          '<div class="field-row"><div class="field"><label>Grupo</label><select data-lc-group="'+i+'">'+opts+'</select></div></div>' +
+          '<div class="field"><label>Texto</label><textarea rows="1" style="min-height:0;" data-lc-text="'+i+'">'+escapeHtml(c.text)+'</textarea></div>' +
+          '<label class="checkbox-field"><input type="checkbox" data-lc-on="'+i+'"'+(c.on?' checked':'')+'> Marcada por padrão nas propostas novas</label>' +
+          '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-lc-up="'+i+'" title="Subir dentro do grupo">▲</button>' +
+          '<button type="button" class="btn-ghost btn-sm" data-lc-down="'+i+'" title="Descer dentro do grupo">▼</button>' +
+          '<button type="button" class="btn-ghost btn-sm" data-lc-rm="'+i+'">Remover cláusula</button></div></details>';
+      });
+      if(libQuery && !n) return;            // na busca, só os grupos que têm resultado
+      shownC += n;
+      var open = libQuery ? true : !!libClgOpen[g];
+      clHtml += '<details class="lib-cat" data-lcg="'+escapeHtml(g)+'"'+(open ? ' open' : '')+'><summary class="lib-cat-sum">'+escapeHtml(g)+
+        ' <span class="hint">('+(libQuery ? n+' de '+total : total)+(off && !libQuery ? ' · '+off+(off === 1 ? ' não marcada' : ' não marcadas')+' por padrão' : '')+')</span></summary>' +
+        '<div class="lib-cat-body">'+(rows || '<div class="hint">Nenhuma cláusula neste grupo.</div>')+
+        '<button type="button" class="add-row-btn" data-lc-add="'+escapeHtml(g)+'" style="align-self:flex-start;">+ cláusula em '+escapeHtml(g)+'</button></div></details>';
+    });
+    document.getElementById("lib-clauses").innerHTML = clHtml || '<div class="hint">Nenhuma cláusula encontrada'+(libQuery ? ' para "'+escapeHtml((document.getElementById("lib-search")||{}).value||"")+'"' : '')+'.</div>';
     var shownA = renderLibSubjects();
     updateLibHead(shownS, shownC, shownA);
     growTextareas();
   }
-  // Resumo de uma linha da cláusula recolhida: grupo + início do texto (o recorte é feito por CSS)
+  // grupos de cláusulas na ordem padrão, mais os que existirem só nos dados
+  function clauseGroupNames(){
+    var names = CLAUSE_GROUPS.slice();
+    state.projectLibrary.clauses.forEach(function(c){ if(c.group && names.indexOf(c.group) < 0) names.push(c.group); });
+    return names;
+  }
+  // Resumo de uma linha da cláusula recolhida (já dentro do grupo): início do texto; o recorte é feito por CSS
   function clauseSummaryHtml(c){
     var t = String(c.text||"").replace(/\s+/g, " ").trim().slice(0, 200);
-    return '<b>'+escapeHtml(c.group||"")+'</b> · '+(t ? escapeHtml(t) : '<i>(sem texto)</i>')+(c.on ? '' : ' <span class="hint">· não marcada por padrão</span>');
+    return (t ? escapeHtml(t) : '<i>(sem texto)</i>')+(c.on ? '' : ' <span class="hint">· não marcada por padrão</span>');
   }
   function refreshClauseSummary(el, c){
     var d = el.closest && el.closest("details"), s = d && d.querySelector("summary");
@@ -4405,19 +4426,36 @@
     lcBox.addEventListener("change", function(e){
       var gi = e.target.getAttribute("data-lc-group"), oi = e.target.getAttribute("data-lc-on");
       var lib = state.projectLibrary.clauses;
-      if(gi != null) lib[parseInt(gi, 10)].group = e.target.value;
+      if(gi != null){
+        var cg = lib[parseInt(gi, 10)];
+        cg.group = e.target.value; libClgOpen[cg.group] = true; libOpen[cg.id] = true; saveLibUi();
+        renderLibrary(); growTextareas(); scheduleSave();
+        var moved = document.querySelector('#lib-clauses [data-lcd="'+cg.id+'"]');
+        if(moved) moved.scrollIntoView({ block:"nearest" });
+        return;
+      }
       else if(oi != null) lib[parseInt(oi, 10)].on = e.target.checked;
       else return;
       refreshClauseSummary(e.target, lib[parseInt(gi != null ? gi : oi, 10)]);
       scheduleSave();
     });
     lcBox.addEventListener("toggle", function(e){
+      var lg = e.target.getAttribute && e.target.getAttribute("data-lcg");
+      if(lg != null){
+        if(!libQuery){ libClgOpen[lg] = e.target.open; saveLibUi(); }
+        if(e.target.open) growTextareas();
+        return;
+      }
       var id = e.target.getAttribute && e.target.getAttribute("data-lcd");
       if(id){ libOpen[id] = e.target.open; growTextareas(); }
     }, true);
     // Serviços: recolher/expandir as CATEGORIAS (cada serviço continua como estava). Cláusulas: todas as cláusulas.
     function setAllLibrary(open){
-      if(libTab === "clausulas") state.projectLibrary.clauses.forEach(function(c){ libOpen[c.id] = open; });
+      if(libTab === "clausulas"){
+        clauseGroupNames().forEach(function(g){ libClgOpen[g] = open; });
+        if(!open) state.projectLibrary.clauses.forEach(function(c){ libOpen[c.id] = false; });
+        saveLibUi();
+      }
       else { SERVICE_CATEGORIES.concat([SERVICE_OTHER]).forEach(function(cat){ libCatClosed[cat] = !open; }); saveLibUi(); }
       renderLibrary(); growTextareas();
     }
@@ -4439,8 +4477,17 @@
     lcBox.addEventListener("click", function(e){
       var lib = state.projectLibrary.clauses;
       var up = e.target.closest("[data-lc-up]"), down = e.target.closest("[data-lc-down]"), rm = e.target.closest("[data-lc-rm]");
-      if(up) moveInArray(lib, parseInt(up.getAttribute("data-lc-up"), 10), -1);
-      else if(down) moveInArray(lib, parseInt(down.getAttribute("data-lc-down"), 10), 1);
+      var addB = e.target.closest("[data-lc-add]");
+      if(addB){ addLibClause(addB.getAttribute("data-lc-add")); return; }
+      // sobe/desce trocando de lugar com a vizinha DO MESMO GRUPO (trocar com cláusula de outro grupo não mudaria nada na tela)
+      function swapInGroup(i, dir){
+        var g = lib[i].group, j = i + dir;
+        while(j >= 0 && j < lib.length && lib[j].group !== g) j += dir;
+        if(j < 0 || j >= lib.length) return false;
+        var t = lib[i]; lib[i] = lib[j]; lib[j] = t; return true;
+      }
+      if(up) swapInGroup(parseInt(up.getAttribute("data-lc-up"), 10), -1);
+      else if(down) swapInGroup(parseInt(down.getAttribute("data-lc-down"), 10), 1);
       else if(rm){
         if(!confirm("Remover esta cláusula dos modelos? Propostas já emitidas não mudam.")) return;
         var cidx = parseInt(rm.getAttribute("data-lc-rm"), 10);
@@ -4520,15 +4567,17 @@
       var ai = sbBox.querySelector("[data-sb-add]");
       if(ai){ ai.scrollIntoView({ block:"nearest" }); ai.focus(); }
     });
-    document.getElementById("btn-add-lib-clause").addEventListener("click", function(){
+    function addLibClause(group){
       clearLibSearch();
-      var nc = { id:genId(), group:CLAUSE_GROUPS[0], text:"", on:true };
+      var g = group || CLAUSE_GROUPS[0];
+      var nc = { id:genId(), group:g, text:"", on:true };
       state.projectLibrary.clauses.push(nc);
-      libOpen[nc.id] = true;
+      libOpen[nc.id] = true; libClgOpen[g] = true; saveLibUi();
       renderLibrary(); growTextareas(); scheduleSave();
       var added = document.querySelector('#lib-clauses [data-lcd="'+nc.id+'"]');
       if(added){ added.scrollIntoView({ block:"nearest" }); var ta = added.querySelector("textarea"); if(ta) ta.focus(); }
-    });
+    }
+    document.getElementById("btn-add-lib-clause").addEventListener("click", function(){ addLibClause(null); });
   }
 
   // ---------- logo ----------
