@@ -488,6 +488,9 @@
     .cli-row .cli-c, .cli-row.cli-head span:not(:first-child):not(:last-child){display:none;}
     .cli-m{display:block;}
   }
+  .backup-bar{display:flex; gap:10px 14px; align-items:center; flex-wrap:wrap; padding:8px 16px; background:var(--danger-bg); color:var(--ink); border-bottom:1px solid var(--danger); font-size:12.5px; line-height:1.4;}
+  .backup-bar[hidden]{display:none;}
+  .backup-bar span{flex:1 1 280px;}
   .cli-sub{font-size:11.5px; color:var(--ink-faint); margin-top:2px; line-height:1.4;}
   .cli-name{font-weight:700; color:var(--ink); font-size:13.5px;}
   .cli-arch{opacity:.8;}
@@ -652,6 +655,12 @@
     <button type="button" class="btn btn-pill" id="btn-new"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova proposta</button>
     <button type="button" class="btn btn-pill" id="btn-share" hidden><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>Compartilhar</button>
     <button type="button" class="btn btn-primary btn-pill" id="btn-download"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v13"/><path d="m6 11 6 6 6-6"/><path d="M5 20h14"/></svg>Baixar proposta</button>
+  </div>
+
+  <div class="backup-bar" id="backup-bar" role="status" hidden>
+    <span id="backup-bar-text"></span>
+    <button type="button" class="btn btn-sm btn-primary" id="backup-bar-now">Baixar backup agora</button>
+    <button type="button" class="btn-ghost btn-sm" id="backup-bar-later">Lembrar amanhã</button>
   </div>
 
   <div class="workspace">
@@ -1042,6 +1051,7 @@
       <div class="field-group" data-panel="empresa">
         <legend>Cópia de segurança</legend>
         <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Baixa um arquivo com tudo que está cadastrado (modelos de serviços e cláusulas, catálogo, histórico de propostas, dados da empresa). Ao restaurar, o sistema só <strong>traz de volta o que estiver faltando</strong> — nada do que já existe é apagado ou sobrescrito.</div>
+        <div class="hint" id="backup-last" style="line-height:1.5; font-weight:600;"></div>
         <div class="hint" id="data-size" style="line-height:1.5;"></div>
         <div class="field-row">
           <button type="button" class="btn btn-sm" id="btn-backup-export">Baixar backup</button>
@@ -1190,7 +1200,7 @@
 
   function defaultState(){
     return {
-      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"", pixKey:"", pixCity:"", pixType:"", pixBank:"", targetMargin:"" },
+      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"", pixKey:"", pixCity:"", pixType:"", pixBank:"", targetMargin:"", lastBackupAt:"" },
       profissional: emptyProfissional(),
       projectLibrary: defaultProjectLibrary(),
       mode:"projeto",
@@ -3273,6 +3283,7 @@
     renderHistoryList();
     renderPreview();
     updateDataSize();
+    if(typeof updateBackupUI === "function") updateBackupUI();
   }
 
   // ---------- painéis da proposta de projeto ----------
@@ -8045,18 +8056,56 @@
     return { servicos:(s.projectLibrary.services||[]).length, clausulas:(s.projectLibrary.clauses||[]).length,
              produtos:(s.cableCatalog||[]).length, propostas:(s.proposalHistory||[]).length, clientes:(s.clients||[]).length };
   }
+  // ---------- lembrete de backup ----------
+  // Os dados ficam numa única linha na nuvem. Uma cópia em arquivo, fora da nuvem, protege contra erro de programa,
+  // exclusão por engano depois do "Desfazer" e problema na conta. A data do último backup fica na empresa (vale para todos os computadores).
+  var BACKUP_EVERY_DAYS = 7, BACKUP_SNOOZE_KEY = "orcavolt-backup-adiado";
+  function backupAgeDays(){
+    var l = state.company.lastBackupAt;
+    return l ? diffDays(l, todayISO()) : null;
+  }
+  function backupSnoozed(){
+    try{ var s = localStorage.getItem(BACKUP_SNOOZE_KEY); return !!s && s >= todayISO(); }catch(e){ return false; }
+  }
+  function updateBackupUI(){
+    var bar = document.getElementById("backup-bar"), last = document.getElementById("backup-last");
+    var age = backupAgeDays();
+    if(last) last.textContent = state.company.lastBackupAt
+      ? "Último backup baixado: "+dateBR(state.company.lastBackupAt)+(age === 0 ? " (hoje)." : " (há "+age+(age === 1 ? " dia)." : " dias)."))
+      : "Nenhum backup baixado ainda.";
+    if(!bar) return;
+    var show = (age == null || age >= BACKUP_EVERY_DAYS) && !backupSnoozed();
+    bar.hidden = !show;
+    if(show) document.getElementById("backup-bar-text").textContent = age == null
+      ? "Nenhum backup dos seus dados foi baixado ainda. Baixe um agora para ter uma cópia fora da nuvem."
+      : "O último backup foi baixado há "+age+" dias ("+dateBR(state.company.lastBackupAt)+"). Baixe um novo para manter uma cópia fora da nuvem.";
+  }
+  function makeBackup(){
+    state.company.lastBackupAt = todayISO();       // entra no próprio arquivo e é gravado na nuvem
+    saveNow();
+    var blob = new Blob([JSON.stringify(state, null, 1)], { type:"application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "orcavolt-backup-"+todayISO()+".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    updateBackupUI();
+    toast("Backup baixado");
+  }
+  function attachBackupBar(){
+    document.getElementById("backup-bar-now").addEventListener("click", makeBackup);
+    document.getElementById("backup-bar-later").addEventListener("click", function(){
+      try{ localStorage.setItem(BACKUP_SNOOZE_KEY, todayISO()); }catch(e){}
+      updateBackupUI();
+    });
+    document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible") updateBackupUI(); });
+    setInterval(updateBackupUI, 3600000);
+    updateBackupUI();
+  }
   function initBackup(){
     var file = document.getElementById("backup-file");
-    document.getElementById("btn-backup-export").addEventListener("click", function(){
-      flushSave();
-      var blob = new Blob([JSON.stringify(state, null, 1)], { type:"application/json" });
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "orcavolt-backup-"+todayISO()+".json";
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
-      toast("Backup baixado");
-    });
+    document.getElementById("btn-backup-export").addEventListener("click", makeBackup);
+    attachBackupBar();
     document.getElementById("btn-backup-import").addEventListener("click", function(){ file.value = ""; file.click(); });
     file.addEventListener("change", function(){
       var fl = file.files && file.files[0];
