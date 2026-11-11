@@ -7096,44 +7096,55 @@
       }
       function rolesRows(list, w){ var out = []; list.forEach(function(t){ out = out.concat(rowsFor(t, w, false)); }); return out; }
       var sigW = 260;
-      var sigRows = rowsFor(info.sigName, sigW, true).concat(rolesRows(info.sigRoles, sigW));
-      ensureSpace(sigRows.length*13 + (doc.accept ? 240 : 70));
-      y += 36;
-      line((LW-sigW)/2, y, (LW+sigW)/2, y, 0.75, CV_LINE_STRONG);
-      var ySig = y + 7;
-      sigRows.forEach(function(r){
-        text({ x:LW/2, y:ySig+9, text:r.t, size:10, bold:r.b, color:r.b ? CV_INK : CV_SOFT, align:"center" });
-        ySig += 13;
-      });
-      y = ySig;
-      if(doc.accept){
-        y += 22;
-        // Espaço generoso entre a frase e a linha: assinaturas digitais (ex.: gov.br) entram com tamanho fixo (~70 pt de altura)
-        var wl = CW*0.62, xd = ML+14+wl+24, wd = CW-28-wl-24;
+      if(!doc.accept){
+        var sigRows = rowsFor(info.sigName, sigW, true).concat(rolesRows(info.sigRoles, sigW));
+        ensureSpace(sigRows.length*13 + 70);
+        y += 36;
+        line((LW-sigW)/2, y, (LW+sigW)/2, y, 0.75, CV_LINE_STRONG);
+        var ySig = y + 7;
+        sigRows.forEach(function(r){
+          text({ x:LW/2, y:ySig+9, text:r.t, size:10, bold:r.b, color:r.b ? CV_INK : CV_SOFT, align:"center" });
+          ySig += 13;
+        });
+        y = ySig;
+      } else {
+        // Com aceite: quadro único com as duas assinaturas lado a lado (emitente à esquerda, contratante à direita)
+        // e a data no alto, à direita da frase. Espaço generoso entre a frase e as linhas: assinaturas digitais
+        // (ex.: gov.br) entram com tamanho fixo (~70 pt de altura).
+        var gapC = 36, colW = (CW - 28 - gapC) / 2, xL = ML + 14, xR = xL + colW + gapC;
         var cName = nz(dr.client.name), cDocDigits = String(nz(dr.client.doc)).replace(/\D/g,"");
         var cDoc = cDocDigits.length === 11 ? "CPF "+nz(dr.client.doc) : (cDocDigits.length === 14 ? "CNPJ "+nz(dr.client.doc) : "");
-        // sob a linha: nome do contratante (e CPF/CNPJ) e, entre parênteses, o que se espera ali; sem nome, só o rótulo
-        setFontFor(false, 8.5, false);
-        var sigLines = [];
+        var eRows = rowsFor(info.sigName, colW, true).concat(rolesRows(info.sigRoles, colW)).map(function(r){ return { t:r.t, kind:r.b ? "name" : "soft" }; });
+        var cRows = [];
         if(cName){
-          if(cDoc && ctx.measureText(cName+" · "+cDoc).width <= wl) sigLines.push(cName+" · "+cDoc);
-          else { sigLines.push(cName); if(cDoc) sigLines.push(cDoc); }
-          sigLines.push("(Nome e assinatura do contratante)");
+          setFontFor(false, 10, false);
+          if(cDoc && ctx.measureText(cName+" · "+cDoc).width <= colW) cRows.push({ t:cName+" · "+cDoc, kind:"name" });
+          else {
+            rowsFor(cName, colW, true).forEach(function(r){ cRows.push({ t:r.t, kind:"name" }); });
+            if(cDoc) cRows.push({ t:cDoc, kind:"soft" });
+          }
+          cRows.push({ t:"(Nome e assinatura do contratante)", kind:"faint" });
         } else {
-          sigLines.push("Nome e assinatura do contratante");
+          cRows.push({ t:"Nome e assinatura do contratante", kind:"soft" });
         }
-        var lineY = y + 33 + 76;
-        var boxH = (lineY - y) + 11 + sigLines.length*11 + 8;
+        var nRows = Math.max(eRows.length, cRows.length);
+        var lineOff = 33 + 76, boxH = lineOff + 8 + nRows*12 + 10;
+        ensureSpace(boxH + 28);
+        y += 22;
+        var lineY = y + lineOff;
         rect(ML, y, CW, boxH, "#F3F5F4");
-        text({ x:ML+14, y:y+17, text:"ACEITE DA PROPOSTA", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
-        text({ x:ML+14, y:y+33, text:"Declaro estar de acordo com os termos e condições desta proposta.", size:9.5, color:CV_INK });
-        line(ML+14, lineY, ML+14+wl, lineY, 0.75, CV_LINE_STRONG);
-        line(xd, lineY, xd+wd, lineY, 0.75, CV_LINE_STRONG);
-        sigLines.forEach(function(s, i){
-          var isRole = cName && i === sigLines.length-1;
-          text({ x:ML+14, y:lineY+11+i*11, text:s, size:isRole ? 8 : 8.5, color:isRole ? CV_FAINT : CV_SOFT });
-        });
-        text({ x:xd, y:lineY+11, text:"Data", size:8.5, color:CV_SOFT });
+        text({ x:xL, y:y+17, text:"ACEITE DA PROPOSTA", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
+        text({ x:xL, y:y+33, text:"Declaro estar de acordo com os termos e condições desta proposta.", size:9.5, color:CV_INK });
+        text({ x:ML+CW-14, y:y+17, text:"Data: ____ / ____ / ________", size:9, color:CV_SOFT, align:"right" });
+        line(xL, lineY, xL+colW, lineY, 0.75, CV_LINE_STRONG);
+        line(xR, lineY, xR+colW, lineY, 0.75, CV_LINE_STRONG);
+        function drawRows(rows, x){
+          rows.forEach(function(r, i){
+            text({ x:x, y:lineY+13+i*12, text:r.t, size:r.kind === "faint" ? 8 : 9, bold:r.kind === "name", color:r.kind === "name" ? CV_INK : (r.kind === "faint" ? CV_FAINT : CV_SOFT) });
+          });
+        }
+        drawRows(eRows, xL);
+        drawRows(cRows, xR);
         y += boxH + 6;
       }
 
