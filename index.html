@@ -473,6 +473,21 @@
   .mg-row b{color:var(--ink);}
   .mg-row.total{border-top:1px solid var(--line); margin-top:4px; padding-top:6px; font-size:13.5px;}
   .mg-warn{font-size:12px; color:var(--danger); line-height:1.4; margin-top:4px;}
+  .cli-table{border:1px solid var(--line); border-radius:10px; background:var(--paper-raised); overflow:hidden;}
+  .cli-row{display:grid; grid-template-columns:minmax(0,2.2fr) minmax(0,1.3fr) minmax(0,1fr) 64px auto; gap:10px; align-items:center; padding:10px 12px; border-top:1px solid var(--line);}
+  .cli-row.cli-head{border-top:none; background:var(--paper); font-size:11px; font-weight:700; color:var(--ink-soft); padding:8px 12px;}
+  .cli-row.cli-head span{text-align:left; text-transform:none; letter-spacing:0;}
+  .cli-row.cli-head span.cli-n{text-align:center;}
+  .cli-row .cli-c{font-size:12.5px; color:var(--ink-soft); min-width:0; overflow-wrap:anywhere;}
+  .cli-row .cli-n{text-align:center;}
+  .cli-row .cli-act{display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;}
+  .cli-row.cli-off{opacity:.75;}
+  .cli-m{display:none;}
+  @media (max-width:760px){
+    .cli-row, .cli-row.cli-head{grid-template-columns:minmax(0,1fr) auto;}
+    .cli-row .cli-c, .cli-row.cli-head span:not(:first-child):not(:last-child){display:none;}
+    .cli-m{display:block;}
+  }
   .cli-sub{font-size:11.5px; color:var(--ink-faint); margin-top:2px; line-height:1.4;}
   .cli-name{font-weight:700; color:var(--ink); font-size:13.5px;}
   .cli-arch{opacity:.8;}
@@ -929,8 +944,11 @@
       <div class="field-group" data-panel="clientes">
         <legend>Clientes <button type="button" class="add-row-btn" id="btn-add-client">+ cliente</button></legend>
         <div class="hint">Cadastro único, usado nos dois tipos de proposta. O cliente entra aqui sozinho quando uma proposta é emitida e seus dados preenchem as próximas propostas. Clientes nunca são excluídos: só arquivados, com o motivo registrado.</div>
-        <input id="clients-search" type="search" placeholder="Buscar por nome, CNPJ/CPF, contato ou telefone…" aria-label="Buscar cliente" style="padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink);">
-        <div id="clients-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+          <input id="clients-search" type="search" placeholder="Buscar por nome, CNPJ/CPF, contato ou telefone…" aria-label="Buscar cliente" style="flex:1 1 260px; padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink);">
+          <label class="checkbox-field"><input type="checkbox" id="clients-arch"> Mostrar arquivados</label>
+        </div>
+        <div id="clients-list"></div>
       </div>
 
       <div class="field-group" data-panel="empresa">
@@ -1829,41 +1847,48 @@
     var dq = docDigits(q);
     return dq.length >= 3 && docDigits(c.doc + " " + c.phone).indexOf(dq) >= 0;
   }
-  function clientCardHtml(c, archived){
-    var st = clientStats(c);
-    var line1 = [c.doc, c.contact, c.phone, c.email].filter(Boolean).map(escapeHtml).join(" · ");
-    var line2 = st.n ? (st.n + (st.n > 1 ? " propostas" : " proposta") + " · última em " + dateBR(st.last) + (st.soldN ? " · " + fmtBRL(st.sold) + " vendido" + (st.soldN > 1 ? " (" + st.soldN + " vendas)" : "") : "")) : "Nenhuma proposta emitida ainda";
-    var lastLog = archived && c.archiveLog.length ? c.archiveLog[c.archiveLog.length - 1] : null;
-    var actions = archived
-      ? '<button type="button" class="btn-ghost btn-sm cli-restore" data-cid="'+escapeHtml(c.id)+'">Restaurar</button>'
-      : '<button type="button" class="btn btn-sm cli-use" data-cid="'+escapeHtml(c.id)+'" title="Preenche o cliente da proposta que está aberta">Usar na proposta atual</button>' +
-        '<button type="button" class="btn-ghost btn-sm cli-edit" data-cid="'+escapeHtml(c.id)+'">Editar</button>' +
-        '<button type="button" class="btn-ghost btn-sm cli-archive" data-cid="'+escapeHtml(c.id)+'">Arquivar</button>';
-    return '<div class="item-card'+(archived ? ' cli-arch' : '')+'" data-cid="'+escapeHtml(c.id)+'">' +
-      '<div><div class="cli-name">'+escapeHtml(c.name)+'</div>' +
-      (line1 ? '<div class="cli-sub">'+line1+'</div>' : '') +
-      (c.address ? '<div class="cli-sub">'+escapeHtml(c.address)+'</div>' : '') +
-      '<div class="cli-sub">'+escapeHtml(line2)+'</div>' +
-      (c.notes ? '<div class="cli-sub" style="font-style:italic;">'+escapeHtml(c.notes)+'</div>' : '') +
-      (lastLog ? '<div class="cli-sub" style="font-style:italic;">Arquivado em '+dateBR(lastLog.at)+(lastLog.reason ? ': "'+escapeHtml(lastLog.reason)+'"' : '')+'</div>' : '') +
-      '</div><div style="display:flex; gap:6px; flex-wrap:wrap;">'+actions+'</div></div>';
+  function clientCity(c){
+    var a = isObj(c.addr) ? c.addr : null;
+    if(a && (a.cidade || a.uf)) return [a.cidade, a.uf].filter(Boolean).join("/");
+    var m = /([^,;\-–]+?)\s*\/\s*([A-Za-z]{2})\s*$/.exec(String(c.address || ""));
+    return m ? m[1].trim() + "/" + m[2].toUpperCase() : "";
+  }
+  function clientRowHtml(c){
+    var st = clientStats(c), off = !!c.archived, id = escapeHtml(c.id), city = clientCity(c);
+    var sub = [c.contact, c.phone, c.email].filter(Boolean).map(escapeHtml).join(" · ");
+    var lastLog = off && c.archiveLog.length ? c.archiveLog[c.archiveLog.length - 1] : null;
+    var mobile = [c.doc, city, st.n + (st.n === 1 ? " proposta" : " propostas")].filter(Boolean).map(escapeHtml).join(" · ");
+    var actions = off
+      ? '<button type="button" class="btn-ghost btn-sm cli-restore" data-cid="'+id+'">Restaurar</button>'
+      : '<button type="button" class="btn btn-sm cli-use" data-cid="'+id+'" title="Preenche o cliente da proposta que está aberta">Usar</button>' +
+        '<button type="button" class="btn-ghost btn-sm cli-edit" data-cid="'+id+'">Editar</button>' +
+        '<button type="button" class="btn-ghost btn-sm cli-archive" data-cid="'+id+'">Arquivar</button>';
+    return '<div class="cli-row'+(off ? ' cli-off' : '')+'" data-cid="'+id+'">' +
+      '<div style="min-width:0;"><div class="cli-name">'+escapeHtml(c.name)+(off ? ' <span class="hint">(arquivado)</span>' : '')+'</div>' +
+        (sub ? '<div class="cli-sub">'+sub+'</div>' : '') +
+        '<div class="cli-sub cli-m">'+mobile+'</div>' +
+        (st.soldN ? '<div class="cli-sub">'+escapeHtml(fmtBRL(st.sold))+' vendido'+(st.soldN > 1 ? ' ('+st.soldN+' vendas)' : '')+(st.last ? ' · última proposta em '+dateBR(st.last) : '')+'</div>' : (st.last ? '<div class="cli-sub">Última proposta em '+dateBR(st.last)+'</div>' : '')) +
+        (c.notes ? '<div class="cli-sub" style="font-style:italic;">'+escapeHtml(c.notes)+'</div>' : '') +
+        (lastLog ? '<div class="cli-sub" style="font-style:italic;">Arquivado em '+dateBR(lastLog.at)+(lastLog.reason ? ': "'+escapeHtml(lastLog.reason)+'"' : '')+'</div>' : '') +
+      '</div>' +
+      '<div class="cli-c">'+(escapeHtml(c.doc) || '—')+'</div>' +
+      '<div class="cli-c">'+(escapeHtml(city) || '—')+'</div>' +
+      '<div class="cli-c cli-n">'+st.n+'</div>' +
+      '<div class="cli-act">'+actions+'</div></div>';
   }
   function renderClientsList(){
     var box = document.getElementById("clients-list");
     if(!box) return;
     var q = normText(clientsQuery);
-    var byName = function(a, b){ return a.name.localeCompare(b.name, "pt-BR"); };
-    var active = state.clients.filter(function(c){ return !c.archived && clientMatchesQuery(c, q); }).sort(byName);
-    var arch = state.clients.filter(function(c){ return c.archived && clientMatchesQuery(c, q); }).sort(byName);
-    var html = '<div class="sheet-label">Ativos ('+active.length+')</div>';
-    html += active.length ? active.map(function(c){ return clientCardHtml(c, false); }).join("")
-      : '<div class="hint">'+(q ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda. Eles entram aqui quando a primeira proposta é emitida, ou use \"+ cliente\".")+'</div>';
-    if(arch.length || state.clients.some(function(c){ return c.archived; })){
-      var open = clientsShowArchived || !!q;
-      html += '<div class="sheet-label cli-arch-head" role="button" tabindex="0" style="cursor:pointer; user-select:none; margin-top:10px;"><span style="display:inline-block; width:9px;">'+(open ? "▾" : "▸")+'</span> Arquivados ('+arch.length+')</div>';
-      if(open) html += arch.map(function(c){ return clientCardHtml(c, true); }).join("") || '<div class="hint">Nenhum arquivado.</div>';
+    var showArch = clientsShowArchived;
+    var list = state.clients.filter(function(c){ return (showArch || !c.archived) && clientMatchesQuery(c, q); })
+      .sort(function(a, b){ return (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || a.name.localeCompare(b.name, "pt-BR"); });
+    if(!list.length){
+      box.innerHTML = '<div class="hint">'+(q ? "Nenhum cliente encontrado." : 'Nenhum cliente cadastrado ainda. Eles entram aqui quando a primeira proposta é emitida, ou use "+ cliente".')+'</div>';
+      return;
     }
-    box.innerHTML = html;
+    box.innerHTML = '<div class="cli-table"><div class="cli-row cli-head"><span>Cliente</span><span>CPF / CNPJ</span><span>Cidade/UF</span><span class="cli-n">Propostas (qtd)</span><span></span></div>' +
+      list.map(clientRowHtml).join("") + '</div>';
   }
   function clientDialogFields(c){
     c = c || {};
@@ -1928,16 +1953,13 @@
     var box = document.getElementById("clients-list");
     document.getElementById("clients-search").addEventListener("input", function(e){ clientsQuery = e.target.value; renderClientsList(); });
     document.getElementById("btn-add-client").addEventListener("click", addClientDialog);
+    document.getElementById("clients-arch").addEventListener("change", function(e){ clientsShowArchived = e.target.checked; renderClientsList(); });
     box.addEventListener("click", function(e){
       var b;
       if((b = e.target.closest(".cli-use"))) return useClientInDraft(b.getAttribute("data-cid"));
       if((b = e.target.closest(".cli-edit"))) return editClientDialog(b.getAttribute("data-cid"));
       if((b = e.target.closest(".cli-archive"))) return archiveClientDialog(b.getAttribute("data-cid"), false);
       if((b = e.target.closest(".cli-restore"))) return archiveClientDialog(b.getAttribute("data-cid"), true);
-      if(e.target.closest(".cli-arch-head")){ clientsShowArchived = !clientsShowArchived; renderClientsList(); }
-    });
-    box.addEventListener("keydown", function(e){
-      if((e.key === "Enter" || e.key === " ") && e.target.closest(".cli-arch-head")){ e.preventDefault(); clientsShowArchived = !clientsShowArchived; renderClientsList(); }
     });
   }
 
@@ -6792,7 +6814,7 @@
     function newPage(){
       page += 1;
       y = MT;
-      var pageLabel = "Proposta Nº "+dr.number+(mode==="projeto" ? " "+revLabel(dr) : "")+" — página "+(page+1)+(totalPagesHint?(" de "+totalPagesHint):"")+" (continuação)";
+      var pageLabel = "Proposta Nº "+dr.number+(mode==="projeto" ? " "+revLabel(dr) : "")+" (continuação)";
       text({ x:ML, y:y+7, text:pageLabel, size:9, color:CV_FAINT });
       y += 10;
       line(ML,y,LW-MR,y,1,CV_LINE);
@@ -7075,7 +7097,7 @@
       function rolesRows(list, w){ var out = []; list.forEach(function(t){ out = out.concat(rowsFor(t, w, false)); }); return out; }
       var sigW = 260;
       var sigRows = rowsFor(info.sigName, sigW, true).concat(rolesRows(info.sigRoles, sigW));
-      ensureSpace(sigRows.length*13 + (doc.accept ? 150 : 70));
+      ensureSpace(sigRows.length*13 + (doc.accept ? 240 : 70));
       y += 36;
       line((LW-sigW)/2, y, (LW+sigW)/2, y, 0.75, CV_LINE_STRONG);
       var ySig = y + 7;
@@ -7086,15 +7108,32 @@
       y = ySig;
       if(doc.accept){
         y += 22;
-        var boxH = 92;
+        // Espaço generoso entre a frase e a linha: assinaturas digitais (ex.: gov.br) entram com tamanho fixo (~70 pt de altura)
+        var wl = CW*0.62, xd = ML+14+wl+24, wd = CW-28-wl-24;
+        var cName = nz(dr.client.name), cDocDigits = String(nz(dr.client.doc)).replace(/\D/g,"");
+        var cDoc = cDocDigits.length === 11 ? "CPF "+nz(dr.client.doc) : (cDocDigits.length === 14 ? "CNPJ "+nz(dr.client.doc) : "");
+        // sob a linha: nome do contratante (e CPF/CNPJ) e, entre parênteses, o que se espera ali; sem nome, só o rótulo
+        setFontFor(false, 8.5, false);
+        var sigLines = [];
+        if(cName){
+          if(cDoc && ctx.measureText(cName+" · "+cDoc).width <= wl) sigLines.push(cName+" · "+cDoc);
+          else { sigLines.push(cName); if(cDoc) sigLines.push(cDoc); }
+          sigLines.push("(Nome e assinatura do contratante)");
+        } else {
+          sigLines.push("Nome e assinatura do contratante");
+        }
+        var lineY = y + 33 + 76;
+        var boxH = (lineY - y) + 11 + sigLines.length*11 + 8;
         rect(ML, y, CW, boxH, "#F3F5F4");
         text({ x:ML+14, y:y+17, text:"ACEITE DA PROPOSTA", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
         text({ x:ML+14, y:y+33, text:"Declaro estar de acordo com os termos e condições desta proposta.", size:9.5, color:CV_INK });
-        var lineY = y + 68, wl = CW*0.62, xd = ML+14+wl+24, wd = CW-28-wl-24;
         line(ML+14, lineY, ML+14+wl, lineY, 0.75, CV_LINE_STRONG);
         line(xd, lineY, xd+wd, lineY, 0.75, CV_LINE_STRONG);
-        text({ x:ML+14, y:lineY+11, text:"Nome e assinatura do contratante"+(nz(dr.client.name) ? " — "+nz(dr.client.name) : ""), size:8, color:CV_FAINT });
-        text({ x:xd, y:lineY+11, text:"Data", size:8, color:CV_FAINT });
+        sigLines.forEach(function(s, i){
+          var isRole = cName && i === sigLines.length-1;
+          text({ x:ML+14, y:lineY+11+i*11, text:s, size:isRole ? 8 : 8.5, color:isRole ? CV_FAINT : CV_SOFT });
+        });
+        text({ x:xd, y:lineY+11, text:"Data", size:8.5, color:CV_SOFT });
         y += boxH + 6;
       }
 
@@ -7218,10 +7257,9 @@
 
     var footerH = 30;
     if(mode === "projeto"){
-      ensureSpace(footerH+30);
       y += 24;
     } else {
-      ensureSpace(30+40+footerH);
+      ensureSpace(30+40);
       y += 30;
       var sigW = (CW-40)/2;
       var sigs = [ [ML, info.name], [ML+sigW+40, dr.client.name||"Cliente"] ];
@@ -7232,12 +7270,16 @@
       y += 40;
     }
 
-    rect(0, y, LW, footerH, "#F3F5F4");
-    line(0, y, LW, y, 1, CV_LINE);
-    text({ x:ML, y:y+19, text:dr.number, size:P?8.5:10, mono:!P, color:CV_FAINT });
-    var pageTotal = totalPagesHint || (page+1);
-    text({ x:LW-MR, y:y+19, text:"Página "+(page+1)+" de "+pageTotal+" · Gerado em "+dateBR(todayISO()), size:P?8.5:10, mono:!P, color:CV_FAINT, align:"right" });
-    y += footerH;
+    // Rodapé no fim de TODAS as páginas (o número da proposta já está no cabeçalho, então não se repete aqui)
+    var lastPage = page, pageTotal = lastPage + 1, fy = LH - footerH;
+    for(var fp = 0; fp <= lastPage; fp++){
+      page = fp;
+      rect(0, fy, LW, footerH, "#F3F5F4");
+      line(0, fy, LW, fy, 1, CV_LINE);
+      text({ x:ML, y:fy+19, text:"Gerado em "+dateBR(todayISO()), size:P?8.5:10, mono:!P, color:CV_FAINT });
+      text({ x:LW-MR, y:fy+19, text:"Página "+(fp+1)+" de "+pageTotal, size:P?8.5:10, mono:!P, color:CV_FAINT, align:"right" });
+    }
+    page = lastPage;
 
     return { ops:ops, pageW:LW, pageH:LH, pageCount:page+1, logoBox:logoBox, pixBox:pixBox };
   }
