@@ -463,6 +463,27 @@
     font-family:var(--font-mono); font-size:10px; color:#8A959B; letter-spacing:.03em;
   }
 
+  .hist-alert{border:1px solid var(--danger); background:var(--danger-bg); border-radius:10px; padding:10px 12px; margin-bottom:14px; color:var(--ink); display:flex; flex-direction:column; gap:2px;}
+  .hist-alert-t{font-weight:700; font-size:12.5px; color:var(--danger);}
+  .hist-insights{font-size:12.5px; color:var(--ink-soft); line-height:1.6; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:-8px 0 18px;}
+  .hist-filters{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;}
+  .hist-filters .field{flex:1 1 112px; min-width:100px;}
+  .hist-filters .field label{font-size:11px;}
+  .mg-row{display:flex; justify-content:space-between; gap:12px; font-size:12.5px; padding:2px 0; color:var(--ink-soft);}
+  .mg-row b{color:var(--ink);}
+  .mg-row.total{border-top:1px solid var(--line); margin-top:4px; padding-top:6px; font-size:13.5px;}
+  .mg-warn{font-size:12px; color:var(--danger); line-height:1.4; margin-top:4px;}
+  .cli-sub{font-size:11.5px; color:var(--ink-faint); margin-top:2px; line-height:1.4;}
+  .cli-name{font-weight:700; color:var(--ink); font-size:13.5px;}
+  .cli-arch{opacity:.8;}
+  .dlg-back{position:fixed; inset:0; background:rgba(24,33,41,.45); display:flex; align-items:center; justify-content:center; z-index:2000; padding:16px;}
+  .dlg{background:var(--paper-raised); color:var(--ink); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); width:min(460px,100%); max-height:92vh; overflow:auto; padding:18px; display:flex; flex-direction:column; gap:12px;}
+  .dlg h3{margin:0; font-size:15px; font-weight:700;}
+  .dlg .field input, .dlg .field select, .dlg .field textarea{background:var(--paper);}
+  .dlg-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:2px;}
+  .dlg-err{color:var(--danger); font-size:12.5px; line-height:1.4;}
+  .tab-badge{margin-left:auto; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--danger); color:#fff; font-size:11px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box;}
+  .tab-badge[hidden]{display:none;}
   .toast{
     position:fixed; bottom:18px; left:50%; transform:translate(-50%,0); z-index:50;
     background:var(--ink); color:var(--paper-raised); padding:9px 16px; border-radius:20px;
@@ -593,6 +614,7 @@
     </div>
     <div class="field"><label for="auth-email">E-mail</label><input type="email" id="auth-email" autocomplete="username" required></div>
     <div class="field"><label for="auth-password">Senha</label><input type="password" id="auth-password" autocomplete="current-password" required></div>
+    <label class="checkbox-field" style="align-items:flex-start;"><input type="checkbox" id="auth-shared" style="margin-top:3px;"> <span>Computador de uso compartilhado<br><span class="hint">Não guarda a sessão nem os dados neste navegador depois que a aba for fechada, e sai sozinho após 30 minutos sem uso.</span></span></label>
     <div id="auth-error" style="font-size:12.5px; color:var(--danger); display:none;"></div>
     <button type="submit" class="btn btn-primary" id="auth-submit" style="width:100%; justify-content:center; margin-top:6px;">Entrar</button>
     <div class="auth-status" id="auth-status"></div>
@@ -624,7 +646,8 @@
       <button type="button" class="side-tab" id="tab-btn-condicoes" data-tab="condicoes" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1V5a1 1 0 0 1 1-1z"/><path d="m9 13 2 2 4-4"/></svg>Condições</button>
       <button type="button" class="side-tab" id="tab-btn-catalogo" data-tab="catalogo" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>Catálogo</button>
       <button type="button" class="side-tab" id="tab-btn-modelos" data-tab="modelos" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></svg>Modelos</button>
-      <button type="button" class="side-tab" id="tab-btn-historico" data-tab="historico" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Histórico</button>
+      <button type="button" class="side-tab" id="tab-btn-historico" data-tab="historico" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Histórico<span class="tab-badge" id="hist-badge" hidden></span></button>
+      <button type="button" class="side-tab" id="tab-btn-clientes" data-tab="clientes" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18.5 14.4A5 5 0 0 1 21.5 19v1"/></svg>Clientes</button>
       <button type="button" class="side-tab" id="tab-btn-empresa" data-tab="empresa" role="tab" aria-selected="false"><svg class="side-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v18"/><path d="M14 9h5a1 1 0 0 1 1 1v12"/><path d="M8 6h.01M8 10h.01M8 14h.01M8 18h.01"/></svg>Empresa</button>
       <div class="side-account">
         <div class="side-user" id="side-user"></div>
@@ -727,6 +750,12 @@
         <div class="field" id="wrap-scope-price" style="max-width:220px;"><label for="f-scope-price">Valor global dos projetos (R$)</label><input type="number" min="0" step="0.01" id="f-scope-price"></div>
         <div class="hint" id="scope-hint"></div>
       </div>
+
+      <details class="field-group sec-card" data-panel="itens" id="fg-margin" open>
+        <summary>Custo e margem <span class="hint">interno — não sai na proposta</span></summary>
+        <div class="field" style="max-width:300px;"><label for="f-extra-cost" title="Custos diretos desta proposta que não estão nos itens: ART/RRT, frete, deslocamento, terceiros">Outros custos diretos (R$)</label><input type="number" min="0" step="0.01" id="f-extra-cost" placeholder="ART/RRT, frete, deslocamento…"></div>
+        <div id="margin-box"></div>
+      </details>
 
       <div class="field-group" data-panel="itens">
         <legend><span id="lbl-items-legend">Itens</span> <button type="button" class="add-row-btn" id="btn-add-item">+ item</button></legend>
@@ -882,8 +911,26 @@
 
       <div class="field-group" data-panel="historico">
         <legend><span id="lbl-history-legend">Histórico de propostas</span> <button type="button" class="btn-ghost btn-sm" id="btn-export-history-csv">Exportar (CSV)</button></legend>
-        <input id="history-search" placeholder="Buscar por cliente ou número..." style="padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink); margin-bottom:4px;">
+        <input id="history-search" type="search" placeholder="Buscar por cliente, CNPJ/CPF, número, assunto, obra ou produto…" aria-label="Buscar no histórico" style="padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink);">
+        <div class="hist-filters" id="hist-filters">
+          <div class="field"><label for="hf-from">Data de</label><input type="date" id="hf-from"></div>
+          <div class="field"><label for="hf-to">Data até</label><input type="date" id="hf-to"></div>
+          <div class="field"><label for="hf-min">Valor mín. (R$)</label><input type="number" min="0" step="0.01" id="hf-min"></div>
+          <div class="field"><label for="hf-max">Valor máx. (R$)</label><input type="number" min="0" step="0.01" id="hf-max"></div>
+        </div>
+        <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">
+          <label class="checkbox-field"><input type="checkbox" id="hf-follow"> Só com retorno pendente</label>
+          <button type="button" class="btn-ghost btn-sm" id="hf-clear" style="padding:0;">Limpar filtros</button>
+          <span class="hint" id="hist-summary"></span>
+        </div>
         <div id="history-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+
+      <div class="field-group" data-panel="clientes">
+        <legend>Clientes <button type="button" class="add-row-btn" id="btn-add-client">+ cliente</button></legend>
+        <div class="hint">Cadastro único, usado nos dois tipos de proposta. O cliente entra aqui sozinho quando uma proposta é emitida e seus dados preenchem as próximas propostas. Clientes nunca são excluídos: só arquivados, com o motivo registrado.</div>
+        <input id="clients-search" type="search" placeholder="Buscar por nome, CNPJ/CPF, contato ou telefone…" aria-label="Buscar cliente" style="padding:8px 10px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink);">
+        <div id="clients-list" style="display:flex; flex-direction:column; gap:8px;"></div>
       </div>
 
       <div class="field-group" data-panel="empresa">
@@ -916,6 +963,12 @@
         </div>
         <div class="field" style="max-width:200px;"><label for="f-company-pix-city">Cidade (para o Pix)</label><input id="f-company-pix-city" placeholder="Ex.: CAMETA" maxlength="15"></div>
         <div style="font-size:11.5px; color:var(--ink-faint); line-height:1.4;">Preenchendo a chave, todo PDF de proposta passa a incluir um QR Code Pix com o valor já preenchido. Deixe em branco para não incluir.</div>
+      </div>
+
+      <div class="field-group" data-panel="empresa">
+        <legend>Meta de margem</legend>
+        <div class="field" style="max-width:240px;"><label for="f-company-target-margin">Margem mínima desejada (%)</label><input type="number" min="0" max="95" step="0.1" id="f-company-target-margin" placeholder="Ex.: 30"></div>
+        <div class="hint">Usada no painel "Custo e margem" (aba Itens) e no histórico, para avisar quando uma proposta fica abaixo da meta. Não aparece na proposta.</div>
       </div>
 
       <div class="field-group" data-panel="empresa" data-mode="projeto">
@@ -971,6 +1024,7 @@
       <div class="field-group" data-panel="empresa">
         <legend>Cópia de segurança</legend>
         <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Baixa um arquivo com tudo que está cadastrado (modelos de serviços e cláusulas, catálogo, histórico de propostas, dados da empresa). Ao restaurar, o sistema só <strong>traz de volta o que estiver faltando</strong> — nada do que já existe é apagado ou sobrescrito.</div>
+        <div class="hint" id="data-size" style="line-height:1.5;"></div>
         <div class="field-row">
           <button type="button" class="btn btn-sm" id="btn-backup-export">Baixar backup</button>
           <button type="button" class="btn-ghost btn-sm" id="btn-backup-import">Restaurar de um backup…</button>
@@ -1015,9 +1069,17 @@
   "use strict";
   var SUPABASE_URL = "https://cfnbmqtvuwxgjunprngh.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_B3mwMwP5pm7N8KNaU6_FbA__pl-EJia";
+  // Computador compartilhado (opção na tela de login): a sessão e a cópia dos dados ficam só na aba aberta
+  // (sessionStorage) e somem ao fechá-la; no computador próprio ficam guardadas (localStorage), como antes.
+  var SHARED_KEY = "orcavolt-pc-compartilhado";
+  function isSharedPc(){ try{ return window.localStorage.getItem(SHARED_KEY) === "1"; }catch(e){ return false; } }
+  function cacheStore(){ try{ return isSharedPc() ? window.sessionStorage : window.localStorage; }catch(e){ return window.localStorage; } }
+  function makeClient(shared){
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, shared ? { auth:{ storage:window.sessionStorage } } : undefined);
+  }
   var sb = null;
   try{
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = makeClient(isSharedPc());
   }catch(e){
     // O script do Supabase (CDN externo) não carregou — sem ele não dá para logar nem
     // sincronizar nada. Mostra um aviso direto no DOM em vez de travar a tela em branco.
@@ -1110,7 +1172,7 @@
 
   function defaultState(){
     return {
-      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"", pixKey:"", pixCity:"", pixType:"", pixBank:"" },
+      company:{ name:"", doc:"", address:"", address2:"", phone:"", email:"", site:"", logo:"", pixKey:"", pixCity:"", pixType:"", pixBank:"", targetMargin:"" },
       profissional: emptyProfissional(),
       projectLibrary: defaultProjectLibrary(),
       mode:"projeto",
@@ -1120,6 +1182,7 @@
       productTemplates: defaultProductTemplates(),
       conditionTemplates: [],
       proposalHistory: [],
+      clients: [],
       drafts:{ projeto: normalizeProjetoDraft(demoProjetoDraft(1)), cabos: demoCabosDraft(1) }
     };
   }
@@ -1677,13 +1740,210 @@
         return h;
       });
     }
+    // cadastro de clientes: o que já existe é mantido; clientes que só aparecem no histórico entram no cadastro (ids determinísticos: dois computadores geram o mesmo registro)
+    d.clients = Array.isArray(parsed.clients) ? parsed.clients.filter(isObj).map(normClientRec) : [];
+    backfillClients(d.clients, d.proposalHistory);
     if(isObj(parsed.drafts) && isObj(parsed.drafts.projeto)) d.drafts.projeto = normalizeProjetoDraft(parsed.drafts.projeto);
     if(isObj(parsed.drafts) && isObj(parsed.drafts.cabos)) d.drafts.cabos = ensureDraftShape(parsed.drafts.cabos);
     return d;
   }
+  // ---------- cadastro de clientes ----------
+  function normText(s){ return pixStripAccents(s).toLowerCase().replace(/\s+/g," ").trim(); }
+  function docDigits(s){ return String(s == null ? "" : s).replace(/\D/g,""); }
+  function hashStr(s){ var x = 5381; for(var i = 0; i < s.length; i++) x = ((x << 5) + x + s.charCodeAt(i)) | 0; return (x >>> 0).toString(36); }
+  // id estável a partir do CNPJ/CPF (ou do nome): o mesmo cliente criado em dois computadores vira UM registro ao sincronizar
+  function clientIdFor(c){
+    var dg = docDigits(c.doc);
+    return "cl-" + hashStr(dg.length >= 11 ? "d:" + dg : "n:" + normText(c.name));
+  }
+  function normClientRec(c){
+    var r = Object.assign({ id:"", name:"", doc:"", contact:"", phone:"", email:"", address:"", notes:"", createdAt:"", archived:false, archiveLog:[] }, c);
+    ["name","doc","contact","phone","email","address","notes","createdAt"].forEach(function(k){ if(typeof r[k] !== "string") r[k] = r[k] == null ? "" : String(r[k]); });
+    if(!isObj(r.addr)) delete r.addr;
+    r.archived = !!r.archived;
+    r.archiveLog = (Array.isArray(r.archiveLog) ? r.archiveLog : []).filter(isObj);
+    if(!r.id) r.id = clientIdFor(r);
+    return r;
+  }
+  function sameClientRec(rec, c){
+    if(!rec || !c) return false;
+    var d1 = docDigits(rec.doc), d2 = docDigits(c.doc);
+    if(d1.length >= 11 && d2.length >= 11) return d1 === d2;
+    var n1 = normText(rec.name), n2 = normText(c.name);
+    return !!n1 && n1 === n2 && (!d1 || !d2 || d1 === d2);
+  }
+  function findClientIn(list, c){
+    for(var i = 0; i < list.length; i++) if(sameClientRec(list[i], c)) return list[i];
+    return null;
+  }
+  // Cria o cliente no cadastro ou atualiza o existente com os dados preenchidos (campo vazio nunca apaga dado já cadastrado)
+  function upsertClientInto(list, c, when){
+    if(!isObj(c) || !String(c.name || "").trim()) return null;
+    var rec = findClientIn(list, c);
+    if(!rec){
+      rec = normClientRec({ id:clientIdFor(c), name:String(c.name).trim(), createdAt:when || todayISO() });
+      list.push(rec);
+    }
+    ["doc","contact","phone","email","address"].forEach(function(k){
+      var v = String(c[k] == null ? "" : c[k]).trim();
+      if(v) rec[k] = v;
+    });
+    if(isObj(c.addr) && Object.keys(c.addr).some(function(k){ return String(c.addr[k] || "").trim(); })) rec.addr = JSON.parse(JSON.stringify(c.addr));
+    return rec;
+  }
+  function backfillClients(list, history){
+    var created = {};
+    (history || []).slice().reverse().forEach(function(hh){
+      var cl = hh && hh.draft && hh.draft.client;
+      if(!isObj(cl) || !String(cl.name || "").trim()) return;
+      var ex = findClientIn(list, cl);
+      if(ex && !created[ex.id]) return;                 // já cadastrado (talvez editado à mão): não mexe
+      var rec = upsertClientInto(list, cl, hh.savedAt || (hh.draft && hh.draft.date) || todayISO());
+      if(rec) created[rec.id] = true;
+    });
+  }
+  function upsertClientFromDraft(cl){
+    var rec = upsertClientInto(state.clients, cl, todayISO());
+    if(rec && rec.archived){
+      rec.archived = false;
+      rec.archiveLog.push({ action:"unarchived", at:todayISO(), reason:"reativado automaticamente: proposta emitida para este cliente" });
+    }
+    return rec;
+  }
+  function clientStats(rec){
+    var s = { n:0, last:"", sold:0, soldN:0 };
+    (state.proposalHistory || []).forEach(function(hh){
+      if(!hh || !isObj(hh.draft) || !sameClientRec(rec, hh.draft.client)) return;
+      s.n++;
+      var d = hh.draft.date || hh.savedAt || "";
+      if(d > s.last) s.last = d;
+      if(hh.status === "vendida"){ s.soldN++; s.sold += calcTotals(hh.draft).total; }
+    });
+    return s;
+  }
+  var clientsQuery = "", clientsShowArchived = false;
+  function clientMatchesQuery(c, q){
+    if(!q) return true;
+    var txt = normText([c.name, c.doc, c.contact, c.phone, c.email, c.address].join(" "));
+    if(txt.indexOf(q) >= 0) return true;
+    var dq = docDigits(q);
+    return dq.length >= 3 && docDigits(c.doc + " " + c.phone).indexOf(dq) >= 0;
+  }
+  function clientCardHtml(c, archived){
+    var st = clientStats(c);
+    var line1 = [c.doc, c.contact, c.phone, c.email].filter(Boolean).map(escapeHtml).join(" · ");
+    var line2 = st.n ? (st.n + (st.n > 1 ? " propostas" : " proposta") + " · última em " + dateBR(st.last) + (st.soldN ? " · " + fmtBRL(st.sold) + " vendido" + (st.soldN > 1 ? " (" + st.soldN + " vendas)" : "") : "")) : "Nenhuma proposta emitida ainda";
+    var lastLog = archived && c.archiveLog.length ? c.archiveLog[c.archiveLog.length - 1] : null;
+    var actions = archived
+      ? '<button type="button" class="btn-ghost btn-sm cli-restore" data-cid="'+escapeHtml(c.id)+'">Restaurar</button>'
+      : '<button type="button" class="btn btn-sm cli-use" data-cid="'+escapeHtml(c.id)+'" title="Preenche o cliente da proposta que está aberta">Usar na proposta atual</button>' +
+        '<button type="button" class="btn-ghost btn-sm cli-edit" data-cid="'+escapeHtml(c.id)+'">Editar</button>' +
+        '<button type="button" class="btn-ghost btn-sm cli-archive" data-cid="'+escapeHtml(c.id)+'">Arquivar</button>';
+    return '<div class="item-card'+(archived ? ' cli-arch' : '')+'" data-cid="'+escapeHtml(c.id)+'">' +
+      '<div><div class="cli-name">'+escapeHtml(c.name)+'</div>' +
+      (line1 ? '<div class="cli-sub">'+line1+'</div>' : '') +
+      (c.address ? '<div class="cli-sub">'+escapeHtml(c.address)+'</div>' : '') +
+      '<div class="cli-sub">'+escapeHtml(line2)+'</div>' +
+      (c.notes ? '<div class="cli-sub" style="font-style:italic;">'+escapeHtml(c.notes)+'</div>' : '') +
+      (lastLog ? '<div class="cli-sub" style="font-style:italic;">Arquivado em '+dateBR(lastLog.at)+(lastLog.reason ? ': "'+escapeHtml(lastLog.reason)+'"' : '')+'</div>' : '') +
+      '</div><div style="display:flex; gap:6px; flex-wrap:wrap;">'+actions+'</div></div>';
+  }
+  function renderClientsList(){
+    var box = document.getElementById("clients-list");
+    if(!box) return;
+    var q = normText(clientsQuery);
+    var byName = function(a, b){ return a.name.localeCompare(b.name, "pt-BR"); };
+    var active = state.clients.filter(function(c){ return !c.archived && clientMatchesQuery(c, q); }).sort(byName);
+    var arch = state.clients.filter(function(c){ return c.archived && clientMatchesQuery(c, q); }).sort(byName);
+    var html = '<div class="sheet-label">Ativos ('+active.length+')</div>';
+    html += active.length ? active.map(function(c){ return clientCardHtml(c, false); }).join("")
+      : '<div class="hint">'+(q ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda. Eles entram aqui quando a primeira proposta é emitida, ou use \"+ cliente\".")+'</div>';
+    if(arch.length || state.clients.some(function(c){ return c.archived; })){
+      var open = clientsShowArchived || !!q;
+      html += '<div class="sheet-label cli-arch-head" role="button" tabindex="0" style="cursor:pointer; user-select:none; margin-top:10px;"><span style="display:inline-block; width:9px;">'+(open ? "▾" : "▸")+'</span> Arquivados ('+arch.length+')</div>';
+      if(open) html += arch.map(function(c){ return clientCardHtml(c, true); }).join("") || '<div class="hint">Nenhum arquivado.</div>';
+    }
+    box.innerHTML = html;
+  }
+  function clientDialogFields(c){
+    c = c || {};
+    return [
+      { id:"name", label:"Nome / Razão social", value:c.name, required:true },
+      { id:"doc", label:"CNPJ/CPF", value:c.doc },
+      { id:"contact", label:"Contato", value:c.contact, placeholder:"Pessoa de contato" },
+      { id:"phone", label:"Telefone", value:c.phone },
+      { id:"email", label:"E-mail", value:c.email },
+      { id:"address", label:"Endereço", value:c.address, placeholder:"Rua, número, bairro, cidade/UF" },
+      { id:"notes", label:"Observações internas (não saem na proposta)", type:"textarea", value:c.notes }
+    ];
+  }
+  function addClientDialog(){
+    openDialog({ title:"Novo cliente", okLabel:"Cadastrar", fields:clientDialogFields(), onOk:function(v){
+      var dup = findClientIn(state.clients, v);
+      if(dup) return dup.archived ? 'Já existe um cliente arquivado com esse nome/CNPJ ("'+dup.name+'"). Restaure-o na lista de arquivados.' : 'Já existe um cliente com esse nome/CNPJ: "'+dup.name+'".';
+      var rec = normClientRec({ id:clientIdFor(v), name:v.name, doc:v.doc, contact:v.contact, phone:v.phone, email:v.email, address:v.address, notes:v.notes, createdAt:todayISO() });
+      state.clients.push(rec);
+      renderClientsList(); renderClientHistoryDatalist(); scheduleSave();
+      toast("Cliente cadastrado");
+    }});
+  }
+  function editClientDialog(cid){
+    var c = state.clients.find(function(x){ return x.id === cid; });
+    if(!c) return;
+    openDialog({ title:"Editar cliente", okLabel:"Salvar", fields:clientDialogFields(c), onOk:function(v){
+      var other = state.clients.find(function(x){ return x !== c && sameClientRec(x, v); });
+      if(other) return 'Já existe outro cliente com esse nome/CNPJ: "'+other.name+'".';
+      ["name","doc","contact","phone","email","notes"].forEach(function(k){ c[k] = v[k]; });
+      if(v.address !== c.address){ c.address = v.address; delete c.addr; }   // endereço digitado à mão substitui o estruturado
+      renderClientsList(); renderClientHistoryDatalist(); scheduleSave();
+      toast("Cliente atualizado");
+    }});
+  }
+  function archiveClientDialog(cid, restore){
+    var c = state.clients.find(function(x){ return x.id === cid; });
+    if(!c) return;
+    openDialog({ title:(restore ? "Restaurar cliente: " : "Arquivar cliente: ")+c.name,
+      intro: restore ? "O cliente volta para a lista de ativos e para a sugestão ao digitar o nome da proposta." : "O cliente sai da lista e das sugestões, mas o cadastro e as propostas dele nunca são excluídos.",
+      okLabel: restore ? "Restaurar" : "Arquivar",
+      fields:[{ id:"reason", label:"Motivo (fica registrado)", type:"textarea", required:true }],
+      onOk:function(v){
+        c.archived = !restore;
+        c.archiveLog.push({ action: restore ? "unarchived" : "archived", at:todayISO(), reason:v.reason });
+        renderClientsList(); renderClientHistoryDatalist(); scheduleSave();
+        toast(restore ? "Cliente restaurado" : "Cliente arquivado");
+      }});
+  }
+  function useClientInDraft(cid){
+    var rec = state.clients.find(function(x){ return x.id === cid; });
+    if(!rec) return;
+    var dr = draft();
+    if(String(dr.client.name || "").trim() && !sameClientRec(rec, dr.client) && !confirm('Trocar o cliente da proposta aberta ('+dr.client.name+') por "'+rec.name+'"?')) return;
+    var nc = Object.assign(emptyClient(), { name:rec.name, doc:rec.doc, contact:rec.contact, phone:rec.phone, email:rec.email, address:rec.address });
+    if(isObj(rec.addr)) nc.addr = Object.assign(emptyAddr(), rec.addr);
+    dr.client = nc;
+    syncFormFromState(); setActiveTab("proposta"); scheduleSave();
+    toast('Cliente "'+rec.name+'" aplicado à proposta');
+  }
+  function attachClients(){
+    var box = document.getElementById("clients-list");
+    document.getElementById("clients-search").addEventListener("input", function(e){ clientsQuery = e.target.value; renderClientsList(); });
+    document.getElementById("btn-add-client").addEventListener("click", addClientDialog);
+    box.addEventListener("click", function(e){
+      var b;
+      if((b = e.target.closest(".cli-use"))) return useClientInDraft(b.getAttribute("data-cid"));
+      if((b = e.target.closest(".cli-edit"))) return editClientDialog(b.getAttribute("data-cid"));
+      if((b = e.target.closest(".cli-archive"))) return archiveClientDialog(b.getAttribute("data-cid"), false);
+      if((b = e.target.closest(".cli-restore"))) return archiveClientDialog(b.getAttribute("data-cid"), true);
+      if(e.target.closest(".cli-arch-head")){ clientsShowArchived = !clientsShowArchived; renderClientsList(); }
+    });
+    box.addEventListener("keydown", function(e){
+      if((e.key === "Enter" || e.key === " ") && e.target.closest(".cli-arch-head")){ e.preventDefault(); clientsShowArchived = !clientsShowArchived; renderClientsList(); }
+    });
+  }
+
   function loadLocalCache(){
     try{
-      var raw = localStorage.getItem(LS_KEY);
+      var raw = cacheStore().getItem(LS_KEY);
       return raw ? normalizeState(JSON.parse(raw)) : null;
     }catch(e){ return null; }
   }
@@ -1807,14 +2067,14 @@
     });
   }
   function setDirtyFlag(on){
-    try{ if(on) localStorage.setItem(DIRTY_KEY, "1"); else localStorage.removeItem(DIRTY_KEY); }catch(e){}
+    try{ if(on) cacheStore().setItem(DIRTY_KEY, "1"); else cacheStore().removeItem(DIRTY_KEY); }catch(e){}
   }
   function isDirtyFlag(){
-    try{ return localStorage.getItem(DIRTY_KEY) === "1"; }catch(e){ return false; }
+    try{ return cacheStore().getItem(DIRTY_KEY) === "1"; }catch(e){ return false; }
   }
   function loadLocalCacheRaw(){
     try{
-      var raw = localStorage.getItem(LS_KEY);
+      var raw = cacheStore().getItem(LS_KEY);
       return raw ? JSON.parse(raw) : null;
     }catch(e){ return null; }
   }
@@ -1871,9 +2131,31 @@
     });
   }
 
+  // Apaga a cópia local dos dados (cache, marca de pendência e CEPs consultados) deste navegador
+  function wipeLocalCache(){
+    [window.localStorage, window.sessionStorage].forEach(function(s){
+      try{ s.removeItem(LS_KEY); s.removeItem(DIRTY_KEY); s.removeItem(CEP_CACHE_KEY); }catch(e){}
+    });
+  }
+  // Ao trocar entre computador próprio e compartilhado, leva a cópia (e a pendência de envio) para o armazenamento certo
+  function moveCacheTo(shared){
+    try{
+      var from = shared ? window.localStorage : window.sessionStorage, to = shared ? window.sessionStorage : window.localStorage;
+      [LS_KEY, DIRTY_KEY].forEach(function(k){ var v = from.getItem(k); if(v != null){ to.setItem(k, v); from.removeItem(k); } });
+    }catch(e){}
+  }
+  function setSharedPc(on){
+    on = !!on;
+    if(on === isSharedPc()) return;
+    moveCacheTo(on);
+    try{ window.localStorage.setItem(SHARED_KEY, on ? "1" : "0"); }catch(e){}
+    if(on){ try{ Object.keys(window.localStorage).forEach(function(k){ if(/^sb-.+-auth-token/.test(k)) window.localStorage.removeItem(k); }); }catch(e){} }
+    sb = makeClient(on);
+  }
+
   var localCacheWarned = false;
   function persistLocal(){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    try{ cacheStore().setItem(LS_KEY, JSON.stringify(state)); }
     catch(e){
       if(!localCacheWarned){ localCacheWarned = true; toast("O cache deste navegador está cheio — os dados seguem sendo salvos na nuvem"); }
     }
@@ -1963,6 +2245,57 @@
     toast._t = setTimeout(function(){ el.classList.remove("show", "has-action"); }, 8000);
   }
 
+  // Diálogo com campos (motivo de cancelamento, registro de contato/aceite, arquivar cliente...).
+  // opts: { title, intro, okLabel, fields:[{ id, label, type:"text|textarea|date|number|select", value, options:[[valor,rótulo]], placeholder, required }],
+  //         onOk(valores) -> texto de erro para manter aberto, ou nada para fechar }
+  function closeDialog(){
+    var d = document.getElementById("dlg-root");
+    if(d) d.remove();
+    document.removeEventListener("keydown", closeDialog._esc, true);
+  }
+  function openDialog(opts){
+    closeDialog();
+    var back = document.createElement("div");
+    back.className = "dlg-back"; back.id = "dlg-root";
+    var html = '<form class="dlg" role="dialog" aria-modal="true" aria-label="'+escapeHtml(opts.title||"")+'" novalidate><h3>'+escapeHtml(opts.title||"")+'</h3>';
+    if(opts.intro) html += '<div class="hint">'+escapeHtml(opts.intro)+'</div>';
+    (opts.fields||[]).forEach(function(fd){
+      var id = "dlg-f-"+fd.id, lab = escapeHtml(fd.label||"")+(fd.required ? " *" : ""), v = fd.value == null ? "" : fd.value, ctl;
+      if(fd.type === "select"){
+        ctl = '<select id="'+id+'">'+(fd.options||[]).map(function(o){ return '<option value="'+escapeHtml(o[0])+'"'+(String(o[0])===String(v)?' selected':'')+'>'+escapeHtml(o[1])+'</option>'; }).join("")+'</select>';
+      } else if(fd.type === "textarea"){
+        ctl = '<textarea id="'+id+'" rows="3" placeholder="'+escapeHtml(fd.placeholder||"")+'">'+escapeHtml(v)+'</textarea>';
+      } else {
+        ctl = '<input id="'+id+'" type="'+(fd.type||"text")+'" value="'+escapeHtml(v)+'" placeholder="'+escapeHtml(fd.placeholder||"")+'"'+(fd.type==="number" ? ' step="0.01" min="0"' : '')+'>';
+      }
+      html += '<div class="field"><label for="'+id+'">'+lab+'</label>'+ctl+'</div>';
+    });
+    html += '<div class="dlg-err" id="dlg-err" role="alert" hidden></div><div class="dlg-actions"><button type="button" class="btn-ghost btn-sm" id="dlg-cancel">Cancelar</button><button type="submit" class="btn btn-primary btn-sm" id="dlg-ok">'+escapeHtml(opts.okLabel||"Salvar")+'</button></div></form>';
+    back.innerHTML = html;
+    document.body.appendChild(back);
+    var form = back.querySelector("form"), err = back.querySelector("#dlg-err");
+    closeDialog._esc = function(e){ if(e.key === "Escape"){ e.stopPropagation(); closeDialog(); } };
+    document.addEventListener("keydown", closeDialog._esc, true);
+    back.addEventListener("mousedown", function(e){ if(e.target === back) closeDialog(); });
+    back.querySelector("#dlg-cancel").addEventListener("click", closeDialog);
+    form.addEventListener("submit", function(e){
+      e.preventDefault();
+      var vals = {}, missing = null;
+      (opts.fields||[]).forEach(function(fd){
+        var el = back.querySelector("#dlg-f-"+fd.id), val = el ? el.value : "";
+        if(fd.type !== "textarea") val = String(val).trim(); else val = String(val).trim();
+        vals[fd.id] = val;
+        if(fd.required && !val && !missing) missing = fd.label;
+      });
+      if(missing){ err.textContent = "Preencha: "+missing+"."; err.hidden = false; return; }
+      var res = opts.onOk ? opts.onOk(vals) : undefined;
+      if(typeof res === "string" && res){ err.textContent = res; err.hidden = false; return; }
+      closeDialog();
+    });
+    var first = back.querySelector("input, select, textarea");
+    if(first) setTimeout(function(){ try{ first.focus(); }catch(e){} }, 0);
+  }
+
   function escapeHtml(str){
     return String(str==null?"":str).replace(/[&<>"']/g, function(c){
       return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
@@ -2038,6 +2371,74 @@
     var total = r2((dr.taxIncluded ? base : base + taxAmount) + nfAmount);
     var nfNoteTotal = (dr.nf && dr.nf.mode==="note") ? r2(total + r2(base * nfPercent/100)) : 0;
     return { subtotal:subtotal, discountAmount:discountAmount, base:base, taxAmount:taxAmount, taxPercentTotal:taxPercentTotal, nfAmount:nfAmount, nfPercent:nfPercent, nfNoteTotal:nfNoteTotal, total:total };
+  }
+
+  // ---------- custo e margem (uso interno; nada disto vai para o PDF) ----------
+  // Custo unitário de um item: o informado na proposta; senão o do produto do catálogo; senão desconhecido (null)
+  function itemUnitCost(it){
+    if(it.cost != null && it.cost !== "") return Number(it.cost) || 0;
+    if(it.catalogId){
+      var c = (state.cableCatalog || []).find(function(x){ return x.id === it.catalogId; });
+      if(c && c.cost != null && c.cost !== "") return Number(c.cost) || 0;
+    }
+    return null;
+  }
+  // Receita líquida = valor depois do desconto, sem os impostos que já estão embutidos no preço.
+  // Margem = receita líquida − custos (itens, serviços e "outros custos diretos"). 'known' só é verdadeiro quando TODO item/serviço tem custo.
+  function calcMargin(dr, mode){
+    if(!isObj(dr) || !Array.isArray(dr.items) || !isObj(dr.discount) || !Array.isArray(dr.taxes)) return null;
+    var t = calcTotals(dr), cost = 0, missing = 0, any = false;
+    dr.items.forEach(function(it){
+      var q = Number(it.qty) || 0, u = itemUnitCost(it);
+      if(u == null){ if(q * (Number(it.price) || 0) > 0) missing++; return; }
+      any = true; cost += r2(q * u);
+    });
+    (Array.isArray(dr.scope) ? dr.scope : []).forEach(function(e){
+      if(e.cost == null || e.cost === ""){ missing++; return; }
+      any = true; cost += r2((Number(e.qty) || 0) * (Number(e.cost) || 0));
+    });
+    var extra = Number(dr.extraCost) || 0;
+    if(extra > 0) any = true;
+    cost = r2(cost + extra);
+    var net = r2(t.base - (dr.taxIncluded ? t.taxAmount : 0));
+    var margin = r2(net - cost), pct = net > 0 ? margin / net * 100 : null;
+    var target = Number(state.company && state.company.targetMargin) || 0;
+    return { any:any, known:any && missing === 0, partial:any && missing > 0, missing:missing, cost:cost, net:net, margin:margin, pct:pct, target:target,
+      low: !!(any && target > 0 && pct != null && pct < target),
+      minNet: target > 0 && target < 100 ? r2(cost / (1 - target / 100)) : 0 };
+  }
+  function renderMarginPanel(){
+    var box = document.getElementById("margin-box");
+    if(!box) return;
+    var m = calcMargin(draft(), state.mode);
+    if(!m || !m.any){
+      box.innerHTML = '<div class="hint">Informe o custo dos itens'+(state.mode === "projeto" ? ' e dos serviços' : '')+' (campo "Custo") e, se houver, outros custos diretos, para ver a margem desta proposta.</div>';
+      return;
+    }
+    var row = function(l, v, cls, title){ return '<div class="mg-row'+(cls ? ' '+cls : '')+'"'+(title ? ' title="'+escapeHtml(title)+'"' : '')+'><span>'+l+'</span><b'+(cls === 'total' && m.low ? ' style="color:var(--danger);"' : '')+'>'+v+'</b></div>'; };
+    var html = row('Receita líquida', fmtBRL(m.net), '', 'Valor da proposta depois do desconto, sem os impostos já embutidos no preço dos itens') +
+      row('Custo total', fmtBRL(m.cost)) +
+      row('Margem' + (m.partial ? ' (parcial)' : ''), fmtBRL(m.margin) + (m.pct == null ? '' : ' · ' + fmtNum(m.pct, 1) + '%'), 'total');
+    if(m.partial) html += '<div class="mg-warn">'+m.missing+' item(ns)/serviço(s) sem custo informado: a margem acima está superestimada.</div>';
+    if(m.target > 0 && m.cost > 0){
+      var folga = r2(m.net - m.minNet);
+      html += row('Meta de margem', fmtNum(m.target, 1) + '%');
+      html += folga >= 0
+        ? row('Folga para desconto até a meta', fmtBRL(folga), '', 'Quanto a receita líquida ainda pode cair sem passar da meta de margem')
+        : '<div class="mg-warn">Abaixo da meta: faltam '+fmtBRL(-folga)+' de receita líquida para chegar a '+fmtNum(m.target, 1)+'% (mínimo '+fmtBRL(m.minNet)+').</div>';
+    }
+    box.innerHTML = html;
+  }
+  function updateDataSize(){
+    var el = document.getElementById("data-size");
+    if(!el) return;
+    var bytes = 0;
+    try{ bytes = new Blob([JSON.stringify(state)]).size; }catch(e){ bytes = JSON.stringify(state).length; }
+    var n = (state.proposalHistory || []).length, mb = bytes / 1048576;
+    var big = n >= 300 || mb >= 3;
+    el.style.color = big ? "var(--danger)" : "";
+    el.textContent = n + " proposta(s) · " + (state.clients || []).length + " cliente(s) · " + (mb >= 1 ? fmtNum(mb, 2) + " MB" : fmtNum(bytes / 1024, 0) + " KB") + " guardados na nuvem."
+      + (big ? " O histórico está grande: hoje tudo é gravado em um único registro. Está na hora de migrar o armazenamento para tabelas separadas (avise o desenvolvedor)." : " Sem sinal de lentidão (a migração para tabelas só é necessária acima de ~300 propostas ou 3 MB).");
   }
 
   // ---------- emitente (empresa ou profissional liberal) ----------
@@ -2177,6 +2578,8 @@
     ["f-cond-obs-p", function(s){return pj().conditions.obs;}, function(s,v){pj().conditions.obs=v;}],
 
     // perfil profissional e dados extras de Pix da empresa
+    ["f-extra-cost", function(s){return draft().extraCost||"";}, function(s,v){draft().extraCost=nonNeg(v);}],
+    ["f-company-target-margin", function(s){return s.company.targetMargin||"";}, function(s,v){s.company.targetMargin=Math.min(95, nonNeg(v));}],
     ["f-company-pix-type", function(s){return s.company.pixType;}, function(s,v){s.company.pixType=v;}],
     ["f-company-pix-bank", function(s){return s.company.pixBank;}, function(s,v){s.company.pixBank=v;}],
     ["f-prof-name", function(s){return s.profissional.name;}, function(s,v){s.profissional.name=v;}],
@@ -2656,12 +3059,9 @@
   }
   function renderClientHistoryDatalist(){
     var dl = document.getElementById("client-history-list");
-    var seen = {};
     var options = "";
-    historyForMode().forEach(function(h){
-      var name = (h.draft.client.name||"").trim();
-      var key = name.toLowerCase();
-      if(name && !seen[key]){ seen[key] = true; options += '<option value="'+escapeHtml(name)+'"></option>'; }
+    state.clients.filter(function(c){ return !c.archived && c.name; }).sort(function(a, b){ return a.name.localeCompare(b.name, "pt-BR"); }).forEach(function(c){
+      options += '<option value="'+escapeHtml(c.name)+'"></option>';
     });
     dl.innerHTML = options;
   }
@@ -2670,6 +3070,8 @@
   function findMostRecentClientByName(name){
     var q = (name||"").trim().toLowerCase();
     if(!q) return null;
+    var reg = state.clients.find(function(c){ return !c.archived && normText(c.name) === normText(name); });
+    if(reg) return reg;
     var scoped = historyForMode();
     for(var i=0;i<scoped.length;i++){
       var c = scoped[i].draft.client;
@@ -2739,7 +3141,7 @@
     applyTabVisibility();
     if(tab === "modelos") updateLibHeadVar();
     if(typeof growTextareas === "function"){ growTextareas(); setTimeout(growTextareas, 280); } // de novo após a animação de largura do painel
-    var isManageTab = tab==="catalogo" || tab==="historico" || tab==="modelos";
+    var isManageTab = tab==="catalogo" || tab==="historico" || tab==="modelos" || tab==="clientes";
     var panel = document.querySelector(".form-panel");
     if(panel){
       panel.scrollTop = 0;
@@ -2845,8 +3247,10 @@
     renderCatalogPicker();
     renderConditionTemplateOptions();
     renderClientHistoryDatalist();
+    renderClientsList();
     renderHistoryList();
     renderPreview();
+    updateDataSize();
   }
 
   // ---------- painéis da proposta de projeto ----------
@@ -2894,7 +3298,8 @@
     var bill = svc.billing || "global";
     return {
       sid:svc.id, title:svc.title, acts: svc.acts.map(function(a){ return { t:a, on:true }; }),
-      billing:bill, qty:billingQtyDefault(bill, dr), price:Number(svc.rate)||0, qtyAuto:(bill === "m2")
+      billing:bill, qty:billingQtyDefault(bill, dr), price:Number(svc.rate)||0, qtyAuto:(bill === "m2"),
+      cost:(svc.costRate == null || svc.costRate === "") ? null : Number(svc.costRate)
     };
   }
   // quando a área da obra muda, os serviços cobrados por m² (com quantidade automática) acompanham
@@ -2953,6 +3358,7 @@
         '<div class="hint">Total do serviço: <b data-sp-total="'+sid+'">'+fmtBRL((Number(entry.qty)||0)*(Number(entry.price)||0))+'</b></div>';
     }
     if(entry){
+      h += '<div class="field-row"><div class="field" style="max-width:230px;"><label title="Custo interno por unidade de cobrança (ou do serviço, se for valor fechado) — não sai na proposta">Custo interno'+((entry.billing || "global") === "global" ? '' : '/unid.')+' (R$)</label><input type="number" min="0" step="0.01" data-sp-cost="'+sid+'" value="'+((entry.cost == null || entry.cost === "") ? "" : entry.cost)+'" placeholder="interno"></div></div>';
       var onCount = entry.acts.filter(function(a){ return a.on; }).length;
       h += '<details data-sid-d="'+sid+'"'+(scopeOpen[sid] !== false ? ' open' : '')+'><summary class="hint" style="cursor:pointer;">Atividades incluídas na proposta: <b>'+onCount+' de '+entry.acts.length+'</b></summary>';
       h += '<div class="act-tools"><button type="button" class="btn-ghost btn-sm" data-scope-all="'+sid+'" data-val="1">marcar todas</button><button type="button" class="btn-ghost btn-sm" data-scope-all="'+sid+'" data-val="0">desmarcar todas</button></div>';
@@ -3302,6 +3708,7 @@
         '<div class="field"><label>Categoria</label><select data-ls-cat="'+i+'">'+catOpts+'</select></div>' +
         '<div class="field"><label>Base de cobrança</label><select data-ls-bill="'+i+'">'+billOpts+'</select></div>' +
         '<div class="field"><label title="Opcional. Já vem preenchido ao marcar o serviço na proposta.">Preço padrão (R$)</label><input type="number" min="0" step="0.01" data-ls-rate="'+i+'" value="'+(s.rate||"")+'" placeholder="opcional"></div>' +
+        '<div class="field"><label title="Opcional e interno (não sai na proposta). Já vem preenchido ao marcar o serviço na proposta.">Custo padrão (R$)</label><input type="number" min="0" step="0.01" data-ls-cost="'+i+'" value="'+((s.costRate == null || s.costRate === "") ? "" : s.costRate)+'" placeholder="interno"></div>' +
       '</div>' +
       '<div style="display:flex; gap:18px; flex-wrap:wrap;">' +
         '<label class="checkbox-field"><input type="checkbox" data-ls-top="'+i+'"'+(s.top?' checked':'')+'> Mostrar em "Mais usados"</label>' +
@@ -3527,6 +3934,12 @@
         }
         return;
       }
+      var spc = e.target.getAttribute("data-sp-cost");
+      if(spc != null){
+        var pc = findScope(spc);
+        if(pc){ pc.cost = e.target.value === "" ? null : nonNeg(e.target.value); scheduleSave(); renderPreview(); }
+        return;
+      }
       var sid = e.target.getAttribute("data-scope-acttext");
       if(!sid) return;
       var entry = findScope(sid), ai = parseInt(e.target.getAttribute("data-ai"), 10);
@@ -3716,7 +4129,7 @@
     // --- biblioteca de modelos ---
     var lsBox = document.getElementById("lib-services");
     lsBox.addEventListener("input", function(e){
-      var ti = e.target.getAttribute("data-ls-title"), ai = e.target.getAttribute("data-ls-acts"), ri = e.target.getAttribute("data-ls-rate");
+      var ti = e.target.getAttribute("data-ls-title"), ai = e.target.getAttribute("data-ls-acts"), ri = e.target.getAttribute("data-ls-rate"), ci = e.target.getAttribute("data-ls-cost");
       var lib = state.projectLibrary.services;
       if(ti != null){
         lib[parseInt(ti, 10)].title = e.target.value;
@@ -3725,6 +4138,7 @@
       }
       else if(ai != null) lib[parseInt(ai, 10)].acts = splitLines(e.target.value);
       else if(ri != null) lib[parseInt(ri, 10)].rate = nonNeg(e.target.value);
+      else if(ci != null) lib[parseInt(ci, 10)].costRate = e.target.value === "" ? null : nonNeg(e.target.value);
       else return;
       renderScopeList(); scheduleSave();
     });
@@ -4156,6 +4570,12 @@
     var dec = it.unit==="m" ? 0 : 2;
     return '<div style="font-size:11px; color:var(--danger); margin-top:2px;">Estoque disponível: '+fmtNum(available,dec)+' '+it.unit+' — quantidade pedida excede em '+fmtNum(totalReq-available,dec)+' '+it.unit+'</div>';
   }
+  function itemUnitCostOwn(it){ return (it.cost != null && it.cost !== "") ? it.cost : null; }
+  function itemMarginText(it){
+    var u = itemUnitCost(it), p = Number(it.price) || 0;
+    if(u == null || p <= 0) return "—";
+    return fmtNum((p - u) / p * 100, 1) + "%";
+  }
   function renderItemsList(){
     var container = document.getElementById("items-list");
     var mode = state.mode;
@@ -4184,6 +4604,10 @@
             '<div class="field"><label>Valor (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+it.price+'"></div>' +
             '<div class="field"><label>Total</label><input value="'+fmtBRL((Number(it.qty)||0)*(Number(it.price)||0))+'" readonly style="color:var(--ink-soft);"></div>' +
           '</div>' +
+          '<div class="item-grid item-cost-row">' +
+            '<div class="field"><label title="Custo unitário interno — não sai na proposta">Custo unit. (R$)</label><input type="number" min="0" step="0.01" data-field="cost" data-index="'+i+'" value="'+(itemUnitCostOwn(it) == null ? "" : itemUnitCostOwn(it))+'" placeholder="'+(itemUnitCost(it) != null ? itemUnitCost(it) : "interno")+'"></div>' +
+            '<div class="field"><label title="Margem sobre o preço, antes de impostos e desconto">Margem do item</label><input readonly data-itemmargin="'+i+'" value="'+itemMarginText(it)+'" style="color:var(--ink-soft);"></div>' +
+          '</div>' +
           '<div class="item-stock-slot" data-index="'+i+'">'+stockWarningHtml(it)+'</div>' +
         '</div>'
       );
@@ -4197,9 +4621,15 @@
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var it = draft().items[idx];
       if(!it) return;
-      if(field==="qty" || field==="price"){
+      if(field==="cost"){
+        it.cost = e.target.value === "" ? null : nonNeg(e.target.value);
+        var mrow = e.target.closest(".item-card"), mi = mrow && mrow.querySelector("[data-itemmargin]");
+        if(mi) mi.value = itemMarginText(it);
+      } else if(field==="qty" || field==="price"){
         it[field] = nonNeg(e.target.value);
         var row = e.target.closest(".item-card");
+        var mi2 = row.querySelector("[data-itemmargin]");
+        if(mi2) mi2.value = itemMarginText(it);
         var totalInput = row.querySelector('.item-grid .field:last-child input');
         totalInput.value = fmtBRL((Number(it.qty)||0)*(Number(it.price)||0));
         if(field==="qty" && it.catalogId){
@@ -4227,10 +4657,10 @@
     // valor negativo, ele foi bloqueado no state, mas o campo ainda mostrava o que foi digitado.
     container.addEventListener("focusout", function(e){
       var field = e.target.getAttribute("data-field");
-      if(field!=="qty" && field!=="price") return;
+      if(field!=="qty" && field!=="price" && field!=="cost") return;
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var it = draft().items[idx];
-      if(it) e.target.value = it[field];
+      if(it) e.target.value = (field === "cost" && it.cost == null) ? "" : it[field];
     });
     container.addEventListener("click", function(e){
       var btn = e.target.closest(".remove-item");
@@ -4306,6 +4736,11 @@
       .map(function(c,i){ return {c:c, i:i}; })
       .sort(function(a,b){ return (a.c.pos||0) - (b.c.pos||0); });
   }
+  function catMarginText(c){
+    var p = Number(c.price) || 0;
+    if(c.cost == null || c.cost === "" || p <= 0) return "—";
+    return fmtNum((p - Number(c.cost)) / p * 100, 1) + "%";
+  }
   function renderCatalogList(){
     var container = document.getElementById("catalog-list");
     container.innerHTML = catalogSortedIndices().map(function(o){
@@ -4336,6 +4771,10 @@
             '<div class="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
             '<div class="field"><label>Estoque ('+escapeHtml(c.unit||"un")+')</label><input type="number" step="0.01" data-cfield="stock" data-index="'+i+'" value="'+(c.stock||0)+'" style="'+((Number(c.stock)||0)<=0?'border-color:var(--danger); color:var(--danger);':'')+'"></div>' +
           '</div>' +
+          '<div class="item-grid" style="grid-template-columns:1fr 1fr 1fr;">' +
+            '<div class="field"><label title="Custo de compra por unidade — uso interno">Custo (R$)</label><input type="number" min="0" step="0.01" data-cfield="cost" data-index="'+i+'" value="'+((c.cost == null || c.cost === "") ? "" : c.cost)+'" placeholder="interno"></div>' +
+            '<div class="field"><label>Margem</label><input readonly data-catmargin="'+i+'" value="'+catMarginText(c)+'" style="color:var(--ink-soft);"></div>' +
+          '</div>' +
           '<button type="button" class="add-row-btn stock-add" data-index="'+i+'" style="align-self:flex-start;">+ entrada de estoque</button>' +
         '</div>'
       );
@@ -4349,7 +4788,11 @@
       var idx = parseInt(e.target.getAttribute("data-index"), 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
-      c[field] = (field==="price"||field==="stock") ? nonNeg(e.target.value) : e.target.value;
+      c[field] = (field==="price"||field==="stock") ? nonNeg(e.target.value) : (field==="cost" ? (e.target.value === "" ? null : nonNeg(e.target.value)) : e.target.value);
+      if(field==="price" || field==="cost"){
+        var cm = e.target.closest(".catalog-card"), cmi = cm && cm.querySelector("[data-catmargin]");
+        if(cmi) cmi.value = catMarginText(c);
+      }
       if(field==="stock"){
         var low = (Number(c.stock)||0) <= 0;
         e.target.style.borderColor = low ? "var(--danger)" : "";
@@ -4360,10 +4803,10 @@
     });
     container.addEventListener("focusout", function(e){
       var field = e.target.getAttribute("data-cfield");
-      if(field==="price" || field==="stock"){
+      if(field==="price" || field==="stock" || field==="cost"){
         var idxNum = parseInt(e.target.getAttribute("data-index"), 10);
         var cNum = state.cableCatalog[idxNum];
-        if(cNum) e.target.value = cNum[field];
+        if(cNum) e.target.value = (field === "cost" && cNum.cost == null) ? "" : cNum[field];
         return;
       }
       if(field !== "desc" && field !== "detail") return;
@@ -4536,7 +4979,7 @@
       var idx = parseInt(select.value, 10);
       var c = state.cableCatalog[idx];
       if(!c) return;
-      draft().items.push({ desc:c.desc, detail:c.detail, unit:c.unit||"m", qty:1, price:c.price, catalogId:c.id });
+      draft().items.push({ desc:c.desc, detail:c.detail, unit:c.unit||"m", qty:1, price:c.price, catalogId:c.id, cost:(c.cost == null || c.cost === "") ? null : Number(c.cost) });
       renderItemsList();
       scheduleSave();
       renderPreview();
@@ -4606,15 +5049,20 @@
       existing.draft = snapshotDraft(dr);
       existing.mode = state.mode;
       existing.savedAt = todayISO();
+      // proposta baixada de novo com o retorno já vencido (ou sem data): considera reenviada e agenda novo retorno
+      if(existing.status === "emitida" && !existing.acceptedAt && (!existing.followUpAt || existing.followUpAt <= todayISO())) existing.followUpAt = addDaysISO(todayISO(), FOLLOWUP_DAYS);
     } else {
       state.proposalHistory.unshift({
         id: genId(), number: dr.number, mode: state.mode, status: "emitida",
         savedAt: todayISO(), draft: snapshotDraft(dr),
-        archived: false, archiveLog: []
+        archived: false, archiveLog: [], followUpAt: addDaysISO(todayISO(), FOLLOWUP_DAYS), log: []
       });
     }
+    upsertClientFromDraft(dr.client);
+    updateDataSize();
     renderHistoryList();
     renderClientHistoryDatalist();
+    renderClientsList();
   }
 
   function findHistoryEntry(hid){
@@ -4700,6 +5148,8 @@
       actions += '<button type="button" class="btn-ghost btn-sm hist-unarchive" data-hid="'+h.id+'">Desarquivar</button>';
     } else {
       if(h.status === "emitida"){
+        actions += '<button type="button" class="btn-ghost btn-sm hist-contact" data-hid="'+h.id+'" title="Anota o contato com o cliente e agenda o próximo retorno">Registrar contato</button>';
+        actions += '<button type="button" class="btn-ghost btn-sm hist-accept" data-hid="'+h.id+'" title="Guarda quando e como o cliente aceitou a proposta">'+(h.acceptedAt ? 'Editar aceite' : 'Registrar aceite')+'</button>';
         actions += '<button type="button" class="btn btn-sm hist-sell" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Marcar vendida</button>';
         actions += '<button type="button" class="btn-ghost btn-sm hist-cancel" data-hid="'+h.id+'">Cancelar</button>';
       } else if(h.status === "vendida"){
@@ -4712,6 +5162,14 @@
     var reasonEntry = !opts.archived ? lastArchiveReason(h) : null;
     var expiredBadge = (h.status==="emitida" && isProposalExpired(h.draft))
       ? ' <span style="color:var(--danger); font-weight:700;">· Vencida</span>' : '';
+    var mg = calcMargin(h.draft, h.mode);
+    var mgLine = (mg && mg.known) ? '<div style="font-size:11.5px; margin-top:3px; color:'+(mg.low ? 'var(--danger)' : 'var(--ink-soft)')+';">Margem '+(mg.pct == null ? '—' : fmtNum(mg.pct, 1)+'%')+' · '+fmtBRL(mg.margin)+(mg.low ? ' (abaixo da meta)' : '')+'</div>' : '';
+    var lostLine = (h.status === "cancelada" && (h.lostReason || h.lostNote))
+      ? '<div style="font-size:11.5px; color:var(--ink-soft); margin-top:3px;">Motivo: '+escapeHtml(labelOf(LOST_REASONS, h.lostReason))+(h.lostNote ? ' — '+escapeHtml(h.lostNote) : '')+'</div>' : '';
+    var logs = Array.isArray(h.log) ? h.log : [];
+    var logHtml = logs.length
+      ? '<details style="margin-top:4px;"><summary class="hint" style="cursor:pointer;">Anotações ('+logs.length+') · última em '+dateBR(logs[logs.length-1].at)+'</summary>' +
+        logs.slice().reverse().map(function(l){ return '<div class="cli-sub">'+dateBR(l.at)+' — '+escapeHtml(l.text)+'</div>'; }).join('') + '</details>' : '';
     return (
       '<div class="item-card" data-hid="'+h.id+'">' +
         '<div class="field"><label>'+escapeHtml(h.number)+'</label>' +
@@ -4719,7 +5177,9 @@
           '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+(opts.archived?" · "+statusLabel:"")+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+expiredBadge+'</div>' +
           (h.mode==="projeto" && ((Number(h.draft.revision)||0) > 0 || (h.revisionLog && h.revisionLog.length))
             ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:2px;">Revisão '+revLabel(h.draft)+(h.revisionLog && h.revisionLog.length ? ' · '+h.revisionLog.length+' versão(ões) anterior(es) guardada(s)' : '')+'</div>' : '') +
+          followUpLineHtml(h) + lostLine + mgLine +
           (reasonEntry ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:4px; font-style:italic;">Desarquivada em '+dateBR(reasonEntry.at)+': "'+escapeHtml(reasonEntry.reason)+'"</div>' : '') +
+          logHtml +
         '</div>' +
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">'+actions+'</div>' +
       '</div>'
@@ -4740,17 +5200,173 @@
   function saveHistoryCollapseState(){
     try{ localStorage.setItem(HISTORY_COLLAPSE_KEY, JSON.stringify(historyCollapsed)); }catch(e){}
   }
-  function matchesHistorySearch(h){
-    if(!historySearchQuery) return true;
-    var q = historySearchQuery;
-    return (h.number||"").toLowerCase().indexOf(q) !== -1 ||
-      (h.draft.client.name||"").toLowerCase().indexOf(q) !== -1;
+  var historyFilters = { from:"", to:"", min:"", max:"", follow:false };
+  function historyFiltering(){
+    var f = historyFilters;
+    return !!historySearchQuery || !!f.from || !!f.to || f.min !== "" || f.max !== "" || f.follow;
   }
+  function historyHaystack(h){
+    var dr = h.draft || {}, cl = dr.client || {};
+    var obra = (dr.obra && (dr.obra.address || "")) || "";
+    var items = (dr.items || []).map(function(it){ return (it.desc || "") + " " + (it.detail || ""); }).join(" ");
+    var scope = (dr.scope || []).map(function(e){ return e.title || ""; }).join(" ");
+    return normText([h.number, cl.name, cl.doc, cl.contact, dr.subject, obra, items, scope].join(" "));
+  }
+  function matchesHistorySearch(h){
+    var f = historyFilters;
+    if(historySearchQuery){
+      var q = normText(historySearchQuery), dq = docDigits(historySearchQuery);
+      var hay = historyHaystack(h);
+      if(hay.indexOf(q) < 0 && !(dq.length >= 3 && docDigits((h.draft.client || {}).doc).indexOf(dq) >= 0)) return false;
+    }
+    var d = (h.draft && h.draft.date) || h.savedAt || "";
+    if(f.from && d < f.from) return false;
+    if(f.to && d > f.to) return false;
+    if(f.min !== "" || f.max !== ""){
+      var t = calcTotals(h.draft).total;
+      if(f.min !== "" && t < Number(f.min)) return false;
+      if(f.max !== "" && t > Number(f.max)) return false;
+    }
+    if(f.follow){ var fi = followUpInfo(h); if(!fi || fi.kind === "future") return false; }
+    return true;
+  }
+
+  // ---------- retorno ao cliente, motivo de perda e aceite ----------
+  var LOST_REASONS = [["preco","Preço acima do esperado"],["prazo","Prazo"],["concorrente","Escolheu outro fornecedor"],["desistiu","Cliente desistiu ou adiou"],["semresposta","Sem resposta do cliente"],["escopo","Escopo mudou"],["outro","Outro"]];
+  var ACCEPT_VIA = [["assinatura","Assinatura na proposta"],["email","E-mail"],["whatsapp","WhatsApp"],["contrato","Contrato assinado"],["pedido","Pedido / ordem de serviço"],["verbal","Verbal"]];
+  function labelOf(list, key){ for(var i = 0; i < list.length; i++) if(list[i][0] === key) return list[i][1]; return key || ""; }
+  function addDaysISO(iso, days){
+    var d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + (Number(days) || 0));
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function diffDays(a, b){ return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000); }
+  var FOLLOWUP_DAYS = 7;
+  function addLog(hh, text){
+    if(!Array.isArray(hh.log)) hh.log = [];
+    hh.log.push({ id:genId(), at:todayISO(), text:text });
+  }
+  function followUpInfo(hh){
+    if(!hh || hh.status !== "emitida" || hh.archived || !hh.followUpAt || hh.acceptedAt) return null;
+    var t = todayISO();
+    if(hh.followUpAt < t) return { kind:"late", days:diffDays(hh.followUpAt, t) };
+    if(hh.followUpAt === t) return { kind:"today", days:0 };
+    return { kind:"future", days:diffDays(t, hh.followUpAt) };
+  }
+  function pendingFollowUps(list){
+    return (list || []).filter(function(hh){ var i = followUpInfo(hh); return i && i.kind !== "future"; });
+  }
+  function expiryISO(dr){ return (dr && dr.date) ? addDaysISO(dr.date, Number(dr.validadeDias) || 0) : ""; }
+  function expiringSoon(list, days){
+    var t = todayISO(), lim = addDaysISO(t, days);
+    return (list || []).filter(function(hh){
+      if(hh.status !== "emitida" || hh.archived || hh.acceptedAt) return false;
+      var e = expiryISO(hh.draft);
+      return e && e >= t && e <= lim;
+    });
+  }
+  function updateHistBadge(){
+    var el = document.getElementById("hist-badge");
+    if(!el) return;
+    var n = pendingFollowUps(state.proposalHistory).length;
+    el.hidden = !n;
+    el.textContent = n > 99 ? "99+" : String(n);
+    el.title = n + " proposta(s) com retorno ao cliente para hoje ou atrasado";
+  }
+  function followUpLineHtml(hh){
+    if(hh.acceptedAt){
+      return '<div style="font-size:11.5px; color:var(--good); margin-top:3px; font-weight:600;">Aceite registrado em '+dateBR(hh.acceptedAt)+(hh.acceptedBy ? ' por '+escapeHtml(hh.acceptedBy) : '')+(hh.acceptedVia ? ' · '+escapeHtml(labelOf(ACCEPT_VIA, hh.acceptedVia)) : '')+'</div>';
+    }
+    if(hh.status !== "emitida") return "";
+    var fi = followUpInfo(hh);
+    if(!fi) return '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:3px;">Sem data de retorno definida</div>';
+    var txt = fi.kind === "today" ? "hoje" : fi.kind === "late" ? "atrasado "+fi.days+(fi.days > 1 ? " dias" : " dia") : "em "+fi.days+(fi.days > 1 ? " dias" : " dia");
+    return '<div style="font-size:11.5px; margin-top:3px; font-weight:600; color:'+(fi.kind === "future" ? 'var(--ink-soft)' : 'var(--danger)')+';">Retorno ao cliente: '+dateBR(hh.followUpAt)+' ('+txt+')</div>';
+  }
+  function contactDialog(hid){
+    var hh = findHistoryEntry(hid);
+    if(!hh) return;
+    openDialog({ title:"Registrar contato — "+hh.number, intro:"Anote o que foi conversado e quando voltar a falar com o cliente.", okLabel:"Registrar",
+      fields:[
+        { id:"note", label:"O que foi conversado / combinado", type:"textarea", required:true, placeholder:"Ex.: ligou, pediu desconto; ficou de responder até sexta" },
+        { id:"next", label:"Próximo retorno", type:"date", value:addDaysISO(todayISO(), FOLLOWUP_DAYS) }
+      ],
+      onOk:function(v){
+        addLog(hh, "Contato: "+v.note);
+        hh.followUpAt = v.next || "";
+        renderHistoryList(); scheduleSave();
+        toast(v.next ? "Contato registrado — próximo retorno em "+dateBR(v.next) : "Contato registrado");
+      }});
+  }
+  function acceptDialog(hid){
+    var hh = findHistoryEntry(hid);
+    if(!hh) return;
+    openDialog({ title:(hh.acceptedAt ? "Editar aceite — " : "Registrar aceite — ")+hh.number, intro:"Guarda quando e como o cliente aceitou a proposta. Depois de fechar, use \"Marcar vendida\".", okLabel:"Salvar aceite",
+      fields:[
+        { id:"at", label:"Data do aceite", type:"date", value:hh.acceptedAt || todayISO(), required:true },
+        { id:"by", label:"Quem aceitou", value:hh.acceptedBy || (hh.draft.client && hh.draft.client.contact) || (hh.draft.client && hh.draft.client.name) || "" },
+        { id:"via", label:"Como foi aceita", type:"select", options:ACCEPT_VIA, value:hh.acceptedVia || "assinatura" },
+        { id:"note", label:"Observação (opcional)", type:"textarea", value:hh.acceptNote || "" }
+      ],
+      onOk:function(v){
+        if(v.at > todayISO()) return "A data do aceite não pode ser futura.";
+        hh.acceptedAt = v.at; hh.acceptedBy = v.by; hh.acceptedVia = v.via; hh.acceptNote = v.note;
+        hh.followUpAt = "";
+        addLog(hh, "Aceite registrado em "+dateBR(v.at)+(v.by ? " por "+v.by : "")+" ("+labelOf(ACCEPT_VIA, v.via)+")");
+        renderHistoryList(); scheduleSave();
+        toast("Aceite registrado — marque como vendida quando fechar");
+      }});
+  }
+  function historyAlertsHtml(list){
+    var late = pendingFollowUps(list).sort(function(a, b){ return a.followUpAt < b.followUpAt ? -1 : 1; });
+    var soon = expiringSoon(list, 3);
+    if(!late.length && !soon.length) return "";
+    var o = '<div class="hist-alert" role="status">';
+    if(late.length){
+      o += '<div class="hist-alert-t">Retorno ao cliente pendente ('+late.length+')</div>';
+      late.slice(0, 5).forEach(function(hh){
+        var fi = followUpInfo(hh);
+        o += '<div class="cli-sub">'+escapeHtml(hh.number)+' · '+escapeHtml(hh.draft.client.name || "Sem cliente")+' · '+(fi.kind === "today" ? "hoje" : "atrasado "+fi.days+(fi.days > 1 ? " dias" : " dia"))+'</div>';
+      });
+      if(late.length > 5) o += '<div class="cli-sub">…e mais '+(late.length - 5)+'</div>';
+      o += '<button type="button" class="btn-ghost btn-sm hist-onlyfollow" style="padding:0; align-self:flex-start; margin-top:2px;">'+(historyFilters.follow ? "Mostrar todas as propostas" : "Ver só essas")+'</button>';
+    }
+    if(soon.length){
+      o += '<div class="hist-alert-t" style="margin-top:'+(late.length ? 8 : 0)+'px;">Vencem em até 3 dias ('+soon.length+')</div>';
+      soon.slice(0, 5).forEach(function(hh){
+        o += '<div class="cli-sub">'+escapeHtml(hh.number)+' · '+escapeHtml(hh.draft.client.name || "Sem cliente")+' · vence em '+dateBR(expiryISO(hh.draft))+'</div>';
+      });
+    }
+    return o + '</div>';
+  }
+  function historyInsightsHtml(list){
+    var sold = list.filter(function(hh){ return hh.status === "vendida"; });
+    var lost = list.filter(function(hh){ return hh.status === "cancelada"; });
+    if(!sold.length && !lost.length) return "";
+    var sum = function(arr){ return arr.reduce(function(s, hh){ return s + calcTotals(hh.draft).total; }, 0); };
+    var sv = sum(sold), lv = sum(lost), closed = sold.length + lost.length, rows = [];
+    rows.push('Taxa de conversão: <b>'+Math.round(sold.length / closed * 100)+'%</b> das propostas encerradas ('+sold.length+' vendida'+(sold.length === 1 ? '' : 's')+', '+lost.length+' cancelada'+(lost.length === 1 ? '' : 's')+')'+(sv + lv > 0 ? ' · em valor: <b>'+Math.round(sv / (sv + lv) * 100)+'%</b>' : ''));
+    var days = sold.filter(function(hh){ return hh.soldAt && hh.draft.date; }).map(function(hh){ return diffDays(hh.draft.date, hh.soldAt); }).filter(function(n){ return n >= 0; });
+    if(days.length) rows.push('Tempo médio até fechar: <b>'+Math.round(days.reduce(function(a, b){ return a + b; }, 0) / days.length)+' dia(s)</b>');
+    if(lost.length){
+      var cnt = {}, semMotivo = 0;
+      lost.forEach(function(hh){ if(hh.lostReason) cnt[hh.lostReason] = (cnt[hh.lostReason] || 0) + 1; else semMotivo++; });
+      var parts = Object.keys(cnt).sort(function(a, b){ return cnt[b] - cnt[a]; }).map(function(k){ return escapeHtml(labelOf(LOST_REASONS, k))+' ('+cnt[k]+')'; });
+      if(semMotivo) parts.push('sem motivo informado ('+semMotivo+')');
+      rows.push('Motivos das perdas: '+parts.join(' · '));
+    }
+    var mgs = sold.map(function(hh){ return calcMargin(hh.draft, hh.mode); }).filter(function(m){ return m && m.known; });
+    if(mgs.length){
+      var net = mgs.reduce(function(s, m){ return s + m.net; }, 0), mar = mgs.reduce(function(s, m){ return s + m.margin; }, 0);
+      rows.push('Margem das vendas com custo informado ('+mgs.length+' de '+sold.length+'): <b>'+(net > 0 ? fmtNum(mar / net * 100, 1) : '0')+'%</b> · '+fmtBRL(mar));
+    }
+    return '<div class="hist-insights">'+rows.map(function(r){ return '<div>'+r+'</div>'; }).join('')+'</div>';
+  }
+
 
   // Enquanto há uma busca ativa, ignora o recolher e o "mostrar mais" — nada que bata com a
   // busca deve ficar escondido atrás de um clique extra.
   function renderSection(sectionKey, title, filtered, cardOpts, emptyText){
-    var searching = !!historySearchQuery;
+    var searching = historyFiltering();
     var collapsed = searching ? false : !!historyCollapsed[sectionKey];
     var shown = searching ? filtered.length : (historyShowCount[sectionKey] || 10);
     var visible = filtered.slice(0, shown);
@@ -4778,12 +5394,12 @@
 
   function historySection(list, statusKey, title, emptyText){
     var filtered = list.filter(function(h){ return h.status === statusKey && !h.archived && matchesHistorySearch(h); });
-    return renderSection(statusKey, title, filtered, { archived:false }, historySearchQuery ? "Nenhum resultado para essa busca." : emptyText);
+    return renderSection(statusKey, title, filtered, { archived:false }, historyFiltering() ? "Nenhum resultado para essa busca." : emptyText);
   }
 
   function archivedSection(list){
     var filtered = list.filter(function(h){ return h.archived && matchesHistorySearch(h); });
-    return renderSection("arquivada", "Arquivadas", filtered, { archived:true }, historySearchQuery ? "Nenhum resultado para essa busca." : "Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.");
+    return renderSection("arquivada", "Arquivadas", filtered, { archived:true }, historyFiltering() ? "Nenhum resultado para essa busca." : "Nenhuma proposta arquivada. Propostas arquivadas nunca são excluídas — só somem da lista principal.");
   }
 
   function historyStatCard(icon, label, value, sub, colorVar){
@@ -4832,12 +5448,22 @@
     var container = document.getElementById("history-list");
     var list = historyForMode();
     document.getElementById("lbl-history-legend").textContent = state.mode==="cabos" ? "Histórico — venda de cabos" : "Histórico — projetos e consultoria";
+    updateHistBadge();
+    var sumEl = document.getElementById("hist-summary");
+    if(sumEl){
+      if(historyFiltering() && list.length){
+        var hit = list.filter(matchesHistorySearch);
+        sumEl.textContent = hit.length+" de "+list.length+" proposta(s) · "+fmtBRL(hit.reduce(function(s, hh){ return s + calcTotals(hh.draft).total; }, 0));
+      } else sumEl.textContent = "";
+    }
     if(!list.length){
       container.innerHTML = '<div style="font-size:12.5px; color:var(--ink-faint); line-height:1.5;">Nenhuma proposta de '+(state.mode==="cabos" ? "cabos" : "projeto")+' salva ainda. Toda vez que você clicar em "Baixar proposta", ela é registrada aqui automaticamente.</div>';
       return;
     }
     container.innerHTML =
+      historyAlertsHtml(list) +
       historyStatsRow(list) +
+      historyInsightsHtml(list) +
       historySection(list, "emitida", "Emitidas", "Nenhuma proposta emitida pendente.") +
       historySection(list, "vendida", "Vendidas", "Nenhuma venda registrada ainda.") +
       historySection(list, "cancelada", "Canceladas", "Nenhuma proposta cancelada.") +
@@ -4916,6 +5542,7 @@
     });
     h.status = "vendida";
     h.soldAt = todayISO();
+    h.followUpAt = "";
     renderHistoryList();
     renderCatalogList();
     renderCatalogPicker();
@@ -4938,6 +5565,7 @@
     });
     h.status = "emitida";
     delete h.soldAt;
+    if(!h.followUpAt) h.followUpAt = addDaysISO(todayISO(), FOLLOWUP_DAYS);
     renderHistoryList();
     renderCatalogList();
     renderCatalogPicker();
@@ -4949,19 +5577,33 @@
   function cancelProposal(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
-    if(!confirm('Marcar a proposta '+h.number+' como cancelada?'+(h.mode==="cabos" ? ' O estoque não é alterado.' : ''))) return;
-    h.status = "cancelada";
-    h.canceledAt = todayISO();
-    renderHistoryList();
-    scheduleSave();
-    toast("Proposta marcada como cancelada");
+    openDialog({ title:"Cancelar proposta "+h.number,
+      intro:(h.mode==="cabos" ? "O estoque não é alterado. " : "")+"O motivo alimenta as estatísticas do histórico (por que as propostas não fecham).",
+      okLabel:"Marcar como cancelada",
+      fields:[
+        { id:"reason", label:"Motivo", type:"select", options:LOST_REASONS, value:"preco" },
+        { id:"note", label:"Detalhe (opcional)", type:"textarea", placeholder:"Ex.: fechou com outro escritório por um valor menor" }
+      ],
+      onOk:function(v){
+        if(v.reason === "outro" && !v.note) return "Descreva o motivo no campo Detalhe.";
+        h.status = "cancelada";
+        h.canceledAt = todayISO();
+        h.lostReason = v.reason; h.lostNote = v.note;
+        h.followUpAt = "";
+        addLog(h, "Cancelada: "+labelOf(LOST_REASONS, v.reason)+(v.note ? " — "+v.note : ""));
+        renderHistoryList();
+        scheduleSave();
+        toast("Proposta marcada como cancelada");
+      }});
   }
 
   function reopenProposal(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
     h.status = "emitida";
-    delete h.canceledAt;
+    addLog(h, "Reaberta"+(h.lostReason ? " (cancelamento anterior: "+labelOf(LOST_REASONS, h.lostReason)+")" : ""));
+    delete h.canceledAt; delete h.lostReason; delete h.lostNote;
+    h.followUpAt = addDaysISO(todayISO(), FOLLOWUP_DAYS);
     renderHistoryList();
     scheduleSave();
     toast("Proposta reaberta como emitida");
@@ -5002,6 +5644,16 @@
       historySearchQuery = e.target.value.trim().toLowerCase();
       renderHistoryList();
     });
+    [["hf-from","from"],["hf-to","to"],["hf-min","min"],["hf-max","max"]].forEach(function(p){
+      document.getElementById(p[0]).addEventListener("input", function(e){ historyFilters[p[1]] = e.target.value; renderHistoryList(); });
+    });
+    document.getElementById("hf-follow").addEventListener("change", function(e){ historyFilters.follow = e.target.checked; renderHistoryList(); });
+    document.getElementById("hf-clear").addEventListener("click", function(){
+      historyFilters = { from:"", to:"", min:"", max:"", follow:false }; historySearchQuery = "";
+      ["history-search","hf-from","hf-to","hf-min","hf-max"].forEach(function(id){ document.getElementById(id).value = ""; });
+      document.getElementById("hf-follow").checked = false;
+      renderHistoryList();
+    });
     document.getElementById("btn-export-history-csv").addEventListener("click", exportHistoryCsv);
     var container = document.getElementById("history-list");
     container.addEventListener("click", function(e){
@@ -5014,6 +5666,13 @@
       if((btn = e.target.closest(".hist-reopen"))) return reopenProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-archive"))) return archiveProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-unarchive"))) return unarchiveProposal(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-contact"))) return contactDialog(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-accept"))) return acceptDialog(btn.getAttribute("data-hid"));
+      if(e.target.closest(".hist-onlyfollow")){
+        historyFilters.follow = !historyFilters.follow;
+        document.getElementById("hf-follow").checked = historyFilters.follow;
+        return renderHistoryList();
+      }
       if((btn = e.target.closest(".hist-showmore"))){
         var sec = btn.getAttribute("data-section");
         historyShowCount[sec] = (historyShowCount[sec]||10) + 10;
@@ -5478,6 +6137,7 @@
   }
 
   function renderPreview(){
+    try{ renderMarginPanel(); }catch(e){}
     var dr = draft();
     var mode = state.mode;
     var sheet = document.getElementById("sheet");
@@ -7021,18 +7681,24 @@
     var scoped = historyForMode();
     if(!scoped.length){ toast("Nenhuma proposta de "+(state.mode==="cabos" ? "cabos" : "projeto")+" no histórico ainda"); return; }
     var statusLabel = { emitida:"Emitida", vendida:"Vendida", cancelada:"Cancelada" };
-    var rows = [["Número","Cliente","Modo","Status","Vencida","Data","Válida até","Total (R$)","Arquivada"]];
+    var rows = [["Número","Cliente","CNPJ/CPF","Modo","Status","Vencida","Data","Válida até","Total (R$)","Custo (R$)","Margem (%)","Retorno ao cliente","Aceite em","Motivo da perda","Arquivada"]];
     scoped.forEach(function(h){
       var totals = calcTotals(h.draft);
       rows.push([
         h.number,
         h.draft.client.name || "",
+        h.draft.client.doc || "",
         h.mode==="cabos" ? "Cabos" : "Projeto",
         statusLabel[h.status] || h.status,
         (h.status==="emitida" && isProposalExpired(h.draft)) ? "Sim" : "Não",
         dateBR(h.savedAt),
         addDaysBR(h.draft.date, h.draft.validadeDias),
         totals.total.toFixed(2).replace(".",","),
+        (function(){ var m = calcMargin(h.draft, h.mode); return (m && m.known) ? m.cost.toFixed(2).replace(".",",") : ""; })(),
+        (function(){ var m = calcMargin(h.draft, h.mode); return (m && m.known && m.pct != null) ? m.pct.toFixed(1).replace(".",",") : ""; })(),
+        h.followUpAt && h.status === "emitida" ? dateBR(h.followUpAt) : "",
+        h.acceptedAt ? dateBR(h.acceptedAt) : "",
+        h.status === "cancelada" ? labelOf(LOST_REASONS, h.lostReason) : "",
         h.archived ? "Sim" : "Não"
       ]);
     });
@@ -7274,7 +7940,7 @@
   // ---------- cópia de segurança ----------
   function countItems(s){
     return { servicos:(s.projectLibrary.services||[]).length, clausulas:(s.projectLibrary.clauses||[]).length,
-             produtos:(s.cableCatalog||[]).length, propostas:(s.proposalHistory||[]).length };
+             produtos:(s.cableCatalog||[]).length, propostas:(s.proposalHistory||[]).length, clientes:(s.clients||[]).length };
   }
   function initBackup(){
     var file = document.getElementById("backup-file");
@@ -7308,6 +7974,7 @@
         if(after.clausulas > before.clausulas) parts.push((after.clausulas-before.clausulas)+" cláusula(s)");
         if(after.produtos > before.produtos) parts.push((after.produtos-before.produtos)+" produto(s)");
         if(after.propostas > before.propostas) parts.push((after.propostas-before.propostas)+" proposta(s)");
+        if(after.clientes > before.clientes) parts.push((after.clientes-before.clientes)+" cliente(s)");
         alert(parts.length ? "Recuperado: "+parts.join(", ")+"." : "Nada faltava: tudo que está no backup já existe aqui.");
       };
       rd.readAsText(fl);
@@ -7336,6 +8003,7 @@
       var password = document.getElementById("auth-password").value;
       var btn = document.getElementById("auth-submit");
       btn.disabled = true;
+      setSharedPc(document.getElementById("auth-shared").checked);
       setAuthStatus("Entrando…");
       sb.auth.signInWithPassword({ email:email, password:password }).then(function(res){
         if(res.error){
@@ -7352,18 +8020,40 @@
       });
     });
   }
+  // Sair: grava o que falta, encerra a sessão e APAGA a cópia local dos dados (clientes, propostas, valores).
+  // Só mantém a cópia se houver alterações que ainda não chegaram à nuvem — essas continuam guardadas para o próximo login.
+  function performSignOut(silent){
+    flushSave();
+    var wait = (cloudBusy || cloudDirty) ? cloudPromise : Promise.resolve();
+    return Promise.race([wait, new Promise(function(r){ setTimeout(r, 4000); })]).then(function(){
+      if(isDirtyFlag()){
+        if(silent) return;   // bloqueio automático: não sai com dados por enviar; tenta de novo no próximo ciclo
+        if(!confirm("Há alterações que ainda não chegaram à nuvem (sem conexão?). Elas continuam guardadas neste navegador e serão enviadas na próxima vez que você entrar aqui. Sair mesmo assim?")) return;
+      }
+      var done = function(){ if(!isDirtyFlag()) wipeLocalCache(); location.reload(); };
+      return sb.auth.signOut().then(done, done);
+    });
+  }
   function attachSignOut(){
     var btn = document.getElementById("btn-sign-out");
     if(!btn) return;
     btn.addEventListener("click", function(){
-      if(!confirm("Sair da conta neste dispositivo?")) return;
-      flushSave();
-      var wait = (cloudBusy || cloudDirty) ? cloudPromise : Promise.resolve();
-      Promise.race([wait, new Promise(function(r){ setTimeout(r, 4000); })]).then(function(){
-        if(isDirtyFlag() && !confirm("Há alterações que ainda não chegaram à nuvem (sem conexão?). Elas continuam guardadas neste navegador e serão enviadas na próxima vez que você entrar aqui. Sair mesmo assim?")) return;
-        return sb.auth.signOut().then(function(){ location.reload(); }, function(){ location.reload(); });
-      });
+      if(!confirm(isSharedPc() ? "Sair da conta e apagar os dados deste navegador?" : "Sair da conta neste dispositivo? A cópia dos dados guardada neste navegador será apagada.")) return;
+      performSignOut(false);
     });
+  }
+  var IDLE_LIMIT_MS = 30 * 60 * 1000, lastActivityAt = Date.now();
+  function idleTick(now){
+    if(!isSharedPc() || !appReady) return false;
+    if((now || Date.now()) - lastActivityAt < IDLE_LIMIT_MS) return false;
+    performSignOut(true);
+    return true;
+  }
+  function startIdleLock(){
+    ["keydown","pointerdown","input","wheel","touchstart"].forEach(function(ev){
+      window.addEventListener(ev, function(){ lastActivityAt = Date.now(); }, { passive:true, capture:true });
+    });
+    setInterval(function(){ idleTick(); }, 30000);
   }
 
   // Depois do login (novo ou sessão já existente), busca o estado na nuvem. Se ainda não existir
@@ -7412,7 +8102,7 @@
       sb.auth.getSession().then(function(r){
         var u = r && r.data && r.data.session && r.data.session.user;
         var el = document.getElementById("side-user");
-        if(el && u){ el.textContent = u.email || ""; el.title = "Conta conectada: "+(u.email||""); }
+        if(el && u){ el.textContent = (u.email || "") + (isSharedPc() ? " · PC compartilhado" : ""); el.title = "Conta conectada: "+(u.email||"")+(isSharedPc() ? " (computador compartilhado: nada fica guardado neste navegador ao fechar a aba)" : ""); }
       });
     }catch(e){}
   }
@@ -7438,6 +8128,7 @@
     attachFolderHandlers();
     attachConditionTemplateHandlers();
     attachClientAutocomplete();
+    attachClients();
     document.getElementById("btn-stock-report").addEventListener("click", exportStockReportPdf);
     attachTabHandlers();
     attachPanelToggle();
@@ -7448,6 +8139,7 @@
       window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(growTextareas, 150); });
     })();
     attachSignOut();
+    startIdleLock();
 
     document.getElementById("btn-mode-projeto").addEventListener("click", function(){ setMode("projeto"); });
     document.getElementById("btn-mode-cabos").addEventListener("click", function(){ setMode("cabos"); });
@@ -7464,6 +8156,7 @@
     window.addEventListener("pagehide", flushSave);
     document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "hidden") flushSave(); });
     window.addEventListener("online", function(){ if(isDirtyFlag()) persistCloud(); });
+    document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible") renderHistoryList(); });
   }
 
   function boot(){
@@ -7471,11 +8164,12 @@
       setAuthStatus("Não foi possível carregar o sistema de login (falha ao baixar um recurso externo). Verifique sua conexão e recarregue a página.");
       return;
     }
+    document.getElementById("auth-shared").checked = isSharedPc();
     attachAuthForm();
     setAuthStatus("Verificando sessão…");
     sb.auth.getSession().then(function(res){
       var session = res && res.data && res.data.session;
-      if(session){ bootstrapAfterAuth(); } else { setAuthStatus(""); showAuthGate(); }
+      if(session){ bootstrapAfterAuth(); } else { if(!isDirtyFlag()) wipeLocalCache(); setAuthStatus(""); showAuthGate(); }
     }).catch(function(){ setAuthStatus(""); showAuthGate(); });
   }
 
