@@ -1506,6 +1506,7 @@
   // o emitente antigo era sempre a empresa.
   function normalizeProjetoDraft(dr){
     if(!dr) return dr;
+    dr = ensureDraftShape(dr);
     if(dr.layout !== 2 && dr.legacy == null) dr.legacy = true;
     var base = {
       issuer:"qv", revision:0, subject:"", city:"", greeting:"", intro:"", scopePrice:0,
@@ -1572,26 +1573,42 @@
 
   // Normaliza um objeto de estado "cru" (vindo do localStorage OU da nuvem — mesmo formato)
   // contra defaultState(), preenchendo campos ausentes e aplicando migrações antigas.
+  // Garante o formato mínimo de uma proposta (cliente, itens, impostos, desconto, condições); entradas que não
+  // são objetos (null, número, texto) são descartadas — nunca eram dados reais.
+  function ensureDraftShape(dr){
+    if(!isObj(dr)) dr = {};
+    dr.client = Object.assign(emptyClient(), isObj(dr.client) ? dr.client : {});
+    dr.items = (Array.isArray(dr.items) ? dr.items : []).filter(isObj);
+    dr.taxes = (Array.isArray(dr.taxes) ? dr.taxes : []).filter(isObj);
+    dr.discount = Object.assign({ type:"percent", value:0 }, isObj(dr.discount) ? dr.discount : {});
+    if(dr.discount.type !== "value") dr.discount.type = "percent";
+    if(!isObj(dr.conditions)) dr.conditions = emptyConditions();
+    return dr;
+  }
   function normalizeState(parsed){
     var d = defaultState();
-    if(!parsed) return d;
-    d.company = Object.assign(d.company, parsed.company||{});
-    d.profissional = Object.assign(d.profissional, parsed.profissional||{});
-    if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.services)){
-      d.projectLibrary.services = parsed.projectLibrary.services.map(function(s){
+    if(!isObj(parsed)) return d;
+    var defCounters = Object.assign({}, d.counters), defYears = Object.assign({}, d.counterYears);
+    d.company = Object.assign(d.company, isObj(parsed.company) ? parsed.company : {});
+    d.profissional = Object.assign(d.profissional, isObj(parsed.profissional) ? parsed.profissional : {});
+    if(isObj(parsed.projectLibrary) && Array.isArray(parsed.projectLibrary.services)){
+      d.projectLibrary.services = parsed.projectLibrary.services.filter(isObj).map(function(s){
         if(!s.id) s.id = genId();
+        if(typeof s.title !== "string") s.title = String(s.title == null ? "" : s.title);
         if(!Array.isArray(s.acts)) s.acts = [];
         s.acts = s.acts.filter(function(a){ return String(a == null ? "" : a).trim() !== ""; });
         return s;
       });
     }
-    if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.clauses)){
-      d.projectLibrary.clauses = parsed.projectLibrary.clauses.map(function(c){
+    if(isObj(parsed.projectLibrary) && Array.isArray(parsed.projectLibrary.clauses)){
+      d.projectLibrary.clauses = parsed.projectLibrary.clauses.filter(isObj).map(function(c){
         if(!c.id) c.id = genId();
+        if(typeof c.text !== "string") c.text = String(c.text == null ? "" : c.text);
+        if(typeof c.group !== "string") c.group = CLAUSE_GROUPS[0];
         return c;
       });
     }
-    if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.subjects)){
+    if(isObj(parsed.projectLibrary) && Array.isArray(parsed.projectLibrary.subjects)){
       d.projectLibrary.subjects = parsed.projectLibrary.subjects.map(function(t){ return String(t == null ? "" : t).replace(/\s+/g, " ").trim(); }).filter(function(t){ return t; });
     }
     if(Array.isArray(d.projectLibrary.subjects)){
@@ -1616,7 +1633,7 @@
         return true;
       });
     }
-    if(parsed.projectLibrary && Array.isArray(parsed.projectLibrary.subjects)){
+    if(isObj(parsed.projectLibrary) && Array.isArray(parsed.projectLibrary.subjects)){
       var seedNow = Number(parsed.projectLibrary.subjectsSeed) || 1;
       if(seedNow < 2){
         SUBJECTS_ADDED_IN_V2.forEach(function(ad){
@@ -1628,15 +1645,18 @@
       }
       d.projectLibrary.subjectsSeed = SUBJECTS_SEED;
     }
-    if(parsed.projectLibrary){
+    if(isObj(parsed.projectLibrary)){
       d.projectLibrary.version = parsed.projectLibrary.version || 1;
       if(d.projectLibrary.version < LIBRARY_VERSION) migrateProjectLibrary(d.projectLibrary);
     }
     d.mode = parsed.mode==="cabos" ? "cabos" : "projeto";
-    d.counters = Object.assign(d.counters, parsed.counters||{});
-    d.counterYears = Object.assign(d.counterYears, parsed.counterYears||{});
+    d.counters = Object.assign(d.counters, isObj(parsed.counters) ? parsed.counters : {});
+    d.counterYears = Object.assign(d.counterYears, isObj(parsed.counterYears) ? parsed.counterYears : {});
+    // contadores de numeração: sempre inteiros >= 1 (um texto aqui viraria "CAB-2026-abc")
+    Object.keys(defCounters).forEach(function(k){ var n = Math.floor(Number(d.counters[k])); d.counters[k] = isFinite(n) && n >= 1 ? n : defCounters[k]; });
+    Object.keys(defYears).forEach(function(k){ var n = Math.floor(Number(d.counterYears[k])); d.counterYears[k] = isFinite(n) && n >= 2000 ? n : defYears[k]; });
     if(Array.isArray(parsed.cableCatalog)){
-      d.cableCatalog = parsed.cableCatalog.map(function(c){
+      d.cableCatalog = parsed.cableCatalog.filter(isObj).map(function(c){
         if(!c.id) c.id = genId();
         if(c.stock == null) c.stock = 0;
         if(c.detail === "Azul claro") c.detail = "Azul"; // correção: não existe "azul claro", só "azul"
@@ -1644,18 +1664,21 @@
       });
     }
     ensureCatalogPos(d.cableCatalog);
-    if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates;
-    if(Array.isArray(parsed.conditionTemplates)) d.conditionTemplates = parsed.conditionTemplates;
+    if(Array.isArray(parsed.productTemplates)) d.productTemplates = parsed.productTemplates.filter(isObj);
+    if(Array.isArray(parsed.conditionTemplates)) d.conditionTemplates = parsed.conditionTemplates.filter(isObj);
     if(Array.isArray(parsed.proposalHistory)){
-      d.proposalHistory = parsed.proposalHistory.map(function(h){
+      d.proposalHistory = parsed.proposalHistory.filter(isObj).map(function(h){
+        h.draft = ensureDraftShape(h.draft);
+        if(h.mode !== "cabos" && h.mode !== "projeto") h.mode = /^CAB/i.test(String(h.number || "")) ? "cabos" : "projeto";
+        if(!h.id) h.id = genId();
         if(h.status === "pendente") h.status = "emitida"; // rotulo antigo, mesmo significado
         if(h.archived == null) h.archived = false;
         if(!Array.isArray(h.archiveLog)) h.archiveLog = [];
         return h;
       });
     }
-    if(parsed.drafts && parsed.drafts.projeto) d.drafts.projeto = normalizeProjetoDraft(parsed.drafts.projeto);
-    if(parsed.drafts && parsed.drafts.cabos) d.drafts.cabos = parsed.drafts.cabos;
+    if(isObj(parsed.drafts) && isObj(parsed.drafts.projeto)) d.drafts.projeto = normalizeProjetoDraft(parsed.drafts.projeto);
+    if(isObj(parsed.drafts) && isObj(parsed.drafts.cabos)) d.drafts.cabos = ensureDraftShape(parsed.drafts.cabos);
     return d;
   }
   function loadLocalCache(){
@@ -1704,7 +1727,7 @@
     if(x && typeof x === "object") return x.id != null ? "id:"+x.id : null;
     return "v:"+typeof x+":"+x;
   }
-  function mergeLists(base, local, remote){
+  function mergeLists(base, local, remote, path){
     var all = local.concat(remote);
     if(!all.every(function(x){ return itemKey(x) !== null; })) return local; // sem identificador: vale a lista de quem está salvando
     var bMap = {}, lMap = {}, rMap = {};
@@ -1714,7 +1737,7 @@
     var out = [];
     local.forEach(function(x){
       var k = itemKey(x), r = rMap[k], b0 = bMap[k];
-      if(r !== undefined) out.push(merge3(b0, x, r));
+      if(r !== undefined) out.push(merge3(b0, x, r, path));
       else if(b0 !== undefined && deepEq(x, b0)) { /* apagado na nuvem e não mexi: acompanha */ }
       else out.push(x);                                                  // criado ou alterado aqui: mantém
     });
@@ -1735,14 +1758,19 @@
     }
     if(base !== undefined && deepEq(local, base)) return remote;         // só a nuvem mudou
     if(base !== undefined && deepEq(remote, base)) return local;         // só este computador mudou
-    if(Array.isArray(local) && Array.isArray(remote)) return mergeLists(Array.isArray(base) ? base : null, local, remote);
+    if(Array.isArray(local) && Array.isArray(remote)) return mergeLists(Array.isArray(base) ? base : null, local, remote, path);
     if(isObj(local) && isObj(remote)){
       var bo = isObj(base) ? base : {}, out = {}, seen = {};
       Object.keys(local).concat(Object.keys(remote)).forEach(function(k){
         if(seen[k]) return;
         seen[k] = true;
         var inL = k in local, inR = k in remote, inB = k in bo, cp = (path ? path+"." : "") + k;
-        if(inL && inR) out[k] = merge3(inB ? bo[k] : undefined, local[k], remote[k], cp);
+        if(inL && inR && cp === "cableCatalog.stock" && inB && isFinite(Number(bo[k])) && isFinite(Number(local[k])) && isFinite(Number(remote[k]))){
+          // estoque: duas baixas/entradas feitas ao mesmo tempo em computadores diferentes se SOMAM (não vale só uma delas)
+          var bs = Number(bo[k]);
+          out[k] = Math.round((bs + (Number(local[k]) - bs) + (Number(remote[k]) - bs)) * 1000) / 1000;
+        }
+        else if(inL && inR) out[k] = merge3(inB ? bo[k] : undefined, local[k], remote[k], cp);
         else if(inL){ if(!(inB && deepEq(local[k], bo[k]))) out[k] = local[k]; }
         else { if(!(inB && deepEq(remote[k], bo[k]))) out[k] = remote[k]; }
       });
@@ -1940,8 +1968,18 @@
       return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
     });
   }
+  // Arredonda a centavos (meio centavo sobe). Cada linha de valor da proposta (item, desconto, imposto, total)
+  // é arredondada antes de somar, para o que está impresso sempre fechar ao centavo.
+  // Arredondamento decimal exato: trabalha com a representação em texto do número (ex.: 14735.485 -> 14735.49),
+  // porque a conta em ponto flutuante falha em meios centavos de valores grandes.
+  function r2(x){
+    x = Number(x) || 0;
+    var s = String(x);
+    if(/e/i.test(s)) return Math.round(x * 100) / 100;
+    return Number(Math.round(Number(s + "e2")) + "e-2");
+  }
   function fmtBRL(n){
-    return (Number(n)||0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+    return r2(n).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
   }
   // Impede valor negativo em campos numéricos (desconto, imposto, quantidade/preço de item,
   // preço/estoque do catálogo) — digitar "-10" por engano não deve inflar o total silenciosamente.
@@ -1979,26 +2017,26 @@
   // o valor único (scopePrice). Propostas antigas não têm priceMode e continuam no valor global.
   function scopeTotal(dr){
     if(dr.priceMode === "item" && Array.isArray(dr.scope)){
-      return dr.scope.reduce(function(s, e){ return s + (Number(e.qty)||0)*(Number(e.price)||0); }, 0);
+      return r2(dr.scope.reduce(function(s, e){ return s + r2((Number(e.qty)||0)*(Number(e.price)||0)); }, 0));
     }
-    return Number(dr.scopePrice)||0;
+    return r2(Number(dr.scopePrice)||0);
   }
   function calcTotals(dr){
     // scopePrice = valor global dos projetos (proposta de projeto); propostas antigas não têm.
-    var subtotal = scopeTotal(dr) + dr.items.reduce(function(s,it){ return s + (Number(it.qty)||0)*(Number(it.price)||0); }, 0);
-    var discountAmount = dr.discount.type==="percent"
+    var subtotal = r2(scopeTotal(dr) + dr.items.reduce(function(s,it){ return s + r2((Number(it.qty)||0)*(Number(it.price)||0)); }, 0));
+    var discountAmount = r2(dr.discount.type==="percent"
       ? subtotal * (Number(dr.discount.value)||0)/100
-      : (Number(dr.discount.value)||0);
+      : (Number(dr.discount.value)||0));
     if(discountAmount > subtotal) discountAmount = subtotal;
-    var base = subtotal - discountAmount;
+    var base = r2(subtotal - discountAmount);
     var taxPercentTotal = dr.taxes.reduce(function(s,t){ return s+(Number(t.percent)||0); }, 0);
-    var taxAmount = base * taxPercentTotal/100;
+    var taxAmount = r2(base * taxPercentTotal/100);
     // Nota fiscal pedida pelo cliente (profissional liberal): acréscimo percentual sobre o valor
     // já com desconto. No modo "note" o valor só é informado como observação, sem entrar no total.
     var nfPercent = (dr.nf && Number(dr.nf.percent)) || 0;
-    var nfAmount = (dr.nf && dr.nf.mode==="included") ? base * nfPercent/100 : 0;
-    var total = (dr.taxIncluded ? base : base + taxAmount) + nfAmount;
-    var nfNoteTotal = (dr.nf && dr.nf.mode==="note") ? total + base * nfPercent/100 : 0;
+    var nfAmount = (dr.nf && dr.nf.mode==="included") ? r2(base * nfPercent/100) : 0;
+    var total = r2((dr.taxIncluded ? base : base + taxAmount) + nfAmount);
+    var nfNoteTotal = (dr.nf && dr.nf.mode==="note") ? r2(total + r2(base * nfPercent/100)) : 0;
     return { subtotal:subtotal, discountAmount:discountAmount, base:base, taxAmount:taxAmount, taxPercentTotal:taxPercentTotal, nfAmount:nfAmount, nfPercent:nfPercent, nfNoteTotal:nfNoteTotal, total:total };
   }
 
@@ -4522,9 +4560,15 @@
       state.counterYears[mode] = year;
       state.counters[mode] = 1;
     }
-    var seq = state.counters[mode];
-    state.counters[mode] = seq + 1;
     var prefix = mode === "cabos" ? "CAB" : "PRJ";
+    var seq = state.counters[mode];
+    // o contador pode estar atrasado em relação ao histórico (dado restaurado, edição manual do número, falha de sincronização):
+    // nunca devolve um número que já existe (no histórico ou numa proposta em edição)
+    var used = {};
+    (state.proposalHistory || []).forEach(function(h){ if(h && h.number) used[String(h.number).replace(/\s*rev.*$/i,"")] = 1; });
+    ["cabos","projeto"].forEach(function(m){ var d0 = state.drafts && state.drafts[m]; if(d0 && d0.number) used[String(d0.number).replace(/\s*rev.*$/i,"")] = 1; });
+    while(used[prefix + "-" + year + "-" + String(seq).padStart(3,"0")]) seq++;
+    state.counters[mode] = seq + 1;
     return prefix + "-" + year + "-" + String(seq).padStart(3,"0");
   }
 
@@ -4860,6 +4904,7 @@
   function markSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
+    if(h.status === "vendida"){ toast("Essa proposta já está marcada como vendida — o estoque não foi baixado de novo"); return; }
     if(!confirm('Marcar a proposta '+h.number+(h.mode==="cabos" ? ' como vendida? Isso dá baixa no estoque dos itens que casarem com o catálogo.' : ' como vendida (fechada)?'))) return;
     var negativeCount = 0, unmatched = [], ambiguous = [];
     (h.mode === "cabos" ? h.draft.items : []).forEach(function(it){
@@ -4882,6 +4927,7 @@
   function unmarkSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
+    if(h.status !== "vendida"){ toast("Essa proposta não está marcada como vendida — nada foi devolvido ao estoque"); return; }
     if(!confirm('Desfazer a venda da proposta '+h.number+(h.mode==="cabos" ? '? A quantidade volta para o estoque dos itens que casarem com o catálogo.' : '?'))) return;
     var unmatched = [], ambiguous = [];
     (h.mode === "cabos" ? h.draft.items : []).forEach(function(it){
@@ -5936,7 +5982,28 @@
     if(key.indexOf("@") > -1) return "email";
     if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) return "aleatoria";
     if(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(key) || /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(key)) return "cpfcnpj";
+    // Só dígitos (ou com máscara de telefone): decide pelo tamanho e pelo dígito verificador do CPF.
+    // Mandar 11 dígitos "crus" é ambíguo no Pix (telefone × CPF) e o pagamento falharia.
+    var dg = key.replace(/\D/g,"");
+    if(/^[\d\s().+-]+$/.test(key) && dg.length){
+      if(dg.length === 14) return "cpfcnpj";
+      if(dg.length === 11){
+        var fone = /^[1-9]{2}9\d{8}$/.test(dg);
+        return (pixCpfValido(dg) && !fone) ? "cpfcnpj" : (fone ? "telefone" : (pixCpfValido(dg) ? "cpfcnpj" : "telefone"));
+      }
+      if(dg.length === 10 || ((dg.length === 12 || dg.length === 13) && dg.slice(0,2) === "55")) return "telefone";
+    }
     return "";
+  }
+  function pixCpfValido(d){
+    if(!/^\d{11}$/.test(d) || /^(\d)\1{10}$/.test(d)) return false;
+    for(var t = 9; t <= 10; t++){
+      var s = 0;
+      for(var i = 0; i < t; i++) s += Number(d.charAt(i)) * (t + 1 - i);
+      var dv = (s * 10) % 11; if(dv === 10) dv = 0;
+      if(dv !== Number(d.charAt(t))) return false;
+    }
+    return true;
   }
   // Telefone precisa ir no BR Code como +55DDDNÚMERO e CPF/CNPJ só com dígitos; o que aparece
   // impresso na proposta continua sendo a chave como foi digitada.
@@ -6945,6 +7012,8 @@
 
   function csvCell(v){
     var s = String(v==null ? "" : v);
+    // planilha interpreta =, +, -, @ no início como fórmula (nome de cliente malicioso executaria no Excel): neutraliza
+    if(/^[=+\-@\t\r]/.test(s) && !/^-?\d+([.,]\d+)?$/.test(s)) s = "'" + s;
     if(s.indexOf(";")!==-1 || s.indexOf('"')!==-1 || s.indexOf("\n")!==-1) s = '"'+s.replace(/"/g,'""')+'"';
     return s;
   }
