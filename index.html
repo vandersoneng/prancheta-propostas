@@ -7140,7 +7140,8 @@
         line(xR, lineY, xR+colW, lineY, 0.75, CV_LINE_STRONG);
         function drawRows(rows, x){
           rows.forEach(function(r, i){
-            text({ x:x, y:lineY+13+i*12, text:r.t, size:r.kind === "faint" ? 8 : 9, bold:r.kind === "name", color:r.kind === "name" ? CV_INK : (r.kind === "faint" ? CV_FAINT : CV_SOFT) });
+            // centralizado sob a própria linha de assinatura
+            text({ x:x + colW/2, y:lineY+13+i*12, text:r.t, size:r.kind === "faint" ? 8 : 9, bold:r.kind === "name", color:r.kind === "name" ? CV_INK : (r.kind === "faint" ? CV_FAINT : CV_SOFT), align:"center" });
           });
         }
         drawRows(eRows, xL);
