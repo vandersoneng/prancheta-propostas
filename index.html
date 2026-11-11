@@ -261,6 +261,36 @@
   details.sec-card[open] > summary::before{content:"\25BE";}
   details.sec-card > summary .hint{margin-left:auto; padding-left:8px; font-weight:400; text-align:right;}
   details.sec-card[open] > summary{margin-bottom:2px;}
+  details.sec-card > summary{min-width:0; white-space:nowrap;}
+  .cond-sum{margin-left:auto; padding-left:10px; font-size:11.5px; font-weight:400; color:var(--ink-faint); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; max-width:64%;}
+  .cond-sum.warn{color:var(--danger); font-weight:700;}
+  .cond-sub{font-size:11.5px; font-weight:500; color:var(--ink-soft); margin-bottom:-3px;}
+  .cond-card .chk-row textarea{background:transparent; border-color:transparent;}
+  .cond-card .chk-row textarea:hover{border-color:var(--line);}
+  .cond-card .chk-row textarea:focus{background:var(--paper-raised); border-color:var(--line-strong);}
+  .pay-head{display:grid; grid-template-columns:64px 1fr; gap:0 8px; font-size:11.5px; font-weight:500; color:var(--ink-soft); margin-bottom:-4px;}
+  .cond-card .pay-row{padding-bottom:7px; border-bottom:1px dashed var(--line);}
+  .cond-card .pay-row:last-child{border-bottom:none; padding-bottom:0;}
+  .cl-tools{display:flex; gap:14px; margin-top:-2px;}
+  .cl-group{border:1px solid var(--line); border-radius:8px; background:var(--paper-raised);}
+  .cl-group > summary{cursor:pointer; list-style:none; display:flex; align-items:baseline; gap:6px; padding:7px 10px; font-size:12px; font-weight:700; color:var(--ink-soft);}
+  .cl-group > summary::-webkit-details-marker{display:none;}
+  .cl-group > summary::before{content:"\25B8"; color:var(--ink-faint); font-size:11px; flex-shrink:0;}
+  .cl-group[open] > summary::before{content:"\25BE";}
+  .cl-count{margin-left:auto; font-weight:400; font-size:11.5px; color:var(--ink-faint);}
+  .cl-body{display:flex; flex-direction:column; gap:0; padding:0 10px 8px;}
+  .cl-row{display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-top:1px solid var(--line);}
+  .cl-row > input[type="checkbox"]{width:auto; margin-top:3px; flex-shrink:0;}
+  .cl-main{flex:1; min-width:0;}
+  .cl-text{font-size:12.5px; line-height:1.4; color:var(--ink); cursor:text; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-wrap; border-radius:4px; padding:1px 3px; margin:-1px -3px;}
+  .cl-text:hover{background:var(--paper);}
+  .cl-row.off .cl-text{color:var(--ink-faint);}
+  .cl-main textarea{display:none; width:100%;}
+  .cl-row.editing .cl-text{display:none;}
+  .cl-row.editing textarea{display:block;}
+  .cl-row .btn-ghost{color:var(--ink-faint); padding:2px 6px;}
+  .cl-actions{display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding-top:6px; border-top:1px solid var(--line);}
+  .cl-actions .btn-ghost{padding:0;}
   .addr-legacy{background:var(--paper); border:1px dashed var(--line-strong); border-radius:6px; padding:6px 8px; line-height:1.45;}
   .addr-legacy[hidden]{display:none;}
   .link-btn{background:none; border:none; padding:0; color:var(--blue); font:inherit; font-size:12px; font-weight:400; text-decoration:underline; cursor:pointer;}
@@ -705,8 +735,8 @@
         <div class="items-list" id="items-list"></div>
       </div>
 
-      <div class="field-group" data-panel="condicoes">
-        <legend>Desconto</legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-cond="desc" open>
+        <summary>Desconto <span class="cond-sum" data-cond-sum="desc"></span></summary>
         <div class="field-row">
           <div class="field"><label for="f-disc-type">Tipo</label>
             <select id="f-disc-type">
@@ -716,44 +746,43 @@
           </div>
           <div class="field"><label for="f-disc-value">Valor</label><input type="number" min="0" step="0.01" id="f-disc-value"></div>
         </div>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes">
-        <legend>Impostos <button type="button" class="add-row-btn" id="btn-add-tax">+ imposto</button></legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-cond="tax" open>
+        <summary>Impostos <span class="cond-sum" data-cond-sum="tax"></span></summary>
         <div id="taxes-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <button type="button" class="add-row-btn" id="btn-add-tax" style="align-self:flex-start;">+ imposto</button>
         <label class="checkbox-field"><input type="checkbox" id="f-tax-included"> Preço dos itens já inclui os impostos acima</label>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="projeto" id="fg-nf">
-        <legend>Nota fiscal</legend>
-        <div class="field-row">
-          <div class="field"><label for="f-nf-mode">Na proposta</label>
-            <select id="f-nf-mode">
-              <option value="note">Informar como observação (padrão)</option>
-              <option value="included">Já incluir no total (cliente pediu NF)</option>
-              <option value="none">Não mencionar</option>
-            </select>
-          </div>
-          <div class="field" style="max-width:96px;"><label for="f-nf-percent">Acréscimo (%)</label><input type="number" min="0" step="0.01" id="f-nf-percent"></div>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="projeto" id="fg-nf" data-cond="nf" open>
+        <summary>Nota fiscal <span class="cond-sum" data-cond-sum="nf"></span></summary>
+        <div class="field"><label for="f-nf-mode">Na proposta</label>
+          <select id="f-nf-mode">
+            <option value="note">Informar como observação (padrão)</option>
+            <option value="included">Já incluir no total (cliente pediu NF)</option>
+            <option value="none">Não mencionar</option>
+          </select>
         </div>
+        <div class="field" id="wrap-nf-percent" style="max-width:150px;"><label for="f-nf-percent">Acréscimo (%)</label><input type="number" min="0" step="0.01" id="f-nf-percent"></div>
         <div class="hint" id="nf-hint"></div>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="projeto">
-        <legend>Prazo de entrega</legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="projeto" data-cond="prazo" open>
+        <summary>Prazo de entrega <span class="cond-sum" data-cond-sum="prazo"></span></summary>
         <div class="field-row">
           <div class="field"><label for="f-dl-days">Prazo (dias)</label><input type="number" min="0" step="1" id="f-dl-days"></div>
           <div class="field"><label for="f-dl-unit">Contagem</label>
             <select id="f-dl-unit"><option value="corridos">corridos</option><option value="úteis">úteis</option></select>
           </div>
         </div>
-        <div class="sub-label">Contado a partir de</div>
-        <div id="dl-triggers" style="display:flex; flex-direction:column; gap:6px;"></div>
-        <button type="button" class="add-row-btn" id="btn-add-trigger">+ condição</button>
-      </div>
+        <div class="cond-sub">Contado a partir de</div>
+        <div id="dl-triggers" style="display:flex; flex-direction:column; gap:4px;"></div>
+        <button type="button" class="add-row-btn" id="btn-add-trigger" style="align-self:flex-start;">+ condição</button>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="projeto">
-        <legend>Pagamento</legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="projeto" data-cond="pay" open>
+        <summary>Pagamento <span class="cond-sum" data-cond-sum="pay"></span></summary>
         <div class="field"><label for="pay-preset">Aplicar parcelamento</label>
           <select id="pay-preset">
             <option value="">Escolha para preencher…</option>
@@ -764,28 +793,32 @@
           </select>
         </div>
         <div id="pay-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-        <button type="button" class="add-row-btn" id="btn-add-parcel">+ parcela</button>
+        <button type="button" class="add-row-btn" id="btn-add-parcel" style="align-self:flex-start;">+ parcela</button>
         <div class="hint" id="pay-warn"></div>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="projeto">
-        <legend>Cláusulas e considerações finais</legend>
-        <div class="hint">Marque as que valem para esta proposta. O texto pode ser ajustado só aqui, sem mudar o modelo.</div>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="projeto" data-cond="clauses" open>
+        <summary>Cláusulas e considerações finais <span class="cond-sum" data-cond-sum="clauses"></span></summary>
+        <div class="hint">Marque as que valem para esta proposta. Clique no texto para ajustá-lo só aqui, sem mudar o modelo.</div>
         <div class="hint" id="clause-empty" style="display:none; color:var(--danger);">Esta proposta ainda não tem cláusulas, por isso a seção "Considerações finais" não aparece. Clique em "+ adicionar cláusulas do modelo" abaixo para trazê-las.</div>
-        <div id="clause-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+        <div class="cl-tools">
+          <button type="button" class="btn-ghost btn-sm" id="btn-clg-collapse" style="padding:0;">Recolher grupos</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-clg-expand" style="padding:0;">Expandir grupos</button>
+        </div>
+        <div id="clause-list" style="display:flex; flex-direction:column; gap:8px;"></div>
         <button type="button" class="btn-ghost btn-sm" id="btn-clause-load" style="align-self:flex-start; padding:0;">+ adicionar cláusulas do modelo que faltam</button>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="projeto">
-        <legend>Fechamento</legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="projeto" data-cond="close" open>
+        <summary>Fechamento <span class="cond-sum" data-cond-sum="close"></span></summary>
         <label class="checkbox-field"><input type="checkbox" id="f-accept"> Incluir bloco de aceite (assinatura e data do cliente)</label>
         <label class="checkbox-field"><input type="checkbox" id="f-annex"> Incluir Anexo I — qualificação técnica do profissional</label>
         <div class="hint" id="annex-hint"></div>
         <div class="field"><label for="f-cond-obs-p">Observações adicionais</label><textarea id="f-cond-obs-p"></textarea></div>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="cabos">
-        <legend>Modelos de condições</legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="cabos" data-cond="cabmod" open>
+        <summary>Modelos de condições</summary>
         <div class="field"><label for="f-cond-template">Aplicar modelo salvo</label>
           <select id="f-cond-template"><option value="">Selecione um modelo…</option></select>
         </div>
@@ -794,16 +827,16 @@
           <button type="button" class="btn-ghost btn-sm" id="btn-delete-cond-template" style="padding:0;">Remover modelo</button>
         </div>
         <button type="button" class="btn-ghost btn-sm" id="btn-save-cond-template" style="align-self:flex-start; padding:0; margin-top:2px;">+ salvar condições atuais como modelo</button>
-      </div>
+      </details>
 
-      <div class="field-group" data-panel="condicoes" data-mode="cabos" id="fg-cond-commercial">
-        <legend>Condições comerciais</legend>
+      <details class="field-group sec-card cond-card" data-panel="condicoes" data-mode="cabos" id="fg-cond-commercial" data-cond="cabcom" open>
+        <summary>Condições comerciais</summary>
         <div class="hint" id="legacy-cond-hint" style="display:none;">Esta proposta de projeto foi criada antes do novo modelo e tem texto livre nestes campos. Eles continuam saindo no PDF.</div>
         <div class="field"><label for="f-cond-pagamento">Forma de pagamento</label><input id="f-cond-pagamento"></div>
         <div class="field"><label for="f-cond-prazo" id="lbl-cond-prazo">Prazo</label><input id="f-cond-prazo"></div>
         <div class="field"><label for="f-cond-garantia">Garantia</label><input id="f-cond-garantia"></div>
         <div class="field" id="wrap-cond-obs"><label for="f-cond-obs">Observações</label><textarea id="f-cond-obs"></textarea></div>
-      </div>
+      </details>
 
       <div class="lib-head" data-panel="modelos" data-mode="projeto">
         <div class="lib-tabs" role="tablist" aria-label="Modelos">
@@ -2944,10 +2977,10 @@
 
   function renderParcels(){
     var parcels = pj().payment.parcels;
-    document.getElementById("pay-list").innerHTML = parcels.length ? parcels.map(function(p, i){
+    document.getElementById("pay-list").innerHTML = parcels.length ? '<div class="pay-head"><span>%</span><span>Quando</span></div>' + parcels.map(function(p, i){
       return '<div class="pay-row">' +
-        '<div class="field"><label>%</label><input type="number" min="0" max="100" step="0.01" data-pay-pct="'+i+'" value="'+p.pct+'"></div>' +
-        '<div class="field"><label>Quando</label><textarea rows="1" style="min-height:0;" data-pay-label="'+i+'">'+escapeHtml(p.label)+'</textarea></div>' +
+        '<div class="field"><input type="number" min="0" max="100" step="0.01" data-pay-pct="'+i+'" value="'+p.pct+'" aria-label="Percentual da parcela '+(i+1)+'"></div>' +
+        '<div class="field"><textarea rows="1" style="min-height:0;" data-pay-label="'+i+'" aria-label="Quando pagar a parcela '+(i+1)+'">'+escapeHtml(p.label)+'</textarea></div>' +
         '<button type="button" class="btn-ghost btn-sm" data-pay-rm="'+i+'" title="Remover parcela">✕</button>' +
         '<span class="pay-amt" data-pay-amt="'+i+'"></span></div>';
     }).join("") : '<div class="hint">Sem parcelas: a proposta não mostra condição de pagamento estruturada.</div>';
@@ -2960,21 +2993,88 @@
     dr.clauses.forEach(function(c){ if(c.g && groups.indexOf(c.g) < 0) groups.push(c.g); });
     return groups;
   }
+  // estado da interface da aba Condições (só neste navegador): cartões e grupos de cláusulas recolhidos
+  var COND_UI_KEY = "prancheta-condicoes-ui";
+  var condUi = { closed:{}, clg:{} };
+  function loadCondUi(){
+    try{
+      var u = JSON.parse(localStorage.getItem(COND_UI_KEY) || "null");
+      if(u){
+        if(u.closed && typeof u.closed === "object") condUi.closed = u.closed;
+        if(u.clg && typeof u.clg === "object") condUi.clg = u.clg;
+      }
+    }catch(e){}
+  }
+  function saveCondUi(){ try{ localStorage.setItem(COND_UI_KEY, JSON.stringify(condUi)); }catch(e){} }
+  loadCondUi();
+  function applyCondUi(){
+    document.querySelectorAll("details.cond-card[data-cond]").forEach(function(d){ d.open = !condUi.closed[d.getAttribute("data-cond")]; });
+  }
+  function clauseRowHtml(c, i){
+    return '<div class="cl-row'+(c.on?'':' off')+'" data-cl-row="'+i+'">' +
+      '<input type="checkbox" data-cl-chk="'+i+'"'+(c.on?' checked':'')+' title="Incluir na proposta" aria-label="Incluir esta cláusula">' +
+      '<div class="cl-main"><div class="cl-text" data-cl-view="'+i+'" tabindex="0" role="button" title="Clique para editar o texto só nesta proposta">'+(String(c.t||"").trim() ? escapeHtml(c.t) : '<i>(cláusula em branco)</i>')+'</div>' +
+      '<textarea rows="3" style="min-height:56px;" data-cl-text="'+i+'">'+escapeHtml(c.t)+'</textarea></div>' +
+      '<button type="button" class="btn-ghost btn-sm" data-cl-rm="'+i+'" title="Remover desta proposta">✕</button></div>';
+  }
   function renderClauses(){
     var dr = pj(), groups = clauseGroups(dr);
     var emptyNote = document.getElementById("clause-empty");
     if(emptyNote) emptyNote.style.display = dr.clauses.length ? "none" : "";
     document.getElementById("clause-list").innerHTML = groups.map(function(g, gi){
-      var rows = "";
+      var rows = "", n = 0, on = 0;
       dr.clauses.forEach(function(c, i){
         if(c.g !== g) return;
-        rows += '<div class="chk-row"><input type="checkbox" data-cl-chk="'+i+'"'+(c.on?' checked':'')+' title="Incluir na proposta">' +
-          '<div class="field"><textarea rows="3" style="min-height:56px;" data-cl-text="'+i+'">'+escapeHtml(c.t)+'</textarea></div>' +
-          '<button type="button" class="btn-ghost btn-sm" data-cl-rm="'+i+'" title="Remover desta proposta">✕</button></div>';
+        n++; if(c.on) on++;
+        rows += clauseRowHtml(c, i);
       });
-      return '<div class="sub-label">'+escapeHtml(g)+'</div>' + rows +
-        '<button type="button" class="add-row-btn" data-cl-add="'+gi+'">+ cláusula</button>';
+      return '<details class="cl-group" data-clg="'+escapeHtml(g)+'"'+(condUi.clg[g] ? '' : ' open')+'>' +
+        '<summary>'+escapeHtml(g)+' <span class="cl-count" data-cl-count="'+gi+'">'+on+' de '+n+'</span></summary>' +
+        '<div class="cl-body">' + (rows || '<div class="hint" style="padding:6px 0;">Nenhuma cláusula neste grupo.</div>') +
+        '<div class="cl-actions">' +
+          (n ? '<button type="button" class="btn-ghost btn-sm" data-cl-all="'+gi+'" data-val="1">marcar todas</button><button type="button" class="btn-ghost btn-sm" data-cl-all="'+gi+'" data-val="0">desmarcar todas</button>' : '') +
+          '<button type="button" class="add-row-btn" data-cl-add="'+gi+'">+ cláusula</button></div></div></details>';
     }).join("");
+    refreshClauseCounts();
+  }
+  function refreshClauseCounts(){
+    var dr = pj(), groups = clauseGroups(dr);
+    groups.forEach(function(g, gi){
+      var n = 0, on = 0;
+      dr.clauses.forEach(function(c){ if(c.g === g){ n++; if(c.on) on++; } });
+      var el = document.querySelector('[data-cl-count="'+gi+'"]');
+      if(el) el.textContent = on+" de "+n;
+    });
+    refreshCondSummaries();
+  }
+  // Resumo ao vivo no título de cada cartão da aba Condições
+  function refreshCondSummaries(){
+    function set(key, txt, warn){
+      var el = document.querySelector('[data-cond-sum="'+key+'"]');
+      if(!el) return;
+      el.textContent = txt; el.classList.toggle("warn", !!warn);
+    }
+    function pct(v){ v = Number(v) || 0; return fmtNum(v, v % 1 ? 2 : 0) + "%"; }
+    var dr = draft(), dc = dr.discount || {}, dv = Number(dc.value) || 0;
+    set("desc", dv > 0 ? (dc.type === "percent" ? pct(dv) : fmtBRL(dv)) : "sem desconto");
+    var taxes = (dr.taxes || []).filter(function(t){ return t.label || Number(t.percent); });
+    set("tax", taxes.length ? taxes.map(function(t){ return (t.label || "imposto")+" "+pct(t.percent); }).join(" + ") + (dr.taxIncluded ? " · incluídos" : "") : "nenhum");
+    if(state.mode !== "projeto") return;
+    var p = pj(), nf = p.nf || {};
+    set("nf", nf.mode === "included" ? "no total · +"+pct(nf.percent) : nf.mode === "note" ? "como observação · +"+pct(nf.percent) : "não menciona");
+    var wp = document.getElementById("wrap-nf-percent"); if(wp) wp.style.display = nf.mode === "none" ? "none" : "";
+    var dl = p.deadline || {}, days = Number(dl.days) || 0, ton = (dl.triggers || []).filter(function(t){ return t.on; }).length;
+    set("prazo", days > 0 ? days+" dias "+(dl.unit || "corridos")+(ton ? " · "+ton+(ton > 1 ? " condições" : " condição") : "") : "sem prazo");
+    var parcels = (p.payment && p.payment.parcels) || [], sum = parcels.reduce(function(s, x){ return s + (Number(x.pct) || 0); }, 0);
+    var off = parcels.length && Math.abs(sum - 100) > 0.001;
+    set("pay", !parcels.length ? "sem parcelas" : off ? "somam "+pct(sum) : parcels.map(function(x){ return pct(x.pct); }).join(" + "), off);
+    var cl = p.clauses || [];
+    set("clauses", cl.filter(function(c){ return c.on; }).length+" de "+cl.length+" marcadas");
+    var closing = [];
+    if(p.accept) closing.push("aceite");
+    if(p.annex) closing.push("anexo I");
+    if(String(p.conditions && p.conditions.obs || "").trim()) closing.push("observações");
+    set("close", closing.length ? closing.join(" · ") : "—");
   }
 
   // Atualiza o que depende dos totais sem refazer os campos (valor das parcelas, avisos, R$/m²).
@@ -2987,10 +3087,11 @@
     var sum = dr.payment.parcels.reduce(function(s, p){ return s + (Number(p.pct)||0); }, 0);
     var warn = document.getElementById("pay-warn");
     if(warn){
-      var off = dr.payment.parcels.length && Math.abs(sum - 100) > 0.001;
-      warn.style.color = off ? "var(--danger)" : "";
-      warn.textContent = off ? "Atenção: as parcelas somam "+fmtNum(sum,0)+"% (o ideal é 100%)." : "";
+      var has = dr.payment.parcels.length > 0, off = has && Math.abs(sum - 100) > 0.001;
+      warn.style.color = off ? "var(--danger)" : (has ? "var(--good)" : "");
+      warn.textContent = !has ? "" : (off ? "Atenção: as parcelas somam "+fmtNum(sum, sum % 1 ? 2 : 0)+"% (o ideal é 100%)." : "Soma das parcelas: 100% ✓");
     }
+    refreshCondSummaries();
     var hint = document.getElementById("scope-hint");
     if(hint){
       var area = Number(dr.obra.area)||0, price = scopeTotal(dr);
@@ -3485,10 +3586,19 @@
 
     // --- cláusulas desta proposta ---
     var clBox = document.getElementById("clause-list");
+    function startEditClause(row){
+      if(!row) return;
+      row.classList.add("editing");
+      var ta = row.querySelector("textarea");
+      growOne(ta); ta.focus();
+      try{ ta.setSelectionRange(ta.value.length, ta.value.length); }catch(er){}
+    }
     clBox.addEventListener("change", function(e){
       var i = e.target.getAttribute("data-cl-chk");
       if(i == null) return;
       pj().clauses[parseInt(i, 10)].on = e.target.checked;
+      var row = e.target.closest(".cl-row"); if(row) row.classList.toggle("off", !e.target.checked);
+      refreshClauseCounts();
       scheduleSave(); renderPreview();
     });
     clBox.addEventListener("input", function(e){
@@ -3497,19 +3607,60 @@
       pj().clauses[parseInt(i, 10)].t = e.target.value;
       scheduleSave(); renderPreview();
     });
+    clBox.addEventListener("focusout", function(e){
+      var ta = e.target;
+      if(!ta.getAttribute || ta.getAttribute("data-cl-text") == null) return;
+      var row = ta.closest(".cl-row"); if(!row) return;
+      row.classList.remove("editing");
+      var view = row.querySelector(".cl-text");
+      if(view) view.innerHTML = ta.value.trim() ? escapeHtml(ta.value) : '<i>(cláusula em branco)</i>';
+    });
+    clBox.addEventListener("keydown", function(e){
+      var t = e.target;
+      if(t.getAttribute && t.getAttribute("data-cl-view") != null && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); startEditClause(t.closest(".cl-row")); }
+      else if(e.key === "Escape" && t.getAttribute && t.getAttribute("data-cl-text") != null){ t.blur(); }
+    });
     clBox.addEventListener("click", function(e){
-      var rm = e.target.closest("[data-cl-rm]"), add = e.target.closest("[data-cl-add]");
-      if(rm){
-        pj().clauses.splice(parseInt(rm.getAttribute("data-cl-rm"), 10), 1);
+      var view = e.target.closest("[data-cl-view]");
+      if(view){ startEditClause(view.closest(".cl-row")); return; }
+      var all = e.target.closest("[data-cl-all]"), rm = e.target.closest("[data-cl-rm]"), add = e.target.closest("[data-cl-add]");
+      if(all){
+        var gname = clauseGroups(pj())[parseInt(all.getAttribute("data-cl-all"), 10)], val = all.getAttribute("data-val") === "1";
+        pj().clauses.forEach(function(c){ if(c.g === gname) c.on = val; });
+        clBox.querySelectorAll('details.cl-group[data-clg="'+gname.replace(/"/g, '\\"')+'"] .cl-row').forEach(function(r){
+          var cb = r.querySelector('[data-cl-chk]'); if(cb) cb.checked = val;
+          r.classList.toggle("off", !val);
+        });
+        refreshClauseCounts();
+        scheduleSave(); renderPreview();
+      } else if(rm){
+        var ridx = parseInt(rm.getAttribute("data-cl-rm"), 10), gone = pj().clauses.splice(ridx, 1)[0];
         renderClauses(); scheduleSave(); renderPreview();
+        toastUndo("Cláusula removida desta proposta", function(){
+          pj().clauses.splice(Math.min(ridx, pj().clauses.length), 0, gone);
+          renderClauses(); scheduleSave(); renderPreview();
+        });
       } else if(add){
         var g = clauseGroups(pj())[parseInt(add.getAttribute("data-cl-add"), 10)];
         pj().clauses.push({ g:g, t:"", on:true });
         renderClauses(); scheduleSave(); renderPreview();
-        var tas = document.querySelectorAll("#clause-list [data-cl-text]");
-        if(tas.length) tas[tas.length-1].focus();
+        var nrow = clBox.querySelector('[data-cl-row="'+(pj().clauses.length - 1)+'"]');
+        if(nrow){ nrow.scrollIntoView({ block:"nearest" }); startEditClause(nrow); }
       }
     });
+    function setAllClauseGroups(open){
+      clauseGroups(pj()).forEach(function(g){ condUi.clg[g] = !open; });
+      saveCondUi(); renderClauses();
+    }
+    document.getElementById("btn-clg-collapse").addEventListener("click", function(){ setAllClauseGroups(false); });
+    document.getElementById("btn-clg-expand").addEventListener("click", function(){ setAllClauseGroups(true); });
+    // lembra quais cartões e grupos ficaram recolhidos
+    document.addEventListener("toggle", function(e){
+      var t = e.target;
+      if(!t || !t.matches) return;
+      if(t.matches("details.cond-card[data-cond]")){ condUi.closed[t.getAttribute("data-cond")] = !t.open; saveCondUi(); }
+      else if(t.matches("details.cl-group")){ condUi.clg[t.getAttribute("data-clg")] = !t.open; saveCondUi(); }
+    }, true);
     document.getElementById("btn-clause-load").addEventListener("click", function(){
       var dr = pj(), added = 0;
       state.projectLibrary.clauses.forEach(function(c){
@@ -5286,7 +5437,7 @@
       sheet.innerHTML = pagesSvgHtml(lay, dr);
       var fs0 = document.getElementById("form-foot-summary");
       if(fs0) fs0.textContent = docSummaryText(lay, dr);
-      if(mode === "projeto") refreshProjetoLive();
+      if(mode === "projeto") refreshProjetoLive(); else refreshCondSummaries();
       return;
     }catch(e){
       sheet.classList.remove("paged");
@@ -7200,6 +7351,7 @@
     attachProjetoHandlers();
     attachAddressBlocks();
     attachObraExtras();
+    applyCondUi();
     attachBindings();
     attachSubjectCombo();
     attachObraAddressImport();
