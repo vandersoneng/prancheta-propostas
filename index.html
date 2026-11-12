@@ -6954,7 +6954,8 @@
       var rb2 = metaBases.length > 1 ? metaBases[1] : rb1 + 12;
       text({ x:LW-MR, y:rb0, text:"Nº "+dr.number+(P ? " · "+revLabel(dr) : ""), size:10.5, bold:true, color:CV_INK, align:"right" });
       text({ x:LW-MR, y:rb1, text:"Emitida em "+dateBR(dr.date), size:9, color:CV_SOFT, align:"right" });
-      text({ x:LW-MR, y:rb2, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias), size:9, color:CV_SOFT, align:"right" });
+      var vDias = Math.floor(Number(dr.validadeDias)) || 0;
+      text({ x:LW-MR, y:rb2, text:"Válida até "+addDaysBR(dr.date, dr.validadeDias)+(vDias > 0 ? " ("+vDias+(vDias === 1 ? " dia)" : " dias)") : ""), size:9, color:CV_SOFT, align:"right" });
       y = Math.max(yy, y+lg, rb2+4) + 10;
       line(ML,y,LW-MR,y,0.75,CV_LINE_STRONG);
       y += 16;
@@ -7160,9 +7161,7 @@
         }
       }
 
-      heading("Validade da proposta");
-      para(doc.validity);
-
+      // A validade (emissão, data limite e nº de dias) já está no cabeçalho: sem seção própria no corpo.
       if(doc.garantia){ heading("Garantia"); para(doc.garantia); }
 
       if(doc.clauses.length || doc.obs){
