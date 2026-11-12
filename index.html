@@ -6131,9 +6131,12 @@
       var lines = ["Chave Pix"+(tl ? " ("+tl+")" : "")+": "+String(px.key).trim()];
       if(px.bank && px.bank.trim()) lines.push("Instituição Financeira: "+px.bank.trim());
       lines.push("Favorecido: "+((px.holder||info.name||"").trim() || "—"));
+      var pixItems = [{ k:"Chave Pix"+(tl ? " · "+tl : ""), v:String(px.key).trim(), bold:true }];
+      if(px.bank && px.bank.trim()) pixItems.push({ k:"Instituição financeira", v:px.bank.trim() });
+      pixItems.push({ k:"Favorecido", v:(px.holder||info.name||"").trim() || "—" });
       pay.pix = {
         intro:"O pagamento poderá ser realizado via transferência bancária utilizando o sistema Pix, conforme dados abaixo:",
-        lines:lines, amount:pixAmountFor(dr), isParcel: parcels.length > 1, px:px
+        lines:lines, items:pixItems, amount:pixAmountFor(dr), isParcel: parcels.length > 1, px:px
       };
     }
     doc.pay = pay;
@@ -7116,19 +7119,44 @@
         pay.notes.forEach(function(n){ para(n, { size:9.5, pitch:13, color:CV_SOFT }); });
         if(pay.pix){
           para(pay.pix.intro);
-          var qr = 64, tx = hasPix ? ML+qr+14 : ML;
-          ensureSpace(qr+8);
-          if(hasPix) pixBox = { x:ML, y:y, w:qr, h:qr, page:page };
-          var ty = y;
-          setFontFor(false,10,false);
-          pay.pix.lines.forEach(function(l){
-            wrapText(ctx, l, CW-(tx-ML)).forEach(function(w){ text({ x:tx, y:ty+10, text:w, size:10, color:CV_INK }); ty += 14; });
-          });
-          if(hasPix && pay.pix.amount > 0){
-            text({ x:tx, y:ty+9, text:"QR Code Pix — "+(pay.pix.isParcel ? "valor da 1ª parcela: " : "valor total: ")+fmtBRL(pay.pix.amount), size:9, color:CV_SOFT });
-            ty += 14;
+          var qr = 64;
+          if(!hasPix){
+            // chave que não gera QR Code: só as linhas de texto, sem reservar o espaço do QR
+            var ty0 = y;
+            setFontFor(false,10,false);
+            pay.pix.lines.forEach(function(l){
+              wrapText(ctx, l, CW).forEach(function(w){ ensureSpace(14); text({ x:ML, y:y+10, text:w, size:10, color:CV_INK }); y += 14; });
+            });
+            y += 6;
+          } else {
+            // QR Code à esquerda; ao lado, os dados em duas colunas (rótulo pequeno + valor), centralizados na altura do QR
+            var pixCells = pay.pix.items.slice();
+            if(pay.pix.amount > 0) pixCells.push({ k:"Valor do QR Code ("+(pay.pix.isParcel ? "1ª parcela" : "total")+")", v:fmtBRL(pay.pix.amount) });
+            var gx = ML+qr+16, cgap = 18, cw2 = (LW-MR-gx-cgap)/2;
+            // chave ou favorecido longos demais para meia coluna (e-mail comprido, por exemplo): uma coluna só, em largura total
+            var pixOneCol = pixCells.some(function(it){ setFontFor(!!it.bold,10,false); return ctx.measureText(it.v).width > cw2; });
+            var colsN = pixOneCol ? 1 : 2, cwUse = pixOneCol ? (LW-MR-gx) : cw2;
+            var prepared2 = pixCells.map(function(it){
+              setFontFor(!!it.bold,10,false);
+              return { k:it.k.toUpperCase(), lines:wrapText(ctx, it.v, cwUse), bold:!!it.bold };
+            });
+            var pixRows = [];
+            for(var pc = 0; pc < prepared2.length; pc += colsN) pixRows.push(prepared2.slice(pc, pc+colsN));
+            var rowHs = pixRows.map(function(r){ return 22 + (Math.max.apply(null, r.map(function(c){ return c.lines.length; })) - 1) * 12; });
+            var blockH = rowHs.reduce(function(a, b){ return a + b; }, 0) + (pixRows.length - 1) * 9;
+            ensureSpace(Math.max(qr, blockH) + 8);
+            pixBox = { x:ML, y:y + Math.max(0, (blockH - qr)/2), w:qr, h:qr, page:page };
+            var rowTop = y + Math.max(0, (qr - blockH)/2);
+            pixRows.forEach(function(r, ri){
+              r.forEach(function(c, ci){
+                var cx = gx + ci*(cw2 + cgap);
+                text({ x:cx, y:rowTop+7, text:c.k, size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
+                c.lines.forEach(function(l, li){ text({ x:cx, y:rowTop+19+li*12, text:l, size:10, bold:c.bold, color:CV_INK }); });
+              });
+              rowTop += rowHs[ri] + 9;
+            });
+            y += Math.max(qr, blockH) + 8;
           }
-          y += Math.max(qr, ty-y) + 6;
         }
       }
 
