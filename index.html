@@ -7139,11 +7139,29 @@
 
       if(doc.clauses.length || doc.obs){
         heading("Considerações finais");
-        doc.clauses.forEach(function(g){
-          ensureSpace(48);
-          para(g.group, { bold:true, size:9.5, color:CV_SOFT, after:2, left:true });
-          g.items.forEach(bulletItem);
-          y += 4;
+        // Grupos numerados (só os que aparecem), título com fio fino embaixo e cláusulas numeradas (1.1, 1.2…) com recuo,
+        // para citar "conforme a cláusula 2.2"; texto justificado como no resto da proposta.
+        var NUMW = 30;
+        function clauseItem(num, str){
+          setFontFor(false,BODY,false);
+          var lines = wrapText(ctx, str, CW-NUMW);
+          if(lines.length) ensureSpace(Math.min(lines.length,2)*PITCH+2);
+          lines.forEach(function(l, i){
+            ensureSpace(lines.length-i === 2 ? PITCH*2 : PITCH);
+            if(i === 0) text({ x:ML, y:y+bl(BODY,PITCH)+0.5, text:num, size:9, bold:true, color:CV_FAINT });
+            text({ x:ML+NUMW, y:y+bl(BODY,PITCH), text:l, size:BODY, color:CV_INK, just: i < lines.length-1 ? CW-NUMW : 0 });
+            y += PITCH;
+          });
+          y += 5;
+        }
+        doc.clauses.forEach(function(g, gi){
+          ensureSpace(14 + 26 + PITCH*2 + 2);
+          y += gi ? 16 : 2;
+          text({ x:ML, y:y+11, text:(gi+1)+". "+g.group, size:11, bold:true, color:ACCENT });
+          y += 17;
+          line(ML, y, LW-MR, y, 0.75, CV_LINE);
+          y += 9;
+          g.items.forEach(function(it, ii){ clauseItem((gi+1)+"."+(ii+1), it); });
         });
         if(doc.obs) para(doc.obs);
       }
