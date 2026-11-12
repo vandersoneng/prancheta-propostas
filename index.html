@@ -521,6 +521,9 @@
   }
   .auth-gate[hidden]{ display:none; }
   .auth-card .brand{order:0;}
+  .auth-opt{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--ink-soft); cursor:pointer; margin-top:2px;}
+  .auth-opt input{width:15px; height:15px; margin:0; flex-shrink:0; cursor:pointer;}
+  .auth-opt-hint{font-size:11.5px; line-height:1.4; color:var(--ink-faint); margin:-8px 0 0 23px;}
   .pw-wrap{position:relative; display:flex;}
   .pw-wrap input{flex:1; min-width:0; padding-right:44px;}
   .pw-toggle{position:absolute; right:4px; top:50%; transform:translateY(-50%); width:34px; height:34px; display:flex; align-items:center; justify-content:center; background:transparent; border:none; border-radius:6px; color:var(--ink-faint); cursor:pointer; padding:0;}
@@ -643,7 +646,8 @@
         <button type="button" class="pw-toggle" id="auth-pw-toggle" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
-    <label class="checkbox-field" style="align-items:flex-start;"><input type="checkbox" id="auth-shared" style="margin-top:3px;"> <span>Computador de uso compartilhado<br><span class="hint">Não guarda a sessão nem os dados neste navegador depois que a aba for fechada, e sai sozinho após 30 minutos sem uso.</span></span></label>
+    <label class="auth-opt" for="auth-shared"><input type="checkbox" id="auth-shared" aria-describedby="auth-shared-hint"><span>Computador de uso compartilhado</span></label>
+    <div class="auth-opt-hint" id="auth-shared-hint">Não guarda a sessão nem os dados ao fechar a aba, e sai sozinho após 30 minutos sem uso.</div>
     <div id="auth-error" style="font-size:12.5px; color:var(--danger); display:none;"></div>
     <button type="submit" class="btn btn-primary" id="auth-submit" style="width:100%; justify-content:center; margin-top:6px;">Entrar</button>
     <div class="auth-status" id="auth-status"></div>
