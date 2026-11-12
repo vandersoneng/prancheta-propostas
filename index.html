@@ -6064,7 +6064,7 @@
       var acts = s.acts.filter(function(a){ return a.on && String(a.t||"").trim(); }).map(function(a){ return stripEndPunct(a.t); });
       return { title: stripEndPunct(s.title) + (acts.length ? ", incluindo:" : "."), acts:acts, entry:s };
     });
-    var itemMode = dr.priceMode === "item", showVals = dr.showItemValues !== false;
+    var itemMode = dr.priceMode === "item", showVals = dr.showItemValues !== false, globalRow = null;
     if(!blocks.length && !itemMode && (Number(dr.scopePrice)||0) > 0) blocks = [{ title:"Serviços técnicos de projeto.", acts:[] }];
     blocks.forEach(function(b, bi){
       n++;
@@ -6076,7 +6076,7 @@
         }
       } else if(bi === 0){
         row.value = fmtBRL(dr.scopePrice);
-        if(blocks.length > 1) row.sub = "valor global dos itens 1 a "+blocks.length;
+        globalRow = row;
       }
       rows.push(row);
     });
@@ -6087,6 +6087,20 @@
       if(qty !== 1 && lt > 0) desc += " — "+fmtNum(qty, qty % 1 === 0 ? 0 : 2)+" "+it.unit+" × "+fmtBRL(it.price);
       rows.push({ n:n, blocks:null, desc:desc, value: lt > 0 ? fmtBRL(lt) : "Incluso" });
     });
+    // Valor global: cobre os serviços e também os itens "Incluso" (a ART, por exemplo); item com valor próprio fica de fora
+    if(globalRow){
+      var covered = [];
+      rows.forEach(function(r){ if(r.blocks || r.value === "Incluso") covered.push(r.n); });
+      if(covered.length > 1){
+        var runs = [], st0 = covered[0], prev = covered[0];
+        for(var ci = 1; ci <= covered.length; ci++){
+          if(ci < covered.length && covered[ci] === prev + 1){ prev = covered[ci]; continue; }
+          runs.push(st0 === prev ? String(st0) : st0+" a "+prev);
+          if(ci < covered.length){ st0 = covered[ci]; prev = covered[ci]; }
+        }
+        globalRow.sub = "valor global dos itens " + (runs.length === 1 ? runs[0] : runs.slice(0, -1).join(", ") + " e " + runs[runs.length-1]);
+      }
+    }
     doc.rows = rows;
 
     var taxLines = dr.taxes.filter(function(t){ return t.label || t.percent; }).map(function(t){
@@ -7064,9 +7078,23 @@
         rl.forEach(function(l, i){
           ensureSpace(RP);
           if(o.bullet && i === 0) text({ x:xDesc+ind-11, y:y+bl(size,RP), text:"•", size:size, color:CV_SOFT });
-          text({ x:xDesc+ind, y:y+bl(size,RP), text:l, size:size, bold:!!o.bold, color:CV_INK, just: i < rl.length-1 ? colDesc-ind : 0 });
+          text({ x:xDesc+ind, y:y+bl(size,RP), text:l, size:size, bold:!!o.bold, color:CV_INK, just: (!o.left && i < rl.length-1) ? colDesc-ind : 0 });
           y += RP;
         });
+      }
+      // atividade numerada (1.1, 1.2…) com recuo, texto justificado; o número permite citar a atividade ("a 1.7 não está incluída")
+      var ACTNUM = 28;
+      function actLine(num, str){
+        var size = 10;
+        setFontFor(false, size, false);
+        var rl = wrapText(ctx, str, colDesc-ACTNUM);
+        rl.forEach(function(l, i){
+          ensureSpace(i === 0 && rl.length > 1 ? RP*2 : RP);
+          if(i === 0) text({ x:xDesc, y:y+bl(size,RP)+0.5, text:num, size:9, color:CV_FAINT });
+          text({ x:xDesc+ACTNUM, y:y+bl(size,RP), text:l, size:size, color:CV_INK, just: i < rl.length-1 ? colDesc-ACTNUM : 0 });
+          y += RP;
+        });
+        y += 2.5;
       }
       if(!doc.rows.length) para("Nenhum serviço selecionado.", { color:CV_FAINT });
       doc.rows.forEach(function(r, ri){
@@ -7077,9 +7105,10 @@
         if(r.blocks){
           r.blocks.forEach(function(b){
             ensureSpace(46);
-            rowLines(b.title, { bold:true });
-            b.acts.forEach(function(a, i){ rowLines(a+(i < b.acts.length-1 ? ";" : "."), { bullet:true, indent:14, size:10 }); });
-            y += 5;
+            rowLines(b.title, { bold:true, left:true });
+            y += 3;
+            b.acts.forEach(function(a, i){ actLine(r.n+"."+(i+1), a); });
+            y += 2;
           });
         } else {
           rowLines(r.desc);
