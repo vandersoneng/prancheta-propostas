@@ -6101,12 +6101,16 @@
       var qty = Number(it.qty)||0, lt = qty*(Number(it.price)||0);
       var desc = (it.desc||"—") + (it.detail ? " ("+it.detail+")" : "");
       if(qty !== 1 && lt > 0) desc += " — "+fmtNum(qty, qty % 1 === 0 ? 0 : 2)+" "+it.unit+" × "+fmtBRL(it.price);
-      rows.push({ n:n, blocks:null, desc:desc, value: lt > 0 ? fmtBRL(lt) : "Incluso" });
+      // Com valor global, o item sem preço próprio (a ART, por exemplo, em qualquer posição) já está no valor global:
+      // fica sem valor na coluna, como os demais serviços, e a observação do item 1 diz quais itens o global cobre.
+      // Sem valor global (preço por serviço, por exemplo), continua "Incluso".
+      var coveredByGlobal = !!globalRow && lt <= 0;
+      rows.push({ n:n, blocks:null, desc:desc, value: lt > 0 ? fmtBRL(lt) : (coveredByGlobal ? "" : "Incluso"), covered:coveredByGlobal });
     });
-    // Valor global: cobre os serviços e também os itens "Incluso" (a ART, por exemplo); item com valor próprio fica de fora
+    // Valor global: cobre os serviços e também os itens sem preço próprio; item com valor próprio fica de fora
     if(globalRow){
       var covered = [];
-      rows.forEach(function(r){ if(r.blocks || r.value === "Incluso") covered.push(r.n); });
+      rows.forEach(function(r){ if(r.blocks || r.covered) covered.push(r.n); });
       if(covered.length > 1){
         var runs = [], st0 = covered[0], prev = covered[0];
         for(var ci = 1; ci <= covered.length; ci++){
