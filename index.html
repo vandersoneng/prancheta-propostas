@@ -1794,6 +1794,38 @@
   // ---------- cadastro de clientes ----------
   function normText(s){ return pixStripAccents(s).toLowerCase().replace(/\s+/g," ").trim(); }
   function docDigits(s){ return String(s == null ? "" : s).replace(/\D/g,""); }
+  // CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00), conforme a quantidade de dígitos; vai formatando enquanto se digita.
+  // Valor com letras ou com mais de 14 dígitos não é CPF/CNPJ: fica como foi digitado.
+  function formatDoc(v){
+    var s = String(v == null ? "" : v).trim();
+    if(!s || /[A-Za-z]/.test(s)) return s;
+    var d = s.replace(/\D/g,"");
+    if(!d.length || d.length > 14) return s;
+    var out;
+    if(d.length <= 11){
+      out = d.slice(0,3);
+      if(d.length > 3) out += "." + d.slice(3,6);
+      if(d.length > 6) out += "." + d.slice(6,9);
+      if(d.length > 9) out += "-" + d.slice(9,11);
+      return out;
+    }
+    out = d.slice(0,2) + "." + d.slice(2,5) + "." + d.slice(5,8);
+    out += "/" + d.slice(8,12);
+    if(d.length > 12) out += "-" + d.slice(12,14);
+    return out;
+  }
+  // aplica a máscara no campo mantendo o cursor depois do mesmo número de dígitos (editar no meio não pula para o fim)
+  function maskDocInput(el){
+    var raw = el.value, pos = el.selectionStart == null ? raw.length : el.selectionStart;
+    var digitsBefore = raw.slice(0, pos).replace(/\D/g,"").length;
+    var fm = formatDoc(raw);
+    if(fm === raw) return;
+    el.value = fm;
+    var np = fm.length, n = 0;
+    if(digitsBefore === 0) np = 0;
+    else for(var i = 0; i < fm.length; i++){ if(/\d/.test(fm.charAt(i))) n++; if(n === digitsBefore){ np = i + 1; break; } }
+    try{ el.setSelectionRange(np, np); }catch(e){}
+  }
   function hashStr(s){ var x = 5381; for(var i = 0; i < s.length; i++) x = ((x << 5) + x + s.charCodeAt(i)) | 0; return (x >>> 0).toString(36); }
   // id estável a partir do CNPJ/CPF (ou do nome): o mesmo cliente criado em dois computadores vira UM registro ao sincronizar
   function clientIdFor(c){
@@ -1832,6 +1864,7 @@
       var v = String(c[k] == null ? "" : c[k]).trim();
       if(v) rec[k] = v;
     });
+    rec.doc = formatDoc(rec.doc);
     if(isObj(c.addr) && Object.keys(c.addr).some(function(k){ return String(c.addr[k] || "").trim(); })) rec.addr = JSON.parse(JSON.stringify(c.addr));
     return rec;
   }
@@ -1883,7 +1916,7 @@
     var st = clientStats(c), off = !!c.archived, id = escapeHtml(c.id), city = clientCity(c);
     var sub = [c.contact, c.phone, c.email].filter(Boolean).map(escapeHtml).join(" · ");
     var lastLog = off && c.archiveLog.length ? c.archiveLog[c.archiveLog.length - 1] : null;
-    var mobile = [c.doc, city, st.n + (st.n === 1 ? " proposta" : " propostas")].filter(Boolean).map(escapeHtml).join(" · ");
+    var mobile = [formatDoc(c.doc), city, st.n + (st.n === 1 ? " proposta" : " propostas")].filter(Boolean).map(escapeHtml).join(" · ");
     var actions = off
       ? '<button type="button" class="btn-ghost btn-sm cli-restore" data-cid="'+id+'">Restaurar</button>'
       : '<button type="button" class="btn btn-sm cli-use" data-cid="'+id+'" title="Preenche o cliente da proposta que está aberta">Usar</button>' +
@@ -1897,7 +1930,7 @@
         (c.notes ? '<div class="cli-sub" style="font-style:italic;">'+escapeHtml(c.notes)+'</div>' : '') +
         (lastLog ? '<div class="cli-sub" style="font-style:italic;">Arquivado em '+dateBR(lastLog.at)+(lastLog.reason ? ': "'+escapeHtml(lastLog.reason)+'"' : '')+'</div>' : '') +
       '</div>' +
-      '<div class="cli-c">'+(escapeHtml(c.doc) || '—')+'</div>' +
+      '<div class="cli-c">'+(escapeHtml(formatDoc(c.doc)) || '—')+'</div>' +
       '<div class="cli-c">'+(escapeHtml(city) || '—')+'</div>' +
       '<div class="cli-c cli-n">'+st.n+'</div>' +
       '<div class="cli-act">'+actions+'</div></div>';
@@ -1920,7 +1953,7 @@
     c = c || {};
     return [
       { id:"name", label:"Nome / Razão social", value:c.name, required:true },
-      { id:"doc", label:"CNPJ/CPF", value:c.doc },
+      { id:"doc", label:"CNPJ/CPF", value:formatDoc(c.doc), mask:"doc" },
       { id:"contact", label:"Contato", value:c.contact, placeholder:"Pessoa de contato" },
       { id:"phone", label:"Telefone", value:c.phone },
       { id:"email", label:"E-mail", value:c.email },
@@ -1932,7 +1965,7 @@
     openDialog({ title:"Novo cliente", okLabel:"Cadastrar", fields:clientDialogFields(), onOk:function(v){
       var dup = findClientIn(state.clients, v);
       if(dup) return dup.archived ? 'Já existe um cliente arquivado com esse nome/CNPJ ("'+dup.name+'"). Restaure-o na lista de arquivados.' : 'Já existe um cliente com esse nome/CNPJ: "'+dup.name+'".';
-      var rec = normClientRec({ id:clientIdFor(v), name:v.name, doc:v.doc, contact:v.contact, phone:v.phone, email:v.email, address:v.address, notes:v.notes, createdAt:todayISO() });
+      var rec = normClientRec({ id:clientIdFor(v), name:v.name, doc:formatDoc(v.doc), contact:v.contact, phone:v.phone, email:v.email, address:v.address, notes:v.notes, createdAt:todayISO() });
       state.clients.push(rec);
       renderClientsList(); renderClientHistoryDatalist(); scheduleSave();
       toast("Cliente cadastrado");
@@ -1945,6 +1978,7 @@
       var other = state.clients.find(function(x){ return x !== c && sameClientRec(x, v); });
       if(other) return 'Já existe outro cliente com esse nome/CNPJ: "'+other.name+'".';
       ["name","doc","contact","phone","email","notes"].forEach(function(k){ c[k] = v[k]; });
+      c.doc = formatDoc(c.doc);
       if(v.address !== c.address){ c.address = v.address; delete c.addr; }   // endereço digitado à mão substitui o estruturado
       renderClientsList(); renderClientHistoryDatalist(); scheduleSave();
       toast("Cliente atualizado");
@@ -1969,7 +2003,7 @@
     if(!rec) return;
     var dr = draft();
     if(String(dr.client.name || "").trim() && !sameClientRec(rec, dr.client) && !confirm('Trocar o cliente da proposta aberta ('+dr.client.name+') por "'+rec.name+'"?')) return;
-    var nc = Object.assign(emptyClient(), { name:rec.name, doc:rec.doc, contact:rec.contact, phone:rec.phone, email:rec.email, address:rec.address });
+    var nc = Object.assign(emptyClient(), { name:rec.name, doc:formatDoc(rec.doc), contact:rec.contact, phone:rec.phone, email:rec.email, address:rec.address });
     if(isObj(rec.addr)) nc.addr = Object.assign(emptyAddr(), rec.addr);
     dr.client = nc;
     syncFormFromState(); setActiveTab("proposta"); scheduleSave();
@@ -2340,6 +2374,11 @@
       if(typeof res === "string" && res){ err.textContent = res; err.hidden = false; return; }
       closeDialog();
     });
+    (opts.fields||[]).forEach(function(fd){
+      if(fd.mask !== "doc") return;
+      var mel = back.querySelector("#dlg-f-"+fd.id);
+      if(mel) mel.addEventListener("input", function(){ maskDocInput(mel); });
+    });
     var first = back.querySelector("input, select, textarea");
     if(first) setTimeout(function(){ try{ first.focus(); }catch(e){} }, 0);
   }
@@ -2508,13 +2547,13 @@
         pix:{ key:p.pixKey, type:p.pixType, city:p.pixCity, name:p.name, bank:p.pixBank, holder:p.pixHolder||p.name } };
     }
     contact = [c.phone, c.email, c.site].filter(Boolean).join("  ·  ");
-    if(c.doc) meta.push("CNPJ "+c.doc);
+    if(c.doc) meta.push("CNPJ "+formatDoc(c.doc));
     if(c.address) meta.push(c.address);
     if(c.address2) meta.push(c.address2);
     if(contact) meta.push(contact);
-    var metaRows = [c.doc ? "CNPJ "+c.doc : "", [c.address, c.address2].filter(Boolean).join(" · "), contact].filter(Boolean);
+    var metaRows = [c.doc ? "CNPJ "+formatDoc(c.doc) : "", [c.address, c.address2].filter(Boolean).join(" · "), contact].filter(Boolean);
     return { isPf:false, name:c.name||"Sua empresa", logo:c.logo||"", meta:meta, metaRows:metaRows,
-        sigName:c.name||"Empresa", sigRoles:[c.doc ? "CNPJ "+c.doc : "", (p.name && p.reg) ? "Resp. técnico: "+p.name+" — "+p.reg : ""].filter(Boolean),
+        sigName:c.name||"Empresa", sigRoles:[c.doc ? "CNPJ "+formatDoc(c.doc) : "", (p.name && p.reg) ? "Resp. técnico: "+p.name+" — "+p.reg : ""].filter(Boolean),
       pix:{ key:c.pixKey, type:c.pixType, city:c.pixCity, name:c.name, bank:c.pixBank, holder:c.name } };
   }
 
@@ -2584,7 +2623,7 @@
   // ---------- bindings for simple fields ----------
   var bindings = [
     ["f-company-name", function(s){return s.company.name;}, function(s,v){s.company.name=v;}],
-    ["f-company-doc", function(s){return s.company.doc;}, function(s,v){s.company.doc=v;}],
+    ["f-company-doc", function(s){return formatDoc(s.company.doc);}, function(s,v){s.company.doc=formatDoc(v);}],
     ["f-company-phone", function(s){return s.company.phone;}, function(s,v){s.company.phone=v;}],
     ["f-company-email", function(s){return s.company.email;}, function(s,v){s.company.email=v;}],
     ["f-company-site", function(s){return s.company.site;}, function(s,v){s.company.site=v;}],
@@ -2595,7 +2634,7 @@
     ["f-meta-validade", function(s){return draft().validadeDias;}, function(s,v){draft().validadeDias=parseFloat(v)||0;}],
 
     ["f-client-name", function(s){return draft().client.name;}, function(s,v){draft().client.name=v;}],
-    ["f-client-doc", function(s){return draft().client.doc;}, function(s,v){draft().client.doc=v;}],
+    ["f-client-doc", function(s){return formatDoc(draft().client.doc);}, function(s,v){draft().client.doc=formatDoc(v);}],
     ["f-client-phone", function(s){return draft().client.phone;}, function(s,v){draft().client.phone=v;}],
     ["f-client-contact", function(s){return draft().client.contact;}, function(s,v){draft().client.contact=v;}],
     ["f-client-email", function(s){return draft().client.email;}, function(s,v){draft().client.email=v;}],
@@ -3090,6 +3129,12 @@
         if(seq === cnpjLookupSeq) toast("Não foi possível buscar o CNPJ agora. Preencha manualmente.");
       });
   }
+  function attachDocMasks(){
+    ["f-client-doc","f-company-doc"].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.addEventListener("input", function(){ maskDocInput(el); });
+    });
+  }
   function attachCnpjLookup(){
     document.getElementById("f-client-doc").addEventListener("focusout", function(e){
       var digits = (e.target.value||"").replace(/\D/g,"");
@@ -3141,11 +3186,11 @@
       }
       ["doc","phone","contact","email"].forEach(function(prop){
         if(cl[prop] || !match[prop]) return; // nunca sobrescreve o que o usuário já preencheu
-        cl[prop] = match[prop];
+        cl[prop] = prop === "doc" ? formatDoc(match[prop]) : match[prop];
         changed = true;
         var fieldId = { doc:"f-client-doc", phone:"f-client-phone", contact:"f-client-contact", email:"f-client-email" }[prop];
         var el = document.getElementById(fieldId);
-        if(el) el.value = match[prop];
+        if(el) el.value = prop === "doc" ? formatDoc(match[prop]) : match[prop];
       });
       if(changed){
         scheduleSave();
@@ -5089,7 +5134,7 @@
 
   function sameClient(a, b){
     return (a.name||"").trim().toLowerCase() === (b.name||"").trim().toLowerCase()
-        && (a.doc||"").trim() === (b.doc||"").trim();
+        && docDigits(a.doc) === docDigits(b.doc);
   }
 
   // Gera o próximo número de proposta do modo dado, reiniciando a sequência em 001 sempre que
@@ -6316,7 +6361,7 @@
           '<div>' +
             '<div class="sheet-company-name">'+escapeHtml(state.company.name||"Sua empresa")+'</div>' +
             '<div class="sheet-company-meta">' +
-              (state.company.doc ? "CNPJ "+escapeHtml(state.company.doc)+"<br>" : "") +
+              (state.company.doc ? "CNPJ "+escapeHtml(formatDoc(state.company.doc))+"<br>" : "") +
               (state.company.address ? escapeHtml(state.company.address)+"<br>" : "") +
               (state.company.address2 ? escapeHtml(state.company.address2)+"<br>" : "") +
               [state.company.phone, state.company.email, state.company.site].filter(Boolean).map(escapeHtml).join(" · ") +
@@ -6337,7 +6382,7 @@
       '<div class="sheet-label">Cliente</div>' +
       '<div class="client-grid">' +
         '<div><span>Nome / Razão social</span>'+escapeHtml(dr.client.name||"—")+'</div>' +
-        '<div><span>CNPJ/CPF</span>'+escapeHtml(dr.client.doc||"—")+'</div>' +
+        '<div><span>CNPJ/CPF</span>'+escapeHtml(formatDoc(dr.client.doc)||"—")+'</div>' +
         '<div><span>Endereço</span>'+escapeHtml(dr.client.address||"—")+'</div>' +
         '<div><span>Contato</span>'+escapeHtml(dr.client.contact||"—")+'</div>' +
         '<div><span>Telefone</span>'+escapeHtml(dr.client.phone||"—")+'</div>' +
@@ -6459,7 +6504,7 @@
       ctx.font = "700 15px "+CV_SANS;
       var nameLines = wrapText(ctx, state.company.name||"Sua empresa", headerLeftMaxW);
       var metaLines = [];
-      if(state.company.doc) metaLines.push("CNPJ "+state.company.doc);
+      if(state.company.doc) metaLines.push("CNPJ "+formatDoc(state.company.doc));
       if(state.company.address) metaLines.push(state.company.address);
       if(state.company.address2) metaLines.push(state.company.address2);
       var contactLine = [state.company.phone, state.company.email, state.company.site].filter(Boolean).join("  ·  ");
@@ -6516,7 +6561,7 @@
       // client
       sectionLabel("Cliente");
       fieldGrid([
-        ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", dr.client.doc],
+        ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", formatDoc(dr.client.doc)],
         ["Endereço", dr.client.address], ["Contato", dr.client.contact],
         ["Telefone", dr.client.phone], ["E-mail", dr.client.email]
       ]);
@@ -7046,7 +7091,7 @@
       var contactBits = [nz(c.contact), nz(c.phone), nz(c.email)].filter(Boolean);
       {
         var rows = [];
-        rows.push({ k:"Cliente", name:nz(c.name)||"—", rest: nz(c.doc) ? "   ·   "+nz(c.doc) : "" });
+        rows.push({ k:"Cliente", name:nz(c.name)||"—", rest: formatDoc(c.doc) ? "   ·   "+formatDoc(c.doc) : "" });
         if(nz(c.address)) rows.push({ k:"Endereço", rest:nz(c.address) });
         if(contactBits.length) rows.push({ k:"A/C", rest:contactBits.join("   ·   ") });
         var valX = ML+12+62, valW = CW-12-62-12, prepared = [], boxH = 14;
@@ -7267,7 +7312,7 @@
         // (ex.: gov.br) entram com tamanho fixo (~70 pt de altura).
         var gapC = 36, colW = (CW - 28 - gapC) / 2, xL = ML + 14, xR = xL + colW + gapC;
         var cName = nz(dr.client.name), cDocDigits = String(nz(dr.client.doc)).replace(/\D/g,"");
-        var cDoc = cDocDigits.length === 11 ? "CPF "+nz(dr.client.doc) : (cDocDigits.length === 14 ? "CNPJ "+nz(dr.client.doc) : "");
+        var cDoc = cDocDigits.length === 11 ? "CPF "+formatDoc(dr.client.doc) : (cDocDigits.length === 14 ? "CNPJ "+formatDoc(dr.client.doc) : "");
         var eRows = rowsFor(info.sigName, colW, true).concat(rolesRows(info.sigRoles, colW)).map(function(r){ return { t:r.t, kind:r.b ? "name" : "soft" }; });
         var cRows = [];
         if(cName){
@@ -7325,7 +7370,7 @@
 
     sectionLabel("Cliente");
     fieldGrid([
-      ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", dr.client.doc],
+      ["Nome / Razão social", dr.client.name], ["CNPJ/CPF", formatDoc(dr.client.doc)],
       ["Endereço", dr.client.address], ["Contato", dr.client.contact],
       ["Telefone", dr.client.phone], ["E-mail", dr.client.email]
     ]);
@@ -7895,7 +7940,7 @@
       rows.push([
         h.number,
         h.draft.client.name || "",
-        h.draft.client.doc || "",
+        formatDoc(h.draft.client.doc) || "",
         h.mode==="cabos" ? "Cabos" : "Projeto",
         statusLabel[h.status] || h.status,
         (h.status==="emitida" && isProposalExpired(h.draft)) ? "Sim" : "Não",
@@ -8383,6 +8428,7 @@
     attachSubjectCombo();
     attachObraAddressImport();
     attachCnpjLookup();
+    attachDocMasks();
     attachItemsDelegation();
     attachTaxesDelegation();
     attachLogoHandlers();
