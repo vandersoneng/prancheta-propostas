@@ -491,6 +491,29 @@
   .backup-bar{display:flex; gap:10px 14px; align-items:center; flex-wrap:wrap; padding:8px 16px; background:var(--danger-bg); color:var(--ink); border-bottom:1px solid var(--danger); font-size:12.5px; line-height:1.4;}
   .backup-bar[hidden]{display:none;}
   .backup-bar span{flex:1 1 280px;}
+  .trk-cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin:12px 0 8px;}
+  .trk-card{border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--paper-raised);}
+  .trk-card small{display:block; font-size:11px; color:var(--ink-soft); font-weight:600;}
+  .trk-card b{font-size:18px; font-weight:700; color:var(--ink);}
+  .trk-bar{height:8px; background:var(--line); border-radius:4px; overflow:hidden;}
+  .trk-bar > i{display:block; height:100%; background:var(--good);}
+  .trk-pill{display:inline-block; font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:10px; white-space:nowrap;}
+  .trk-pill.ok{background:var(--good-bg); color:var(--good);}
+  .trk-pill.bad{background:var(--danger-bg); color:var(--danger);}
+  .trk-pill.warn{border:1px solid var(--accent); color:var(--accent);}
+  .trk-pill.mut{background:var(--paper); color:var(--ink-soft); border:1px solid var(--line);}
+  .trk-sec{font-size:12.5px; font-weight:700; color:var(--ink); margin:18px 0 4px;}
+  .trk-row{display:grid; grid-template-columns:minmax(0,1.5fr) 96px 132px minmax(0,1.5fr) auto; gap:10px; align-items:center; padding:9px 0; border-top:1px solid var(--line); font-size:12.5px;}
+  .trk-row.trk-head{border-top:none; color:var(--ink-soft); font-size:11px; font-weight:700; padding:4px 0;}
+  .trk-row input[type="date"]{width:100%; padding:5px 6px; font-size:12px; border:1px solid var(--line-strong); border-radius:6px; background:var(--paper); color:var(--ink);}
+  .trk-pays{font-size:11.5px; color:var(--ink-soft); padding:0 0 8px 0; display:flex; flex-direction:column; gap:3px;}
+  .trk-pays .void{text-decoration:line-through; color:var(--ink-faint);}
+  .trk-step{display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:13px;}
+  .trk-step .dot{width:16px; height:16px; border-radius:50%; border:2px solid var(--line-strong); flex-shrink:0; margin-top:2px; box-sizing:border-box;}
+  .trk-step.ok .dot{background:var(--good); border-color:var(--good);}
+  .trk-step.next .dot{border-color:var(--accent);}
+  .trk-step .when{margin-left:auto; color:var(--ink-soft); font-size:12px; text-align:right;}
+  @media (max-width:760px){ .trk-row, .trk-row.trk-head{grid-template-columns:1fr;} .trk-row.trk-head{display:none;} }
   .cli-sub{font-size:11.5px; color:var(--ink-faint); margin-top:2px; line-height:1.4;}
   .cli-name{font-weight:700; color:var(--ink); font-size:13.5px;}
   .cli-arch{opacity:.8;}
@@ -5348,6 +5371,7 @@
       existing.draft = snapshotDraft(dr);
       existing.mode = state.mode;
       existing.savedAt = todayISO();
+      if(existing.status === "vendida" && existing.mode === "projeto") ensureTrack(existing);   // revisão depois de fechar: atualiza o contratado e registra o ajuste
       // proposta baixada de novo com o retorno já vencido (ou sem data): considera reenviada e agenda novo retorno
       if(existing.status === "emitida" && !existing.acceptedAt && (!existing.followUpAt || existing.followUpAt <= todayISO())) existing.followUpAt = addDaysISO(todayISO(), FOLLOWUP_DAYS);
     } else {
@@ -5453,6 +5477,7 @@
         actions += '<button type="button" class="btn btn-sm hist-sell" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Marcar vendida</button>';
         actions += '<button type="button" class="btn-ghost btn-sm hist-cancel" data-hid="'+h.id+'">Cancelar</button>';
       } else if(h.status === "vendida"){
+        if(h.mode === "projeto") actions += '<button type="button" class="btn btn-sm hist-track" data-hid="'+h.id+'" style="background:var(--good); border-color:var(--good); color:#fff;">Acompanhar</button>';
         actions += '<button type="button" class="btn-ghost btn-sm hist-unsell" data-hid="'+h.id+'">Desfazer venda</button>';
       } else if(h.status === "cancelada"){
         actions += '<button type="button" class="btn-ghost btn-sm hist-reopen" data-hid="'+h.id+'">Reabrir</button>';
@@ -5478,7 +5503,7 @@
           '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:2px;">'+modeLabel+(opts.archived?" · "+statusLabel:"")+' · '+dateBR(h.savedAt)+' · '+fmtBRL(totals.total)+expiredBadge+'</div>' +
           (h.mode==="projeto" && ((Number(h.draft.revision)||0) > 0 || (h.revisionLog && h.revisionLog.length))
             ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:2px;">Revisão '+revLabel(h.draft)+(h.revisionLog && h.revisionLog.length ? ' · '+h.revisionLog.length+' versão(ões) anterior(es) guardada(s)' : '')+'</div>' : '') +
-          followUpLineHtml(h) + lostLine + mgLine +
+          followUpLineHtml(h) + lostLine + mgLine + ((h.status === "vendida" && h.mode === "projeto") ? trackCardLine(h) : "") +
           (reasonEntry ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:4px; font-style:italic;">Desarquivada em '+dateBR(reasonEntry.at)+': "'+escapeHtml(reasonEntry.reason)+'"</div>' : '') +
           logHtml +
         '</div>' +
@@ -5750,6 +5775,12 @@
     var list = historyForMode();
     document.getElementById("lbl-history-legend").textContent = state.mode==="cabos" ? "Histórico — venda de cabos" : "Histórico — projetos e consultoria";
     updateHistBadge();
+    // ficha de acompanhamento aberta: ela ocupa o lugar da lista (e esconde busca e filtros)
+    var trackEntry = trackOpenId ? findHistoryEntry(trackOpenId) : null;
+    if(trackEntry && !(trackEntry.status === "vendida" && trackEntry.mode === "projeto" && trackEntry.mode === state.mode)) { trackEntry = null; trackOpenId = null; }
+    ["history-search","hist-filters"].forEach(function(id){ var el = document.getElementById(id); if(el) el.style.display = trackEntry ? "none" : ""; });
+    var tool = document.getElementById("hf-follow"); if(tool && tool.closest("div")) tool.closest("div").style.display = trackEntry ? "none" : "";
+    if(trackEntry){ container.innerHTML = renderTrackFicha(trackEntry); return; }
     var sumEl = document.getElementById("hist-summary");
     if(sumEl){
       if(historyFiltering() && list.length){
@@ -5828,6 +5859,179 @@
     toast("Proposta duplicada como "+copy.number+" — preencha o cliente");
   }
 
+  // ---------- acompanhamento da proposta fechada (projetos) ----------
+  // Cada proposta de projeto vendida tem uma ficha (h.track): valor contratado, parcelas com os recebimentos e etapas.
+  // Os ids das parcelas são por posição ("pc-0", "pc-1") para dois computadores que abrirem a ficha juntos não duplicarem.
+  var PAY_METHODS = [["pix","Pix"],["transferencia","Transferência"],["boleto","Boleto"],["dinheiro","Dinheiro"],["outro","Outro"]];
+  var trackOpenId = null;
+  function activePays(p){ return (p.payments || []).filter(function(x){ return !x.voided; }); }
+  function parcelPaid(p){ return r2(activePays(p).reduce(function(s, x){ return s + (Number(x.amount) || 0); }, 0)); }
+  function lastPayDate(p){ var a = activePays(p).map(function(x){ return x.at; }).sort(); return a.length ? a[a.length - 1] : ""; }
+  function addBusinessDays(iso, n){
+    var d = new Date(iso + "T00:00:00"), left = Math.max(0, Math.floor(Number(n) || 0));
+    while(left > 0){ d.setDate(d.getDate() + 1); var wd = d.getDay(); if(wd !== 0 && wd !== 6) left--; }
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function buildTrackParcels(dr){
+    var t = calcTotals(dr), has = !!(dr.payment && Array.isArray(dr.payment.parcels) && dr.payment.parcels.length);
+    var src = has ? dr.payment.parcels : [{ pct:100, label:"pagamento integral" }];
+    var amounts = has ? parcelAmounts(dr, t) : [t.total];
+    var diff = r2(t.total - amounts.reduce(function(s, v){ return s + v; }, 0));
+    var out = src.map(function(p, i){ return { id:"pc-" + i, label:String(p.label || "").trim() || ("Parcela " + (i + 1)), pct:Number(p.pct) || 0, amount:amounts[i], due:"", payments:[] }; });
+    if(diff && out.length) out[out.length - 1].amount = r2(out[out.length - 1].amount + diff);   // a soma das parcelas sempre fecha com o valor contratado
+    return { parcels:out, contracted:t.total };
+  }
+  // Cria a ficha ou, se já existe (revisão depois de fechar), atualiza valores e parcelas mantendo os recebimentos e registrando o ajuste
+  function ensureTrack(hh){
+    if(!hh || hh.mode !== "projeto" || !isObj(hh.draft)) return null;
+    var nb = buildTrackParcels(hh.draft);
+    if(!isObj(hh.track)){
+      hh.track = { contracted:nb.contracted, parcels:nb.parcels, infoAt:"", deliveredAt:"", adjustments:[] };
+      return hh.track;
+    }
+    var tr = hh.track, old = Array.isArray(tr.parcels) ? tr.parcels : [];
+    if(!Array.isArray(tr.adjustments)) tr.adjustments = [];
+    var merged = nb.parcels.map(function(np, i){
+      var op = old[i];
+      return op ? Object.assign({}, op, { label:np.label, pct:np.pct, amount:np.amount }) : np;
+    });
+    old.forEach(function(op, i){ if(i >= nb.parcels.length && activePays(op).length) merged.push(Object.assign({}, op, { legacy:true })); });
+    if(r2(tr.contracted) !== nb.contracted){
+      tr.adjustments.push({ id:genId(), at:todayISO(), from:r2(tr.contracted), to:nb.contracted, rev:Number(hh.draft.revision) || 0 });
+      tr.contracted = nb.contracted;
+    }
+    tr.parcels = merged;
+    return tr;
+  }
+  function trackSummary(hh){
+    var tr = hh.track || { parcels:[], contracted:0 }, received = 0;
+    (tr.parcels || []).forEach(function(p){ received += parcelPaid(p); });
+    received = r2(received);
+    var contracted = r2(tr.contracted || 0), rem = r2(contracted - received);
+    return { contracted:contracted, received:received, remaining:rem > 0 ? rem : 0, over:rem < 0 ? -rem : 0, pct:contracted > 0 ? Math.min(100, Math.round(received / contracted * 100)) : 0 };
+  }
+  function parcelStatus(p){
+    var paid = parcelPaid(p), rem = r2((Number(p.amount) || 0) - paid), late = !!p.due && p.due < todayISO();
+    if(rem <= 0.004) return { kind:"ok", text:"Recebida em " + dateBR(lastPayDate(p)), paid:paid, rem:0 };
+    if(paid > 0) return { kind:late ? "bad" : "warn", text:"Parcial: " + fmtBRL(paid) + " de " + fmtBRL(p.amount) + (late ? " · atrasada" : ""), paid:paid, rem:rem };
+    return { kind:late ? "bad" : "warn", text:late ? "Atrasada " + diffDays(p.due, todayISO()) + (diffDays(p.due, todayISO()) === 1 ? " dia" : " dias") : "A receber", paid:0, rem:rem };
+  }
+  function trackSteps(hh){
+    var tr = hh.track, ps = tr.parcels || [], p0 = ps[0], pl = ps[ps.length - 1];
+    var first = p0 ? parcelStatus(p0) : null, last = pl ? parcelStatus(pl) : null;
+    var aceite = hh.acceptedAt || "", info = tr.infoAt || "", delivered = tr.deliveredAt || "";
+    var p1At = (first && first.kind === "ok") ? lastPayDate(p0) : "";
+    var start = (aceite && p1At && info) ? [aceite, p1At, info].sort().pop() : "";
+    var dl = hh.draft.deadline || {}, days = Math.floor(Number(dl.days) || 0), unit = dl.unit === "úteis" ? "úteis" : "corridos";
+    var pred = (start && days > 0) ? (unit === "úteis" ? addBusinessDays(start, days) : addDaysISO(start, days)) : "";
+    var finalAt = (last && last.kind === "ok") ? lastPayDate(pl) : "";
+    return { aceite:aceite, p1At:p1At, info:info, start:start, pred:pred, delivered:delivered, finalAt:finalAt, days:days, unit:unit, first:first, last:last };
+  }
+  function trackStatus(hh){
+    var s = trackSteps(hh), sum = trackSummary(hh);
+    if(sum.remaining <= 0.004 && s.delivered) return { kind:"ok", text:"Concluída" };
+    if(!s.aceite) return { kind:"warn", text:"Aguardando aceite" };
+    if(!s.p1At) return { kind:"warn", text:"Aguardando parcela inicial" };
+    if(!s.info) return { kind:"warn", text:"Aguardando informações" };
+    if(!s.delivered) return (s.pred && s.pred < todayISO()) ? { kind:"bad", text:"Entrega atrasada" } : { kind:"warn", text:"Em elaboração" };
+    return { kind:"warn", text:"Entregue — falta receber" };
+  }
+  function trkPill(t, k){ return '<span class="trk-pill ' + k + '">' + escapeHtml(t) + '</span>'; }
+  function trackCardLine(hh){
+    if(!hh.track) return '<div style="font-size:11.5px; color:var(--ink-faint); margin-top:3px;">Acompanhamento ainda não aberto</div>';
+    var s = trackSummary(hh), st = trackStatus(hh);
+    return '<div style="font-size:11.5px; margin-top:4px; color:var(--ink-soft);">Recebido <b>' + fmtBRL(s.received) + '</b> de ' + fmtBRL(s.contracted) + ' · falta <b>' + fmtBRL(s.remaining) + '</b> ' + trkPill(st.text, st.kind) + '</div>';
+  }
+  function stepHtml(cls, title, when, btn){
+    return '<div class="trk-step ' + cls + '"><span class="dot"></span><div style="flex:1;">' + escapeHtml(title) + '</div><div class="when">' + when + (btn ? ' ' + btn : '') + '</div></div>';
+  }
+  function renderTrackFicha(hh){
+    if(!hh.track){ ensureTrack(hh); scheduleSave(); }
+    var tr = hh.track, sum = trackSummary(hh), st = trackStatus(hh), s = trackSteps(hh), dr = hh.draft, hid = escapeHtml(hh.id);
+    var h = '<div class="trk"><button type="button" class="btn-ghost btn-sm trk-back" style="padding:0; margin-bottom:8px;">← Voltar ao histórico</button>';
+    h += '<div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;"><div><div class="cli-name" style="font-size:15px;">' + escapeHtml(hh.number) + ' · ' + escapeHtml((dr.client && dr.client.name) || "Sem cliente") + '</div>' +
+      '<div class="cli-sub">' + escapeHtml(dr.subject || "Projeto") + ' · ' + revLabel(dr) + ' · vendida em ' + dateBR(hh.soldAt || hh.savedAt) + '</div></div>' + trkPill(st.text, st.kind) + '</div>';
+    h += '<div class="trk-cards"><div class="trk-card"><small>Contratado</small><b>' + fmtBRL(sum.contracted) + '</b></div>' +
+      '<div class="trk-card"><small>Recebido</small><b style="color:var(--good);">' + fmtBRL(sum.received) + '</b></div>' +
+      '<div class="trk-card"><small>A receber</small><b style="color:' + (sum.remaining > 0 ? 'var(--accent)' : 'var(--good)') + ';">' + fmtBRL(sum.remaining) + '</b></div></div>';
+    h += '<div class="trk-bar" role="progressbar" aria-valuenow="' + sum.pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + sum.pct + '%;"></i></div><div class="cli-sub" style="margin:4px 0 0;">' + sum.pct + '% recebido' + (sum.over > 0 ? ' · <span style="color:var(--danger);">recebido ' + fmtBRL(sum.over) + ' a mais que o contratado</span>' : '') + '</div>';
+    var pctSum = (tr.parcels || []).filter(function(p){ return !p.legacy; }).reduce(function(a, p){ return a + (Number(p.pct) || 0); }, 0);
+    if(Math.abs(pctSum - 100) > 0.01 && (dr.payment && dr.payment.parcels && dr.payment.parcels.length)) h += '<div class="hint" style="color:var(--danger); margin-top:6px;">As parcelas da proposta somam ' + fmtNum(pctSum, 2) + '%, e não 100%. O saldo foi ajustado na última parcela; corrija na aba Condições.</div>';
+    h += '<div class="trk-sec">Parcelas</div><div class="trk-row trk-head"><span>Quando</span><span>Valor</span><span>Previsão</span><span>Situação</span><span></span></div>';
+    (tr.parcels || []).forEach(function(p, i){
+      var ps = parcelStatus(p);
+      h += '<div class="trk-row"><span>' + escapeHtml(p.label) + (p.legacy ? ' <span class="cli-sub">(parcela que saiu da proposta, com recebimento)</span>' : '') + '</span><span>' + fmtBRL(p.amount) + '</span>' +
+        '<span><input type="date" class="trk-due" data-pi="' + i + '" value="' + escapeHtml(p.due || "") + '" aria-label="Previsão de recebimento"></span><span>' + trkPill(ps.text, ps.kind) + '</span>' +
+        '<span>' + (ps.rem > 0 ? '<button type="button" class="btn btn-sm trk-pay" data-pi="' + i + '">Registrar recebimento</button>' : '') + '</span></div>';
+      if((p.payments || []).length){
+        h += '<div class="trk-pays">' + p.payments.map(function(x){
+          var m = labelOf(PAY_METHODS, x.method);
+          return '<div class="' + (x.voided ? 'void' : '') + '">' + dateBR(x.at) + ' · ' + fmtBRL(x.amount) + (m ? ' · ' + escapeHtml(m) : '') + (x.note ? ' — ' + escapeHtml(x.note) : '') +
+            (x.voided ? ' <span style="text-decoration:none; display:inline-block; color:var(--danger);">(anulado em ' + dateBR(x.voidAt) + ': ' + escapeHtml(x.voidReason || "") + ')</span>'
+              : ' <button type="button" class="btn-ghost btn-sm trk-void" data-pi="' + i + '" data-pid="' + escapeHtml(x.id) + '" style="padding:0 4px; font-size:11px;">Anular</button>') + '</div>';
+        }).join("") + '</div>';
+      }
+    });
+    h += '<div class="trk-sec">Etapas</div>';
+    var nextSet = false;
+    function cls(done){ if(done) return "ok"; if(!nextSet){ nextSet = true; return "next"; } return ""; }
+    h += stepHtml(cls(!!s.aceite), "Aceite da proposta", s.aceite ? dateBR(s.aceite) : "pendente",
+      '<button type="button" class="btn-ghost btn-sm trk-accept" style="padding:0 4px;">' + (s.aceite ? 'Editar' : 'Registrar aceite') + '</button>');
+    h += stepHtml(cls(!!s.p1At), "Parcela inicial recebida", s.p1At ? dateBR(s.p1At) : (s.first ? "falta receber " + fmtBRL(s.first.rem) : "—"), "");
+    h += stepHtml(cls(!!s.info), "Informações e documentos recebidos", s.info ? dateBR(s.info) : "falta receber",
+      '<button type="button" class="btn-ghost btn-sm trk-info" style="padding:0 4px;">' + (s.info ? 'Editar' : 'Marcar como recebidas') + '</button>');
+    h += stepHtml(cls(!!s.start), "Início da elaboração", s.start ? dateBR(s.start) : "depois das três etapas acima", "");
+    h += stepHtml(cls(!!s.delivered), "Entrega do projeto", s.delivered ? dateBR(s.delivered) : (s.pred ? "prevista " + dateBR(s.pred) + " (" + s.days + " dias " + s.unit + ")" : (s.days ? "prazo: " + s.days + " dias " + s.unit + " após o início" : "sem prazo definido")),
+      '<button type="button" class="btn-ghost btn-sm trk-delivered" style="padding:0 4px;">' + (s.delivered ? 'Editar' : 'Marcar como entregue') + '</button>');
+    h += stepHtml(cls(!!s.finalAt), "Parcela final recebida", s.finalAt ? dateBR(s.finalAt) : (s.last ? "falta receber " + fmtBRL(s.last.rem) : "—"), "");
+    if((tr.adjustments || []).length){
+      h += '<div class="trk-sec">Alterações no valor contratado</div>' + tr.adjustments.map(function(a){
+        return '<div class="cli-sub">' + dateBR(a.at) + ' — de ' + fmtBRL(a.from) + ' para ' + fmtBRL(a.to) + ' (revisão rev' + String(a.rev || 0).padStart(2, "0") + ')</div>';
+      }).join("");
+    }
+    h += '<div class="hint" style="margin-top:14px; line-height:1.5;">O prazo de entrega só começa a contar depois do aceite, da parcela inicial e das informações, como diz a cláusula da proposta. Dias úteis consideram segunda a sexta (feriados não entram na conta).</div></div>';
+    return h;
+  }
+  function trkEntry(hid){ var hh = findHistoryEntry(hid); return (hh && hh.track) ? hh : null; }
+  function payDialog(hid, pi){
+    var hh = trkEntry(hid); if(!hh) return;
+    var p = hh.track.parcels[pi]; if(!p) return;
+    var rem = parcelStatus(p).rem;
+    openDialog({ title:"Registrar recebimento — " + p.label, intro:"Falta receber " + fmtBRL(rem) + " nesta parcela.", okLabel:"Registrar",
+      fields:[
+        { id:"at", label:"Data do recebimento", type:"date", value:todayISO(), required:true },
+        { id:"amount", label:"Valor recebido (R$)", type:"number", value:String(rem), required:true },
+        { id:"method", label:"Forma", type:"select", options:PAY_METHODS, value:"pix" },
+        { id:"note", label:"Observação (opcional)", type:"textarea" }
+      ],
+      onOk:function(v){
+        var amt = parseFloat(String(v.amount).replace(",", "."));
+        if(!isFinite(amt) || amt <= 0) return "Informe um valor maior que zero.";
+        if(v.at > todayISO()) return "A data do recebimento não pode ser futura.";
+        if(amt > rem + 0.005) return "O valor passa do que falta nesta parcela (" + fmtBRL(rem) + ").";
+        if(!Array.isArray(p.payments)) p.payments = [];
+        p.payments.push({ id:genId(), at:v.at, amount:r2(amt), method:v.method, note:v.note });
+        renderHistoryList(); scheduleSave();
+        toast("Recebimento de " + fmtBRL(amt) + " registrado");
+      }});
+  }
+  function voidPayDialog(hid, pi, pid){
+    var hh = trkEntry(hid); if(!hh) return;
+    var p = hh.track.parcels[pi], x = p && (p.payments || []).find(function(y){ return y.id === pid; });
+    if(!x) return;
+    openDialog({ title:"Anular recebimento de " + fmtBRL(x.amount), intro:"O registro não é apagado: continua na lista, riscado, com o motivo, e deixa de contar no que foi recebido.", okLabel:"Anular",
+      fields:[{ id:"reason", label:"Motivo (fica registrado)", type:"textarea", required:true, placeholder:"Ex.: lancei o valor na parcela errada" }],
+      onOk:function(v){ x.voided = true; x.voidAt = todayISO(); x.voidReason = v.reason; renderHistoryList(); scheduleSave(); toast("Recebimento anulado"); }});
+  }
+  function dateStepDialog(hid, field, title, intro){
+    var hh = trkEntry(hid); if(!hh) return;
+    openDialog({ title:title, intro:intro, okLabel:"Salvar", fields:[{ id:"at", label:"Data", type:"date", value:hh.track[field] || todayISO(), required:true }],
+      onOk:function(v){
+        if(v.at > todayISO()) return "A data não pode ser futura.";
+        hh.track[field] = v.at; renderHistoryList(); scheduleSave(); toast("Etapa registrada");
+      }});
+  }
+
   function markSold(hid){
     var h = findHistoryEntry(hid);
     if(!h) return;
@@ -5844,6 +6048,7 @@
     h.status = "vendida";
     h.soldAt = todayISO();
     h.followUpAt = "";
+    if(h.mode === "projeto") ensureTrack(h);
     renderHistoryList();
     renderCatalogList();
     renderCatalogPicker();
@@ -5856,6 +6061,8 @@
     var h = findHistoryEntry(hid);
     if(!h) return;
     if(h.status !== "vendida"){ toast("Essa proposta não está marcada como vendida — nada foi devolvido ao estoque"); return; }
+    var recebido = h.track ? trackSummary(h).received : 0;
+    if(recebido > 0 && !confirm('Esta proposta tem '+fmtBRL(recebido)+' em recebimentos registrados. Desfazer a venda NÃO apaga esses registros: eles continuam guardados na proposta. Continuar?')) return;
     if(!confirm('Desfazer a venda da proposta '+h.number+(h.mode==="cabos" ? '? A quantidade volta para o estoque dos itens que casarem com o catálogo.' : '?'))) return;
     var unmatched = [], ambiguous = [];
     (h.mode === "cabos" ? h.draft.items : []).forEach(function(it){
@@ -5977,6 +6184,13 @@
     });
     document.getElementById("btn-export-history-csv").addEventListener("click", exportHistoryCsv);
     var container = document.getElementById("history-list");
+    container.addEventListener("change", function(e){
+      var due = e.target.closest && e.target.closest(".trk-due");
+      if(!due) return;
+      var hh = trkEntry(trackOpenId), p = hh && hh.track.parcels[parseInt(due.getAttribute("data-pi"), 10)];
+      if(!p) return;
+      p.due = due.value; renderHistoryList(); scheduleSave();
+    });
     container.addEventListener("click", function(e){
       var btn;
       if((btn = e.target.closest(".hist-open"))) return openHistoryEntry(btn.getAttribute("data-hid"));
@@ -5988,6 +6202,13 @@
       if((btn = e.target.closest(".hist-archive"))) return archiveProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-unarchive"))) return unarchiveProposal(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-delete"))) return deleteProposalDialog(btn.getAttribute("data-hid"));
+      if((btn = e.target.closest(".hist-track"))){ trackOpenId = btn.getAttribute("data-hid"); renderHistoryList(); var pnl = document.querySelector(".form-panel"); if(pnl) pnl.scrollTop = 0; return; }
+      if(e.target.closest(".trk-back")){ trackOpenId = null; renderHistoryList(); return; }
+      if((btn = e.target.closest(".trk-pay"))) return payDialog(trackOpenId, parseInt(btn.getAttribute("data-pi"), 10));
+      if((btn = e.target.closest(".trk-void"))) return voidPayDialog(trackOpenId, parseInt(btn.getAttribute("data-pi"), 10), btn.getAttribute("data-pid"));
+      if(e.target.closest(".trk-accept")) return acceptDialog(trackOpenId);
+      if(e.target.closest(".trk-info")) return dateStepDialog(trackOpenId, "infoAt", "Informações e documentos recebidos", "Data em que o cliente enviou tudo o que você precisava para começar.");
+      if(e.target.closest(".trk-delivered")) return dateStepDialog(trackOpenId, "deliveredAt", "Projeto entregue", "Data em que o projeto foi entregue ao cliente.");
       if((btn = e.target.closest(".hist-contact"))) return contactDialog(btn.getAttribute("data-hid"));
       if((btn = e.target.closest(".hist-accept"))) return acceptDialog(btn.getAttribute("data-hid"));
       if(e.target.closest(".hist-onlyfollow")){
@@ -8113,7 +8334,7 @@
     var scoped = historyForMode();
     if(!scoped.length){ toast("Nenhuma proposta de "+(state.mode==="cabos" ? "cabos" : "projeto")+" no histórico ainda"); return; }
     var statusLabel = { emitida:"Emitida", vendida:"Vendida", cancelada:"Cancelada" };
-    var rows = [["Número","Cliente","CNPJ/CPF","Modo","Status","Vencida","Data","Válida até","Total (R$)","Custo (R$)","Margem (%)","Retorno ao cliente","Aceite em","Motivo da perda","Arquivada"]];
+    var rows = [["Número","Cliente","CNPJ/CPF","Modo","Status","Vencida","Data","Válida até","Total (R$)","Custo (R$)","Margem (%)","Retorno ao cliente","Aceite em","Motivo da perda","Recebido (R$)","A receber (R$)","Arquivada"]];
     scoped.forEach(function(h){
       var totals = calcTotals(h.draft);
       rows.push([
@@ -8131,6 +8352,8 @@
         h.followUpAt && h.status === "emitida" ? dateBR(h.followUpAt) : "",
         h.acceptedAt ? dateBR(h.acceptedAt) : "",
         h.status === "cancelada" ? labelOf(LOST_REASONS, h.lostReason) : "",
+        (h.status === "vendida" && h.track) ? trackSummary(h).received.toFixed(2).replace(".",",") : "",
+        (h.status === "vendida" && h.track) ? trackSummary(h).remaining.toFixed(2).replace(".",",") : "",
         h.archived ? "Sim" : "Não"
       ]);
     });
