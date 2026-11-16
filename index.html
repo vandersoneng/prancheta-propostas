@@ -1102,12 +1102,13 @@
 
       <div class="field-group" data-panel="empresa">
         <legend>Cópia de segurança</legend>
-        <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Baixa um arquivo com tudo que está cadastrado (modelos de serviços e cláusulas, catálogo, histórico de propostas, dados da empresa). Ao restaurar, o sistema só <strong>traz de volta o que estiver faltando</strong> — nada do que já existe é apagado ou sobrescrito.</div>
+        <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Baixa um arquivo com tudo que está cadastrado (modelos de serviços e cláusulas, catálogo, histórico de propostas, dados da empresa). <strong>Restaurar (trazer o que falta)</strong> só acrescenta o que foi apagado: se um texto ou valor foi <em>alterado</em> por engano, esta opção não o desfaz. <strong>Restaurar tudo (substitui)</strong> devolve os dados ao estado do arquivo — o que foi criado depois dele é perdido; por isso o sistema baixa antes uma cópia do estado atual.</div>
         <div class="hint" id="backup-last" style="line-height:1.5; font-weight:600;"></div>
         <div class="hint" id="data-size" style="line-height:1.5;"></div>
         <div class="field-row">
           <button type="button" class="btn btn-sm" id="btn-backup-export">Baixar backup</button>
-          <button type="button" class="btn-ghost btn-sm" id="btn-backup-import">Restaurar de um backup…</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-backup-import">Restaurar (trazer o que falta)…</button>
+          <button type="button" class="btn-ghost btn-sm" id="btn-backup-replace" title="Substitui os dados atuais pelos do arquivo (baixa antes uma cópia do estado atual)">Restaurar tudo (substitui)…</button>
           <input type="file" id="backup-file" accept="application/json,.json" hidden>
         </div>
       </div>
@@ -1142,8 +1143,9 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Versão fixa + SRI: se o arquivo na CDN mudar (ou for adulterado), o navegador se recusa a executá-lo. Ao atualizar a versão, recalcule o hash (sha384). -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 <script>
 (function(){
   "use strict";
@@ -2360,8 +2362,16 @@
   }
 
   // ---------- leitura e gravação na nuvem ----------
+  var cloudRecusas = 0;      // gravações sem efeito com a nuvem inalterada (sinal de recusa por permissão)
   var cloudBase = null;      // o que está na nuvem, como lemos ou gravamos por último (cópia bruta)
   var cloudStamp = null;     // updated_at da linha nessa leitura/gravação (null = ainda não lemos a nuvem)
+  // Falha de rede x recusa do servidor (sessão vencida, sem permissão): a mensagem precisa dizer a causa real
+  function cloudFailKind(err){
+    if(!err) return "offline";
+    var st = Number(err.status) || 0, code = String(err.code || ""), msg = String(err.message || "");
+    if(err.denied || st === 401 || st === 403 || code === "42501" || code === "PGRST301" || /jwt|row-level security|permission denied|not authorized/i.test(msg)) return "denied";
+    return "offline";
+  }
   var cloudBusy = false, cloudDirty = false, cloudPromise = Promise.resolve(), cloudRetry = null, appReady = false;
 
   function readRemote(){
@@ -2392,17 +2402,19 @@
     }catch(e){ return null; }
   }
   // Troca o estado em memória pelo estado combinado (e redesenha a tela, se o app já abriu)
+  var stateEpoch = 0;       // sobe toda vez que o estado em memória é trocado por uma versão combinada
   function applyMergedState(raw, msg){
     var keepMode = state.mode, before = state;
     state = normalizeState(raw);
     state.mode = keepMode;
     persistLocal();
+    if(!deepEq(before, state)) stateEpoch++;           // diálogos abertos antes disto seguram objetos que já não são os do estado
     if(appReady && !deepEq(before, state)) syncFormFromState();
     if(msg) toast(msg);
   }
   function runCloudSave(attempt){
     attempt = attempt || 0;
-    if(attempt > 6) return Promise.reject(new Error("sincronização não estabilizou"));
+    if(attempt > 6){ var ne = new Error("sincronização não estabilizou"); ne.denied = (attempt > 6 && cloudRecusas > 0); return Promise.reject(ne); }
     var payload = deepClone(state), now = new Date().toISOString();
     if(cloudStamp === null){
       // ainda não lemos a nuvem nesta sessão (abriu sem conexão, ou a linha não existia): lê antes de gravar,
@@ -2423,18 +2435,20 @@
       });
     }
     var q = sb.from(APP_STATE_TABLE).update({ data:payload, updated_at:now }).eq("id", APP_STATE_ROW_ID);
-    if(attempt < 3 && cloudStamp) q = q.eq("updated_at", cloudStamp);                  // só grava se ninguém salvou depois da nossa leitura
+    if(cloudStamp) q = q.eq("updated_at", cloudStamp);                                 // só grava se ninguém salvou depois da nossa leitura (em todas as tentativas)
     return q.select("updated_at").then(function(res){
       if(res.error) throw res.error;
       if(res.data && res.data.length){
         cloudBase = payload;
         cloudStamp = res.data[0].updated_at || "";
+        cloudRecusas = 0;
         return;
       }
       // nenhuma linha atualizada: outro computador salvou depois da nossa última leitura
+      // (ou o servidor recusou a gravação em silêncio, o que acontece quando a regra de acesso da tabela barra o usuário)
       return readRemote().then(function(row){
         if(!row){ cloudStamp = null; return runCloudSave(attempt+1); }
-        if(deepEq(row.data, cloudBase)){ cloudStamp = row.updated_at || ""; return runCloudSave(attempt+1); } // só o carimbo mudou
+        if(deepEq(row.data, cloudBase)){ cloudRecusas++; cloudStamp = row.updated_at || ""; return runCloudSave(attempt+1); } // só o carimbo mudou (ou a gravação foi recusada)
         var merged = mergeStates(cloudBase, deepClone(state), row.data);
         cloudBase = deepClone(row.data);
         cloudStamp = row.updated_at || "";
@@ -2483,8 +2497,9 @@
     el.textContent = kind === "saving" ? "Salvando na nuvem…"
       : kind === "ok" ? "Salvo na nuvem às "+t
       : kind === "loaded" ? "Dados carregados da nuvem às "+t
+      : kind === "denied" ? "A nuvem recusou a gravação (sessão vencida ou sem permissão) — saia e entre de novo; salvo só neste navegador"
       : "Sem conexão com a nuvem — salvo só neste navegador";
-    dot.className = "save-dot" + (kind === "saving" ? " saving" : kind === "offline" ? " bad" : "");
+    dot.className = "save-dot" + (kind === "saving" ? " saving" : (kind === "offline" || kind === "denied") ? " bad" : "");
   }
   // Uma gravação por vez: se algo mudar durante a gravação, grava de novo logo depois (nunca em paralelo,
   // para uma gravação antiga não chegar depois de uma nova)
@@ -2496,9 +2511,10 @@
     cloudPromise = runCloudSave().then(function(){
       setSyncStatus("ok");
       if(!cloudDirty && !saveTimer) setDirtyFlag(false);
-    }).catch(function(){
-      toast("Sem conexão com a nuvem — salvo só neste navegador");
-      setSyncStatus("offline");
+    }).catch(function(err){
+      var fk = cloudFailKind(err);
+      toast(fk === "denied" ? "A nuvem recusou a gravação — saia e entre de novo (salvo só neste navegador)" : "Sem conexão com a nuvem — salvo só neste navegador");
+      setSyncStatus(fk);
       if(!cloudRetry) cloudRetry = setTimeout(function(){ cloudRetry = null; if(isDirtyFlag()) persistCloud(); }, 20000);
     }).then(function(){
       cloudBusy = false;
@@ -2586,7 +2602,7 @@
     html += '<div class="dlg-err" id="dlg-err" role="alert" hidden></div><div class="dlg-actions"><button type="button" class="btn-ghost btn-sm" id="dlg-cancel">Cancelar</button><button type="submit" class="btn btn-primary btn-sm" id="dlg-ok">'+escapeHtml(opts.okLabel||"Salvar")+'</button></div></form>';
     back.innerHTML = html;
     document.body.appendChild(back);
-    var form = back.querySelector("form"), err = back.querySelector("#dlg-err");
+    var form = back.querySelector("form"), err = back.querySelector("#dlg-err"), openedEpoch = stateEpoch;
     closeDialog._esc = function(e){ if(e.key === "Escape"){ e.stopPropagation(); closeDialog(); } };
     document.addEventListener("keydown", closeDialog._esc, true);
     back.addEventListener("mousedown", function(e){ if(e.target === back) closeDialog(); });
@@ -2601,6 +2617,11 @@
         if(fd.required && !val && !missing) missing = fd.label;
       });
       if(missing){ err.textContent = "Preencha: "+missing+"."; err.hidden = false; return; }
+      if(openedEpoch !== stateEpoch){
+        // outro computador salvou enquanto este diálogo estava aberto: gravar agora iria para um registro já substituído e se perderia em silêncio
+        err.textContent = "Os dados foram atualizados por outro computador enquanto este quadro estava aberto. Feche e repita a ação (o texto digitado continua aqui para você copiar).";
+        err.hidden = false; return;
+      }
       var res = opts.onOk ? opts.onOk(vals) : undefined;
       if(typeof res === "string" && res){ err.textContent = res; err.hidden = false; return; }
       closeDialog();
@@ -2625,6 +2646,7 @@
   // porque a conta em ponto flutuante falha em meios centavos de valores grandes.
   function r2(x){
     x = Number(x) || 0;
+    if(x < 0) return -r2(-x);                       // meio centavo se afasta do zero também nos negativos
     var s = String(x);
     if(/e/i.test(s)) return Math.round(x * 100) / 100;
     return Number(Math.round(Number(s + "e2")) + "e-2");
@@ -4980,7 +5002,7 @@
   function renderLogoPreview(){
     var box = document.getElementById("logo-preview");
     if(state.company.logo){
-      box.innerHTML = '<img src="'+state.company.logo+'" alt="Logo da empresa">';
+      box.innerHTML = '<img src="'+escapeHtml(state.company.logo)+'" alt="Logo da empresa">';
     } else {
       box.textContent = "sem logo";
     }
@@ -5067,8 +5089,8 @@
             '<input data-field="detail" data-index="'+i+'" value="'+escapeHtml(it.detail)+'" placeholder="'+(mode==="cabos"?"Cor, tensão, rolo...":"Etapa, norma, observação...")+'"></div>' +
           '<div class="item-grid">' +
             '<div class="field"><label>Unid.</label><select data-field="unit" data-index="'+i+'">'+optHtml+'</select></div>' +
-            '<div class="field"><label>Qtd</label><input type="number" min="0" step="0.01" data-field="qty" data-index="'+i+'" value="'+it.qty+'"></div>' +
-            '<div class="field"><label>Valor (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+it.price+'"></div>' +
+            '<div class="field"><label>Qtd</label><input type="number" min="0" step="0.01" data-field="qty" data-index="'+i+'" value="'+escapeHtml(it.qty)+'"></div>' +
+            '<div class="field"><label>Valor (R$)</label><input type="number" min="0" step="0.01" data-field="price" data-index="'+i+'" value="'+escapeHtml(it.price)+'"></div>' +
             '<div class="field"><label>Total</label><input value="'+fmtBRL((Number(it.qty)||0)*(Number(it.price)||0))+'" readonly style="color:var(--ink-soft);"></div>' +
           '</div>' +
           '<div class="item-grid item-cost-row">' +
@@ -6408,7 +6430,7 @@
       return (
         '<div class="tax-row" data-index="'+i+'">' +
           '<div class="field"><label>Tributo</label><input data-tfield="label" data-index="'+i+'" value="'+escapeHtml(t.label)+'" placeholder="ICMS, ISS..."></div>' +
-          '<div class="field" style="max-width:90px;"><label>%</label><input type="number" min="0" step="0.01" data-tfield="percent" data-index="'+i+'" value="'+t.percent+'"></div>' +
+          '<div class="field" style="max-width:90px;"><label>%</label><input type="number" min="0" step="0.01" data-tfield="percent" data-index="'+i+'" value="'+escapeHtml(t.percent)+'"></div>' +
           '<button type="button" class="btn-ghost btn-sm remove-tax" data-index="'+i+'" title="Remover">✕</button>' +
         '</div>'
       );
@@ -6902,7 +6924,7 @@
     var totals = calcTotals(dr);
     sheet.style.setProperty("--mode-accent", mode==="cabos" ? "#B5652E" : "#2B5876");
 
-    var logoHtml = state.company.logo ? '<img class="sheet-logo" src="'+state.company.logo+'" alt="">' : "";
+    var logoHtml = state.company.logo ? '<img class="sheet-logo" src="'+escapeHtml(state.company.logo)+'" alt="">' : "";
 
     var itemsRows = dr.items.map(function(it){
       var lineTotal = (Number(it.qty)||0)*(Number(it.price)||0);
@@ -7006,6 +7028,18 @@
     var words = pdfSafe(text).replace(/\b(Eng|Engª|Dr|Dra|Prof|Profª|Sr|Sra|Av|Tv|Trav|Rod|Pç|Pça|Al|Est|Cel|Gen)\.\s+/g, "$1." + GLUE).split(/\s+/).map(function(w){ return w.split(GLUE).join(" "); });
     var lines = [];
     var cur = "";
+    // palavra sem espaço mais larga que a coluna (e-mail, link, código): quebra por caracteres, em vez de vazar da página
+    var split = [];
+    words.forEach(function(wd){
+      if(ctx.measureText(wd).width <= maxWidth || wd.length < 2){ split.push(wd); return; }
+      var piece = "";
+      for(var k=0;k<wd.length;k++){
+        if(piece && ctx.measureText(piece+wd.charAt(k)).width > maxWidth){ split.push(piece); piece = wd.charAt(k); }
+        else piece += wd.charAt(k);
+      }
+      if(piece) split.push(piece);
+    });
+    words = split;
     for(var i=0;i<words.length;i++){
       var test = cur ? cur+" "+words[i] : words[i];
       if(ctx.measureText(test).width > maxWidth && cur){
@@ -7398,6 +7432,12 @@
     }
     return "";
   }
+  // 11 dígitos sem máscara e sem tipo escolhido que servem tanto de CPF válido quanto de telefone (DDD + 9 + 8 dígitos): não dá para adivinhar
+  function pixAmbiguous(key, type){
+    if(type) return false;
+    var k = String(key||"").trim();
+    return /^\d{11}$/.test(k) && pixCpfValido(k) && /^[1-9]{2}9\d{8}$/.test(k);
+  }
   function pixCpfValido(d){
     if(!/^\d{11}$/.test(d) || /^(\d)\1{10}$/.test(d)) return false;
     for(var t = 9; t <= 10; t++){
@@ -7413,6 +7453,7 @@
   function pixNormalizeKey(key, type){
     key = String(key||"").trim();
     if(!key) return "";
+    if(pixAmbiguous(key, type)) return "";            // sem Pix a gerar o QR errado; exportProposalImage avisa
     var t = pixTypeOf(key, type);
     if(t === "telefone"){
       var digits = key.replace(/\D/g,"");
@@ -7677,10 +7718,22 @@
         if(nz(c.address)) rows.push({ k:"Endereço", rest:nz(c.address) });
         if(contactBits.length) rows.push({ k:"A/C", rest:contactBits.join("   ·   ") });
         var valX = ML+12+62, valW = CW-12-62-12, prepared = [], boxH = 14;
+        // Nome em negrito quebra em linhas (nome longo de condomínio/associação); o CNPJ vai na última linha do nome
+        // se couber, senão numa linha própria. A altura da caixa usa exatamente as linhas que serão desenhadas.
         rows.forEach(function(r){
-          setFontFor(false,9.5,false);
-          var full = (r.name ? r.name+" " : "") + r.rest;
-          var n = wrapText(ctx, full, valW).length || 1;
+          var n;
+          if(r.name){
+            setFontFor(true,10,false);
+            r.nameLines = wrapText(ctx, r.name, valW);
+            var lastW = r.nameLines.length ? ctx.measureText(r.nameLines[r.nameLines.length-1]).width : 0;
+            setFontFor(false,9.5,false);
+            r.restTxt = r.rest ? r.rest.replace(/^\s+/, "") : "";
+            r.restSame = !r.restTxt || (lastW + ctx.measureText(r.rest).width <= valW);
+            n = (r.nameLines.length || 1) + (r.restSame ? 0 : 1);
+          } else {
+            setFontFor(false,9.5,false);
+            n = wrapText(ctx, r.rest, valW).length || 1;
+          }
           prepared.push(n); boxH += n*13;
         });
         ensureSpace(boxH+8);
@@ -7689,8 +7742,12 @@
         rows.forEach(function(r, i){
           text({ x:ML+12, y:ry+9, text:r.k.toUpperCase(), size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
           if(r.name){
-            var nw = text({ x:valX, y:ry+9.5, text:r.name, size:10, bold:true, color:CV_INK });
-            if(r.rest) text({ x:valX+nw, y:ry+9.5, text:r.rest, size:9.5, color:CV_SOFT });
+            var nl = r.nameLines.length ? r.nameLines : [r.name], nw = 0;
+            nl.forEach(function(l, li){ nw = text({ x:valX, y:ry+9.5+li*13, text:l, size:10, bold:true, color:CV_INK }); });
+            if(r.restTxt){
+              if(r.restSame) text({ x:valX+nw, y:ry+9.5+(nl.length-1)*13, text:r.rest, size:9.5, color:CV_SOFT });
+              else text({ x:valX, y:ry+9.5+nl.length*13, text:r.restTxt, size:9.5, color:CV_SOFT });
+            }
           } else {
             setFontFor(false,9.5,false);
             wrapText(ctx, r.rest, valW).forEach(function(l, li){ text({ x:valX, y:ry+9.5+li*13, text:l, size:9.5, color:CV_INK }); });
@@ -8762,6 +8819,8 @@
     var hasLines = dr.items.length || (state.mode==="projeto" && ((dr.scope && dr.scope.length) || (Number(dr.scopePrice)||0) > 0));
     if(!hasLines) missing.push("sem nenhum item adicionado");
     if(state.mode==="projeto" && dr.issuer==="pf" && !(state.profissional.name||"").trim()) missing.push("sem o nome do profissional (aba Empresa)");
+    var pxi = issuerInfo(dr).pix;
+    if(pxi && pixAmbiguous(pxi.key, pxi.type)) missing.push("com a chave Pix ambígua (11 dígitos que servem de CPF e de telefone): escolha o \"Tipo da chave\" na aba Empresa, senão o Pix e o QR Code não saem");
     if(state.mode==="projeto"){
       var tk = unresolvedIntroTokens(dr);
       if(tk.length) missing.push("com o texto de abertura usando "+tk.join(", ")+" mas o campo correspondente está vazio");
@@ -8890,17 +8949,38 @@
       ? "Nenhum backup dos seus dados foi baixado ainda. Baixe um agora para ter uma cópia fora da nuvem."
       : "O último backup foi baixado há "+age+" dias ("+dateBR(state.company.lastBackupAt)+"). Baixe um novo para manter uma cópia fora da nuvem.";
   }
-  function makeBackup(){
-    state.company.lastBackupAt = todayISO();       // entra no próprio arquivo e é gravado na nuvem
-    saveNow();
+  function downloadStateFile(prefix){
     var blob = new Blob([JSON.stringify(state, null, 1)], { type:"application/json" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "orcavolt-backup-"+todayISO()+".json";
+    a.download = prefix+"-"+todayISO()+".json";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  }
+  function makeBackup(){
+    state.company.lastBackupAt = todayISO();       // entra no próprio arquivo e é gravado na nuvem
+    saveNow();
+    downloadStateFile("orcavolt-backup");
     updateBackupUI();
-    toast("Backup baixado");
+    toast(isSharedPc() ? "Backup baixado — o arquivo tem TODOS os dados: apague-o da pasta Downloads deste computador" : "Backup baixado");
+  }
+  // Restauração completa: o estado passa a ser o do arquivo. Os contadores de numeração nunca voltam atrás
+  // (para não repetir um número de proposta já emitido) e o estado atual é baixado antes, como rede de segurança.
+  function replaceStateFromBackup(parsed, fname){
+    var counters = Object.assign({}, state.counters), years = Object.assign({}, state.counterYears), keepMode = state.mode;
+    downloadStateFile("orcavolt-antes-da-restauracao");
+    var before = countItems(state);
+    state = normalizeState(parsed);
+    state.mode = keepMode;
+    Object.keys(counters).forEach(function(k){
+      if(state.counterYears[k] === years[k]) state.counters[k] = Math.max(Number(state.counters[k]) || 1, Number(counters[k]) || 1);
+    });
+    stateEpoch++;
+    persistLocal();
+    syncFormFromState();
+    saveNow();
+    var after = countItems(state);
+    alert("Dados restaurados de \""+fname+"\".\n\nAntes: "+before.propostas+" proposta(s), "+before.clientes+" cliente(s), "+before.servicos+" serviço(s).\nAgora: "+after.propostas+" proposta(s), "+after.clientes+" cliente(s), "+after.servicos+" serviço(s).\n\nUma cópia do estado anterior foi baixada (orcavolt-antes-da-restauracao).");
   }
   function attachBackupBar(){
     document.getElementById("backup-bar-now").addEventListener("click", makeBackup);
@@ -8916,7 +8996,9 @@
     var file = document.getElementById("backup-file");
     document.getElementById("btn-backup-export").addEventListener("click", makeBackup);
     attachBackupBar();
-    document.getElementById("btn-backup-import").addEventListener("click", function(){ file.value = ""; file.click(); });
+    var backupMode = "merge";
+    document.getElementById("btn-backup-import").addEventListener("click", function(){ backupMode = "merge"; file.value = ""; file.click(); });
+    document.getElementById("btn-backup-replace").addEventListener("click", function(){ backupMode = "replace"; file.value = ""; file.click(); });
     file.addEventListener("change", function(){
       var fl = file.files && file.files[0];
       if(!fl) return;
@@ -8926,7 +9008,13 @@
         try{ parsed = JSON.parse(String(rd.result)); }catch(e){ alert("Este arquivo não é um backup válido do OrçaVolt."); return; }
         var ok = isObj(parsed) && (isObj(parsed.projectLibrary) || Array.isArray(parsed.proposalHistory) || Array.isArray(parsed.cableCatalog) || isObj(parsed.company));
         if(!ok){ alert("Este arquivo não parece ser um backup do OrçaVolt."); return; }
-        if(!confirm("Restaurar de \""+fl.name+"\"?\n\nSó serão acrescentados os itens que estiverem faltando aqui (serviços, cláusulas, produtos, propostas). Nada do que já existe será apagado ou sobrescrito.")) return;
+        if(backupMode === "replace"){
+          if(!confirm("SUBSTITUIR todos os dados atuais pelos de \""+fl.name+"\"?\n\nO que foi criado ou alterado depois da data desse arquivo será PERDIDO. Antes de substituir, o sistema baixa uma cópia do estado atual.\n\nContinuar?")) return;
+          if(!confirm("Confirma mesmo? Esta ação troca TODOS os dados (propostas, clientes, modelos, catálogo e dados da empresa).")) return;
+          replaceStateFromBackup(parsed, fl.name);
+          return;
+        }
+        if(!confirm("Restaurar de \""+fl.name+"\"?\n\nSó serão acrescentados os itens que estiverem faltando aqui (serviços, cláusulas, produtos, propostas). Itens que já existem NÃO são alterados: se algo foi modificado por engano, use \"Restaurar tudo (substitui)\".")) return;
         var before = countItems(state);
         applyMergedState(mergeStates(undefined, deepClone(state), normalizeState(parsed)));
         saveNow();
@@ -9039,6 +9127,7 @@
   // Depois do login (novo ou sessão já existente), busca o estado na nuvem. Se ainda não existir
   // linha lá (primeiro login de todos), sobe o que já está salvo neste navegador como semente —
   // assim ninguém perde dados já cadastrados ao ligar a nuvem pela primeira vez.
+  var initDone = false;
   function bootstrapAfterAuth(){
     setAuthStatus("Carregando seus dados…");
     loadFromCloud().then(function(cloud){
@@ -9059,12 +9148,15 @@
         pushAfterInit = true;
       }
       persistLocal();
+      initDone = true;
       finishInit();
       if(pushAfterInit) persistCloud();
     }).catch(function(){
+      if(initDone){ try{ console.error("OrçaVolt: erro depois da inicialização"); }catch(e){} return; }   // já abriu: não reinicia (duplicaria os botões)
       var local = loadLocalCache();
       if(local){
         state = local;
+        initDone = true;
         finishInit();
         setSyncStatus("offline");
         setDirtyFlag(true);
