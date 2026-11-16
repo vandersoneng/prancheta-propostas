@@ -6743,6 +6743,7 @@
         globalRow.sub = "valor global dos itens " + (runs.length === 1 ? runs[0] : runs.slice(0, -1).join(", ") + " e " + runs[runs.length-1]);
       }
     }
+    if(globalRow) rows.forEach(function(r){ if(r === globalRow || r.blocks || r.covered) r.glob = true; });
     doc.rows = rows;
 
     var taxLines = dr.taxes.filter(function(t){ return t.label || t.percent; }).map(function(t){
@@ -7506,6 +7507,7 @@
     var hasPix = !!pixNormalizeKey(info.pix.key, info.pix.type);
     var pixBox = null;
     var itemsHeaderRedraw = null;
+    var tblBreak = null;
 
     function setFontFor(bold, size, mono){
       ctx.font = (bold?"700 ":"") + size + "px " + (mono?CV_MONO:CV_SANS);
@@ -7532,6 +7534,7 @@
     function rect(x,y0,w,h,color){ ops.push({ page:page, t:"rect", x:x, y:y0, w:w, h:h, color:color }); }
 
     function newPage(){
+      if(tblBreak) tblBreak.close();
       page += 1;
       y = MT;
       var pageLabel = "Proposta Nº "+dr.number+(mode==="projeto" ? " "+revLabel(dr) : "")+" (continuação)";
@@ -7540,6 +7543,7 @@
       line(ML,y,LW-MR,y,1,CV_LINE);
       y += 16;
       if(itemsHeaderRedraw) itemsHeaderRedraw();
+      if(tblBreak) tblBreak.open();
     }
     function ensureSpace(h){
       if(y + h > LH - MB) newPage();
@@ -7700,19 +7704,87 @@
       if(doc.greeting) para(doc.greeting, { after:7, left:true });
       doc.intro.forEach(function(s){ para(s, { after:7 }); });
 
-      // Tabela 1 — escopo
-      ensureSpace(60);
+      // Tabela 1 — grade com bordas. Com valor global, o valor ocupa uma célula única ao lado de todos os serviços que
+      // ele cobre (sem linhas de valor intermediárias); linha sem valor usa a largura toda; os totais fazem parte da tabela.
+      ensureSpace(90);
       y += 4;
       text({ x:LW/2, y:y+8, text:"Tabela 1 — Descrição dos serviços", size:9, bold:true, color:CV_SOFT, align:"center" });
       y += 18;
-      var colItem = 32, colVal = doc.rows.some(function(r){ return !!r.sub; }) ? 112 : 80, xDesc = ML+colItem, colDesc = CW-colItem-colVal-8;
-      text({ x:ML, y:y+7, text:"ITEM", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
-      text({ x:xDesc, y:y+7, text:"DESCRIÇÃO", size:7.5, bold:true, color:CV_FAINT, tc:0.5 });
-      text({ x:LW-MR, y:y+7, text:"VALOR (R$)", size:7.5, bold:true, color:CV_FAINT, align:"right" });
-      y += 11;
-      line(ML,y,LW-MR,y,0.6,CV_LINE_STRONG);
-      y += 9;
-      var RP = 13.5, rowW = colDesc;
+      var hasSub = doc.rows.some(function(r){ return !!r.sub; });
+      var colItem = 34, colVal = hasSub ? 112 : 84, PADX = 8, PADT = 6, PADB = 5, HDR_H = 18, RP = 13.5, ACTNUM = 28;
+      var X0 = ML, X1 = ML+colItem, X3 = LW-MR, X2 = X3-colVal;
+      var xDesc = X1+PADX, wDesc = (X2-X1)-2*PADX, wFull = (X3-X1)-2*PADX, rowW = wDesc;
+      var HDRBG = "#F3F5F4";
+      var seg = null, cur = null, lastRun = null, prevKind = "", prevRun = null;
+      if(!doc.rows.length) doc.rows = [{ n:"", blocks:null, desc:"Nenhum serviço selecionado.", value:"", sub:"" }];
+      // tipo de cada linha: glob = dentro da célula do valor global; own = tem valor próprio; none = sem valor (usa a largura toda)
+      var nRuns = 0;
+      doc.rows.forEach(function(r, i){
+        r.kind = r.glob ? "glob" : ((r.value || r.sub) ? "own" : "none");
+        if(r.kind !== "glob") return;
+        var pr = i > 0 ? doc.rows[i-1] : null;
+        if(pr && pr.kind === "glob"){ r.run = pr.run; }
+        else { r.run = { val:"", sub:"", page:null, y0:0, y1:0, drawn:false }; nRuns++; }
+        if(r.value){ r.run.val = r.value; r.run.sub = r.sub || ""; }
+      });
+      function vline(x, ranges){
+        var rs = ranges.slice().sort(function(a, b){ return a[0]-b[0]; }), acc = null;
+        rs.forEach(function(r){
+          if(acc && r[0] <= acc[1] + 0.6){ acc[1] = Math.max(acc[1], r[1]); }
+          else { if(acc) line(x, acc[0], x, acc[1], 0.8, CV_LINE_STRONG); acc = [r[0], r[1]]; }
+        });
+        if(acc) line(x, acc[0], x, acc[1], 0.8, CV_LINE_STRONG);
+      }
+      function tblHeader(){
+        seg = { top:y, v1:[], v2:[] };
+        rect(X0, y, X3-X0, HDR_H, HDRBG);
+        line(X0, y, X3, y, 0.8, CV_LINE_STRONG);
+        text({ x:(X0+X1)/2, y:y+12.3, text:"ITEM", size:7.5, bold:true, color:CV_SOFT, align:"center" });
+        text({ x:X1+PADX, y:y+12.3, text:"DESCRIÇÃO", size:7.5, bold:true, color:CV_SOFT });
+        text({ x:(X2+X3)/2, y:y+12.3, text:"VALOR (R$)", size:7.5, bold:true, color:CV_SOFT, align:"center" });
+        y += HDR_H;
+        line(X0, y, X3, y, 0.8, CV_LINE_STRONG);
+      }
+      function tblDrawGrid(){
+        line(X0, y, X3, y, 0.8, CV_LINE_STRONG);
+        line(X0, seg.top, X0, y, 0.8, CV_LINE_STRONG);
+        line(X3, seg.top, X3, y, 0.8, CV_LINE_STRONG);
+        vline(X1, [[seg.top, seg.top+HDR_H]].concat(seg.v1));
+        vline(X2, [[seg.top, seg.top+HDR_H]].concat(seg.v2));
+      }
+      function noteRow(kind, y0, y1){
+        if(y1 - y0 < 0.5) return;
+        if(kind !== "tot") seg.v1.push([y0, y1]);
+        if(kind !== "none") seg.v2.push([y0, y1]);
+      }
+      function runTrack(run, y0, y1){
+        if(!run || run.drawn) return;
+        if(run.page == null){ run.page = page; run.y0 = y0; run.y1 = y1; }
+        else if(run.page === page){ run.y1 = y1; }
+      }
+      // desenha o valor global centralizado no trecho da célula que fica na primeira página
+      function runFlush(run){
+        if(!run || run.drawn || run.page !== page) return;
+        run.drawn = true;
+        var cx = (X2+X3)/2, its = [];
+        if(run.val) its.push({ t:run.val, size:BODY, color:CV_INK, h:15 });
+        else its.push({ t:"valor global", size:8, color:CV_FAINT, h:12 });
+        if(run.sub){ setFontFor(false, 8, false); wrapText(ctx, run.sub, colVal-12).forEach(function(l){ its.push({ t:l, size:8, color:CV_FAINT, h:10.5 }); }); }
+        var tot = its.reduce(function(s, it){ return s + it.h; }, 0);
+        var ty = run.y0 + Math.max(4, ((run.y1 - run.y0) - tot)/2);
+        its.forEach(function(it){ text({ x:cx, y:ty + it.h/2 + it.size*0.3, text:it.t, size:it.size, color:it.color, align:"center" }); ty += it.h; });
+      }
+      tblBreak = {
+        close: function(){
+          if(cur){ noteRow(cur.kind, cur.y0, y); if(cur.run){ runTrack(cur.run, cur.y0, y); lastRun = cur.run; } }
+          runFlush(lastRun);
+          tblDrawGrid(); seg = null;
+        },
+        open: function(){
+          tblHeader();
+          if(cur){ cur.y0 = y; y += PADT; }
+        }
+      };
       function rowLines(str, o){
         o = o||{};
         var size = o.size||BODY, ind = o.indent||0;
@@ -7720,13 +7792,11 @@
         var rl = wrapText(ctx, str, rowW-ind);
         rl.forEach(function(l, i){
           ensureSpace(RP);
-          if(o.bullet && i === 0) text({ x:xDesc+ind-11, y:y+bl(size,RP), text:"•", size:size, color:CV_SOFT });
           text({ x:xDesc+ind, y:y+bl(size,RP), text:l, size:size, bold:!!o.bold, color:CV_INK, just: (!o.left && i < rl.length-1) ? rowW-ind : 0 });
           y += RP;
         });
       }
       // atividade numerada (1.1, 1.2…) com recuo, texto justificado; o número permite citar a atividade ("a 1.7 não está incluída")
-      var ACTNUM = 28;
       function actLine(num, str){
         var size = 10;
         setFontFor(false, size, false);
@@ -7739,14 +7809,28 @@
         });
         y += 2.5;
       }
-      if(!doc.rows.length) para("Nenhum serviço selecionado.", { color:CV_FAINT });
+      tblHeader();
       doc.rows.forEach(function(r, ri){
-        ensureSpace(34);
-        // linha sem valor nem observação à direita: o texto usa a largura toda, até a margem
-        rowW = (r.value || r.sub) ? colDesc : (CW - colItem);
-        text({ x:ML, y:y+bl(BODY,RP), text:String(r.n), size:BODY, color:CV_SOFT });
-        if(r.value) text({ x:LW-MR, y:y+bl(BODY,RP), text:r.value, size:BODY, color:CV_INK, align:"right" });
-        if(r.sub) text({ x:LW-MR, y:y+bl(BODY,RP)+12, text:r.sub, size:8, color:CV_FAINT, align:"right" });
+        if(prevKind === "glob" && !(r.kind === "glob" && r.run === prevRun)) runFlush(prevRun);
+        var pg0 = page;
+        ensureSpace(r.blocks ? 46 : 34);
+        if(page === pg0 && ri > 0){
+          var same = prevKind === "glob" && r.kind === "glob" && r.run === prevRun;
+          line(X0, y, same ? X2 : X3, y, 0.5, CV_LINE_STRONG);
+        }
+        cur = { kind:r.kind, y0:y, run:r.run || null };
+        y += PADT;
+        var yTop = y, needH = 0, pgRow = page;
+        rowW = r.kind === "none" ? wFull : wDesc;
+        if(String(r.n) !== "") text({ x:(X0+X1)/2, y:y+bl(BODY,RP), text:String(r.n), size:BODY, color:CV_SOFT, align:"center" });
+        if(r.kind === "own"){
+          var vy = y + bl(BODY,RP), vx = (X2+X3)/2;
+          if(r.value){ text({ x:vx, y:vy, text:r.value, size:BODY, color:CV_INK, align:"center" }); needH = 15; }
+          if(r.sub){
+            setFontFor(false, 8, false);
+            wrapText(ctx, r.sub, colVal-12).forEach(function(l, li){ text({ x:vx, y:vy+13+li*10.5, text:l, size:8, color:CV_FAINT, align:"center" }); needH += 10.5; });
+          }
+        }
         if(r.blocks){
           r.blocks.forEach(function(b){
             ensureSpace(46);
@@ -7758,28 +7842,33 @@
         } else {
           rowLines(r.desc);
         }
-        y += 3;
-        if(ri < doc.rows.length-1){ line(ML,y,LW-MR,y,0.5,HAIR); y += 8; }
+        if(page === pgRow && y < yTop + needH) y = yTop + needH;
+        y += PADB;
+        noteRow(cur.kind, cur.y0, y);
+        if(cur.run){ runTrack(cur.run, cur.y0, y); lastRun = cur.run; }
+        prevKind = r.kind; prevRun = r.run || null;
+        cur = null;
       });
-
-      // totais: linhas de apoio discretas e uma faixa clara para o TOTAL
-      y += 8;
-      var tW = 230, tX = LW-MR-tW;
-      doc.totalRows.forEach(function(t){
-        if(t.strong){
-          ensureSpace(36);
-          y += 2;
-          rect(tX-10, y, tW+10, 24, "#EEF2F1");
-          text({ x:tX, y:y+16, text:"TOTAL", size:10.5, bold:true, color:CV_INK });
-          text({ x:tX+tW-8, y:y+16, text:t.value, size:12, bold:true, color:CV_INK, align:"right" });
-          y += 30;
-        } else {
-          ensureSpace(16);
-          text({ x:tX, y:y+10, text:t.label, size:9.5, color:CV_SOFT });
-          text({ x:tX+tW-8, y:y+10, text:t.value, size:9.5, color:CV_SOFT, align:"right" });
-          y += 15;
-        }
+      if(prevKind === "glob") runFlush(prevRun);
+      // totais: linhas da própria tabela (o valor total fica na coluna de valores)
+      var tH = 0;
+      doc.totalRows.forEach(function(t){ tH += t.strong ? 24 : 17; });
+      doc.totalRows.forEach(function(t, ti){
+        var hRow = t.strong ? 24 : 17, pg1 = page;
+        ensureSpace(ti === 0 ? tH : hRow);
+        if(t.strong) rect(X0, y, X3-X0, hRow, "#EEF2F1");
+        if(page === pg1) line(X0, y, X3, y, ti === 0 ? 0.8 : 0.5, CV_LINE_STRONG);
+        cur = { kind:"tot", y0:y, run:null };
+        var tb = y + hRow/2 + (t.strong ? 3.7 : 3.2);
+        text({ x:X2-PADX, y:tb, text:t.label, size:t.strong ? 10 : 9, bold:!!t.strong, color:t.strong ? CV_INK : CV_SOFT, align:"right" });
+        text({ x:(X2+X3)/2, y:tb, text:t.value, size:t.strong ? 10.5 : 9, bold:!!t.strong, color:t.strong ? CV_INK : CV_SOFT, align:"center" });
+        y += hRow;
+        noteRow("tot", cur.y0, y);
+        cur = null;
       });
+      tblDrawGrid();
+      seg = null; tblBreak = null;
+      y += 10;
 
       if(doc.deadline.length){
         heading("Prazo de entrega");
