@@ -4087,7 +4087,25 @@
       '<div class="field"><label>Atividades <span class="hint">(arraste para reordenar · Enter vai para a próxima)</span></label><div id="act-rows">'+actRowsHtml(s)+'</div></div>' +
       '<div class="lib-actions"><button type="button" class="btn-ghost btn-sm" data-ls-up="'+i+'" title="Subir na lista">▲</button>' +
       '<button type="button" class="btn-ghost btn-sm" data-ls-down="'+i+'" title="Descer na lista">▼</button>' +
+      '<button type="button" class="btn-ghost btn-sm" data-ls-copy="'+i+'" title="Copia todas as atividades, uma por linha, para colar em outro lugar">Copiar atividades</button>' +
       '<button type="button" class="btn-ghost btn-sm" data-ls-rm="'+i+'">Remover serviço</button></div>';
+  }
+  function copyTextToClipboard(txt, okMsg){
+    function fallback(){
+      try{
+        var ta = document.createElement("textarea");
+        ta.value = txt; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        toast(ok ? okMsg : "Não foi possível copiar. Selecione o texto e use Ctrl+C.");
+      }catch(err){ toast("Não foi possível copiar. Selecione o texto e use Ctrl+C."); }
+    }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(function(){ toast(okMsg); }, fallback);
+      } else fallback();
+    }catch(err){ fallback(); }
   }
   function renderLibSubjects(){
     var box = document.getElementById("lib-subjects");
@@ -4734,7 +4752,17 @@
     lsBox.addEventListener("click", function(e){
       var lib = state.projectLibrary.services;
       var up = e.target.closest("[data-ls-up]"), down = e.target.closest("[data-ls-down]"), rm = e.target.closest("[data-ls-rm]");
-      if(up) moveWithinCategory(lib, parseInt(up.getAttribute("data-ls-up"), 10), -1);
+      var cpy = e.target.closest("[data-ls-copy]");
+      if(cpy){
+        var cs = lib[parseInt(cpy.getAttribute("data-ls-copy"), 10)];
+        if(cs){
+          var lines = (cs.acts || []).filter(function(a){ return String(a || "").trim(); });
+          if(!lines.length) toast("Este serviço não tem atividades para copiar.");
+          else copyTextToClipboard(lines.join("\n"), lines.length+(lines.length===1?" atividade copiada":" atividades copiadas")+".");
+        }
+        return;
+      }
+      if(up)moveWithinCategory(lib, parseInt(up.getAttribute("data-ls-up"), 10), -1);
       else if(down) moveWithinCategory(lib, parseInt(down.getAttribute("data-ls-down"), 10), 1);
       else if(rm){
         var idx = parseInt(rm.getAttribute("data-ls-rm"), 10);
