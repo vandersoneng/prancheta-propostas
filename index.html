@@ -1286,7 +1286,7 @@
   var SERVICE_OTHER = "Outros";
   // Base de cobrança: só referência interna por enquanto (não altera a proposta nem os totais).
   var BILLING_OPTIONS = [["global","Valor global"],["m2","Por m²"],["kwp","Por kWp"],["visita","Por visita"],["hora","Por hora técnica"]];
-  var LIBRARY_VERSION = 3;
+  var LIBRARY_VERSION = 4;
 
   // Cada serviço tem uma chave fixa (key): é por ela que o catálogo novo é acrescentado às bibliotecas
   // já existentes sem duplicar e sem mexer no texto que o usuário editou.
@@ -1458,12 +1458,21 @@
         "Acompanhamento até a efetivação do rateio"
       ]),
       // E — Infraestrutura
-      s("infra", 4, "Projeto de infraestrutura de lógica e segurança eletrônica (CFTV, alarme e controle de acesso)", "m2", false, [
-        "Infraestrutura de lógica (cabeamento estruturado): eletrodutos, eletrocalhas, caixas e pontos",
-        "Infraestrutura de CFTV: caminhamentos, caixas e pontos de energia e de rede",
-        "Infraestrutura de alarme: caminhamentos, caixas e pontos",
-        "Infraestrutura de controle de acesso (catracas, portaria eletrônica e fechaduras): caminhamentos, caixas e pontos de energia",
-        "Plantas, detalhes e lista de materiais"
+      s("infra_logica", 4, "Projeto de infraestrutura de lógica", "m2", false, [
+        "Eletrodutos, eletrocalhas, caixas e pontos de lógica (cabeamento estruturado)",
+        "Plantas e detalhes",
+        "Lista de materiais"
+      ]),
+      s("infra_cftv", 4, "Projeto de infraestrutura de CFTV", "m2", false, [
+        "Caminhamentos, caixas e pontos de energia e de rede para o CFTV",
+        "Plantas e detalhes",
+        "Lista de materiais"
+      ]),
+      s("infra_alarme", 4, "Projeto de infraestrutura de alarme e controle de acesso", "m2", false, [
+        "Caminhamentos, caixas e pontos do sistema de alarme",
+        "Caminhamentos, caixas e pontos de energia do controle de acesso (catracas, portaria eletrônica e fechaduras)",
+        "Plantas e detalhes",
+        "Lista de materiais"
       ]),
       // F — Concessionária
       s("aprov_se", 5, "Aprovação de subestação na concessionária", "global", true, [
@@ -1572,6 +1581,11 @@
       addDefaultServices(lib, [["bt_emuc","bt"],["viab_aprov","aprov_se"]]);
       lib.version = 3;
     }
+    if(lib.version < 4){
+      // o serviço único de infraestrutura é dividido em três; o antigo ("infra") permanece até o usuário removê-lo
+      addDefaultServices(lib, [["infra_logica","infra"],["infra_cftv","infra_logica"],["infra_alarme","infra_cftv"]]);
+      lib.version = 4;
+    }
   }
   function addDefaultServices(lib, pairs){
     var defaults = defaultServiceCatalog();
@@ -1579,6 +1593,7 @@
       if(lib.services.some(function(s){ return s.key === pr[0]; })) return;
       var def = defaults.find(function(x){ return x.key === pr[0]; });
       if(!def) return;
+      def.id = "svc-" + def.key; // id fixo: dois computadores que migrarem não duplicam o serviço ao sincronizar
       var at = lib.services.findIndex(function(s){ return s.key === pr[1]; });
       if(at >= 0) lib.services.splice(at + 1, 0, def); else lib.services.push(def);
     });
