@@ -738,7 +738,8 @@
         <div class="field"><label for="f-issuer">Emitida por</label><select id="f-issuer"></select></div>
         <div class="field-row">
           <div class="field"><label for="f-city">Cidade (data)</label><input id="f-city" placeholder="Ex.: Belém"></div>
-          <div class="field"><label for="f-greeting">Saudação</label><input id="f-greeting" placeholder="Prezado(a) Senhor(a),"></div>
+          <div class="field" style="flex:0 0 96px;"><label for="f-treatment" title="Como tratar o contato na saudação automática">Tratamento</label><select id="f-treatment"><option value="">Sr(a).</option><option value="sr">Sr.</option><option value="sra">Sra.</option><option value="dr">Dr.</option><option value="dra">Dra.</option></select></div>
+          <div class="field"><label for="f-greeting" title="Em branco: a saudação usa o nome do contato do cliente">Saudação</label><input id="f-greeting" placeholder="Automática: usa o nome do contato"></div>
         </div>
         <div class="field"><label for="f-subject">Assunto</label>
           <div class="combo" id="subject-combo">
@@ -782,6 +783,7 @@
         </div>
         <div class="field-row">
           <div class="field"><label for="f-obra-subsolos">Subsolos</label><input type="number" min="0" step="1" id="f-obra-subsolos" placeholder="0"></div>
+          <div class="field"><label for="f-obra-mezaninos" title="Quantidade de mezaninos (aparece no texto de abertura)">Mezaninos</label><input type="number" min="0" step="1" id="f-obra-mezaninos" placeholder="0"></div>
           <div class="field"><label for="f-obra-superiores" title="Pavimentos acima do térreo">Pav. superiores</label><input type="number" min="0" step="1" id="f-obra-superiores" placeholder="ex.: 3"></div>
         </div>
         <div class="field"><label for="f-obra-floors">Outra descrição dos pavimentos (opcional)</label><input id="f-obra-floors" placeholder="Só para casos fora do padrão. Ex.: térreo, mezanino e cobertura"></div>
@@ -1284,7 +1286,7 @@
   var SERVICE_OTHER = "Outros";
   // Base de cobrança: só referência interna por enquanto (não altera a proposta nem os totais).
   var BILLING_OPTIONS = [["global","Valor global"],["m2","Por m²"],["kwp","Por kWp"],["visita","Por visita"],["hora","Por hora técnica"]];
-  var LIBRARY_VERSION = 2;
+  var LIBRARY_VERSION = 3;
 
   // Cada serviço tem uma chave fixa (key): é por ela que o catálogo novo é acrescentado às bibliotecas
   // já existentes sem duplicar e sem mexer no texto que o usuário editou.
@@ -1305,6 +1307,23 @@
         "Dimensionamento, coordenação e seletividade das proteções, incluindo disjuntores, DR e DPS",
         "Projeto de aterramento e equipotencialização",
         "Diagramas unifilares e quadros de cargas",
+        "Lista de materiais"
+      ]),
+      s("bt_emuc", 0, "Projeto de instalações elétricas em baixa tensão para edificação de múltiplas unidades consumidoras (EMUC)", "m2", false, [
+        "Levantamento métrico e atualização simplificada da planta baixa",
+        "Levantamento das cargas das unidades consumidoras e das áreas comuns e cálculo da demanda de cada uma e da edificação",
+        "Definição do tipo de medição (individual ou centralizada) e da categoria de atendimento, conforme a norma técnica da concessionária",
+        "Projeto do centro de medição e das caixas de medição das unidades consumidoras",
+        "Projeto do ramal de entrada, da proteção geral e do aterramento da entrada",
+        "Projeto dos alimentadores e da prumada elétrica até cada unidade consumidora",
+        "Projeto das instalações elétricas das áreas comuns: iluminação, tomadas e cargas especiais",
+        "Projeto dos quadros de distribuição das unidades consumidoras e das áreas comuns",
+        "Dimensionamento de circuitos, alimentadores, condutores, eletrodutos e eletrocalhas",
+        "Cálculos de queda de tensão e curto-circuito",
+        "Dimensionamento, coordenação e seletividade das proteções, incluindo disjuntores, DR e DPS",
+        "Projeto de aterramento e equipotencialização",
+        "Diagramas unifilares e quadros de cargas",
+        "Memorial descritivo e de cálculo",
         "Lista de materiais"
       ]),
       s("padrao_entrada", 0, "Padrão de entrada em baixa tensão (ligação nova ou aumento de carga)", "global", false, [
@@ -1451,6 +1470,13 @@
         "Elaboração dos documentos necessários à aprovação do projeto",
         "Acompanhamento técnico do processo de aprovação"
       ]),
+      s("viab_aprov", 5, "Pedido de viabilidade e aprovação do projeto na concessionária", "global", false, [
+        "Elaboração e protocolo do pedido de viabilidade técnica de atendimento junto à concessionária",
+        "Acompanhamento da análise da viabilidade e atendimento a pendências",
+        "Elaboração dos documentos necessários à aprovação do projeto",
+        "Protocolo do projeto na concessionária",
+        "Acompanhamento técnico da análise e atendimento a pendências até a aprovação"
+      ]),
       s("aprov_fv", 5, "Aprovação de projeto fotovoltaico na concessionária", "global", true, [
         "Elaboração dos documentos e do formulário de solicitação de acesso",
         "Elaboração do projeto e dos documentos exigidos pela concessionária",
@@ -1539,7 +1565,25 @@
   // categoria/base de cobrança/destaque. Texto que o usuário editou não é sobrescrito; só os títulos e
   // trechos padrão antigos são atualizados. Roda uma vez (depois a biblioteca passa a ser versão 2),
   // então o que o usuário remover depois não volta.
+  // Atualizações da biblioteca por versão: cada etapa roda uma vez
   function migrateProjectLibrary(lib){
+    if((lib.version || 1) < 2) migrateLibraryV2(lib);
+    if(lib.version < 3){
+      addDefaultServices(lib, [["bt_emuc","bt"],["viab_aprov","aprov_se"]]);
+      lib.version = 3;
+    }
+  }
+  function addDefaultServices(lib, pairs){
+    var defaults = defaultServiceCatalog();
+    pairs.forEach(function(pr){
+      if(lib.services.some(function(s){ return s.key === pr[0]; })) return;
+      var def = defaults.find(function(x){ return x.key === pr[0]; });
+      if(!def) return;
+      var at = lib.services.findIndex(function(s){ return s.key === pr[1]; });
+      if(at >= 0) lib.services.splice(at + 1, 0, def); else lib.services.push(def);
+    });
+  }
+  function migrateLibraryV2(lib){
     var legacyKey = {
       "Projeto de instalações elétricas em baixa tensão":"bt",
       "Projeto de SPDA em conformidade com a ABNT NBR 5419: 2026":"spda",
@@ -1574,16 +1618,21 @@
     if(!lib.clauses.some(function(c){ return c.text === infraExcl; })){
       lib.clauses.push({ id:genId(), group:"Exclusões", text:infraExcl, on:false });
     }
-    lib.version = LIBRARY_VERSION;
+    lib.version = 2;
   }
 
   // Versão da lista padrão de assuntos. Quando sobe, os títulos novos são acrescentados UMA vez às listas já
   // existentes (e a marca é gravada, então quem apagar um título não o vê voltar).
-  var SUBJECTS_SEED = 2;
+  var SUBJECTS_SEED = 3;
   var SUBJECTS_ADDED_IN_V2 = [{ text:"Projetos de instalações elétricas em baixa tensão, SPDA e subestação", after:"Projeto de instalações elétricas e SPDA" }];
+  var SUBJECTS_ADDED_IN_V3 = [
+    { text:"Projeto de instalações elétricas em baixa tensão para edificação de múltiplas unidades consumidoras (EMUC)", after:"Projeto de instalações elétricas em baixa tensão" },
+    { text:"Pedido de viabilidade e aprovação de projeto na concessionária", after:"Laudo de subestação de média tensão" }
+  ];
   function defaultSubjects(){
     return [
       "Projeto de instalações elétricas em baixa tensão",
+      "Projeto de instalações elétricas em baixa tensão para edificação de múltiplas unidades consumidoras (EMUC)",
       "Projeto de instalações elétricas e padrão de entrada",
       "Padrão de entrada em baixa tensão",
       "Padrão de entrada provisório de obra",
@@ -1599,6 +1648,7 @@
       "Laudo de SPDA",
       "Laudo da malha de aterramento",
       "Laudo de subestação de média tensão",
+      "Pedido de viabilidade e aprovação de projeto na concessionária",
       "Consultoria técnica"
     ];
   }
@@ -1655,7 +1705,7 @@
       accept:false, annex:false
     };
     Object.keys(base).forEach(function(k){ if(dr[k] == null) dr[k] = base[k]; });
-    dr.obra = Object.assign({ address:"", floors:"", area:0, kind:"edificacao", subsolos:"", superiores:"" }, dr.obra);
+    dr.obra = Object.assign({ address:"", floors:"", area:0, kind:"edificacao", subsolos:"", mezaninos:"", superiores:"" }, dr.obra);
     dr.obra.base = Object.assign({ vistoria:true, projeto:false, info:false }, dr.obra.base);
     dr.deadline = Object.assign({ days:0, unit:"corridos", triggers:[] }, dr.deadline);
     dr.payment = Object.assign({ parcels:[] }, dr.payment);
@@ -1684,8 +1734,8 @@
     return {
       layout:2, issuer:issuer, revision:0, subject:"",
       city: issuer==="pf" ? (p.city||"") : companyCity(),
-      greeting:"Prezado(a) Senhor(a),",
-      obra:{ address:"", floors:"", area:0, kind:"edificacao", subsolos:"", superiores:"", base:{ vistoria:true, projeto:false, info:false } }, intro:"", introV:2,
+      greeting:"",
+      obra:{ address:"", floors:"", area:0, kind:"edificacao", subsolos:"", mezaninos:"", superiores:"", base:{ vistoria:true, projeto:false, info:false } }, intro:"", introV:2,
       scope:[], scopePrice:0, priceMode:"item", showItemValues:true,
       deadline:{ days:30, unit:"corridos", triggers:defaultDeadlineTriggers() },
       payment:{ parcels:defaultParcels() },
@@ -1782,6 +1832,14 @@
           if(d.projectLibrary.subjects.indexOf(ad.text) >= 0) return;
           var at = d.projectLibrary.subjects.indexOf(ad.after);
           if(at >= 0) d.projectLibrary.subjects.splice(at + 1, 0, ad.text);
+          else d.projectLibrary.subjects.push(ad.text);
+        });
+      }
+      if(seedNow < 3){
+        SUBJECTS_ADDED_IN_V3.forEach(function(ad){
+          if(d.projectLibrary.subjects.indexOf(ad.text) >= 0) return;
+          var at3 = d.projectLibrary.subjects.indexOf(ad.after);
+          if(at3 >= 0) d.projectLibrary.subjects.splice(at3 + 1, 0, ad.text);
           else d.projectLibrary.subjects.push(ad.text);
         });
       }
@@ -2696,12 +2754,12 @@
     if(state.mode==="projeto" && dr.issuer==="pf"){
       contact = [p.phone, p.email].filter(Boolean).join(" · ");
       if(p.title) meta.push(p.title);
-      if(p.reg) meta.push(p.reg);
+      if(p.reg) meta.push(fixOrd(p.reg));
       if(contact) meta.push(contact);
       // cabeçalho do profissional: formação/título, registro e contatos, cada um na sua linha
-      var pfRows = [p.title, p.reg, contact].filter(Boolean);
+      var pfRows = [p.title, fixOrd(p.reg), contact].filter(Boolean);
       return { isPf:true, name:p.name||"Profissional liberal", logo:"", meta:meta, metaRows:pfRows,
-        sigName:p.name||"Profissional", sigRoles:[[p.title, p.reg].filter(Boolean).join(" · "), p.tagline].filter(Boolean),
+        sigName:p.name||"Profissional", sigRoles:[p.title, fixOrd(p.reg), p.tagline].filter(Boolean),
         pix:{ key:p.pixKey, type:p.pixType, city:p.pixCity, name:p.name, bank:p.pixBank, holder:p.pixHolder||p.name } };
     }
     contact = [c.phone, c.email, c.site].filter(Boolean).join("  ·  ");
@@ -2711,7 +2769,7 @@
     if(contact) meta.push(contact);
     var metaRows = [c.doc ? "CNPJ "+formatDoc(c.doc) : "", [c.address, c.address2].filter(Boolean).join(" · "), contact].filter(Boolean);
     return { isPf:false, name:c.name||"Sua empresa", logo:c.logo||"", meta:meta, metaRows:metaRows,
-        sigName:c.name||"Empresa", sigRoles:[c.doc ? "CNPJ "+formatDoc(c.doc) : "", (p.name && p.reg) ? "Resp. técnico: "+p.name+" — "+p.reg : ""].filter(Boolean),
+        sigName:c.name||"Empresa", sigRoles:[c.doc ? "CNPJ "+formatDoc(c.doc) : "", (p.name && p.reg) ? "Resp. técnico: "+p.name+" — "+fixOrd(p.reg) : ""].filter(Boolean),
       pix:{ key:c.pixKey, type:c.pixType, city:c.pixCity, name:c.name, bank:c.pixBank, holder:c.name } };
   }
 
@@ -2744,6 +2802,8 @@
     return list.slice(0,-1).join(", ") + " e " + list[list.length-1];
   }
   function stripEndPunct(s){ return String(s||"").trim().replace(/[;.,\s]+$/,""); }
+  // "n° 123" (sinal de grau) vira "nº 123" (indicador ordinal), como em "Nº PRJ-2026-001"
+  function fixOrd(s){ return String(s == null ? "" : s).replace(/\b([Nn])[°˚º]\s*(?=\d)/g, function(m, c){ return c + "º "; }); }
 
   // Valor de cada parcela em R$, arredondando por acumulado para que a soma feche no total.
   function parcelAmounts(dr, totals){
@@ -2809,10 +2869,12 @@
     ["f-subject", function(s){return pj().subject;}, function(s,v){pj().subject=v;}],
     ["f-city", function(s){return pj().city;}, function(s,v){pj().city=v;}],
     ["f-greeting", function(s){return pj().greeting;}, function(s,v){pj().greeting=v;}],
+    ["f-treatment", function(s){return pj().treatment||"";}, function(s,v){pj().treatment=v;}],
     ["f-obra-floors", function(s){return pj().obra.floors;}, function(s,v){pj().obra.floors=v;}],
     ["f-obra-area", function(s){return pj().obra.area||"";}, function(s,v){pj().obra.area=nonNeg(v); syncAutoQty();}],
     ["f-obra-kind", function(s){return pj().obra.kind||"edificacao";}, function(s,v){pj().obra.kind=v;}],
     ["f-obra-subsolos", function(s){var v=pj().obra.subsolos; return (v===""||v==null)?"":v;}, function(s,v){pj().obra.subsolos = v==="" ? "" : Math.max(0, Math.floor(Number(v)||0));}],
+    ["f-obra-mezaninos", function(s){var v=pj().obra.mezaninos; return (v===""||v==null)?"":v;}, function(s,v){pj().obra.mezaninos = v==="" ? "" : Math.max(0, Math.floor(Number(v)||0));}],
     ["f-obra-superiores", function(s){var v=pj().obra.superiores; return (v===""||v==null)?"":v;}, function(s,v){pj().obra.superiores = v==="" ? "" : Math.max(0, Math.floor(Number(v)||0));}],
     ["f-intro", function(s){return pj().intro;}, function(s,v){pj().intro=v;}],
     ["f-scope-price", function(s){return pj().scopePrice||"";}, function(s,v){pj().scopePrice=nonNeg(v);}],
@@ -2867,7 +2929,7 @@
     });
     // mesmo ajuste para os campos numéricos da proposta de projeto
     bindings.forEach(function(b){
-      if(["f-obra-area","f-obra-subsolos","f-obra-superiores","f-scope-price","f-nf-percent","f-dl-days"].indexOf(b[0]) < 0) return;
+      if(["f-obra-area","f-obra-subsolos","f-obra-mezaninos","f-obra-superiores","f-scope-price","f-nf-percent","f-dl-days"].indexOf(b[0]) < 0) return;
       var el = document.getElementById(b[0]);
       el.addEventListener("focusout", function(){ var v = b[1](state); el.value = (v==null) ? "" : v; });
     });
@@ -2951,13 +3013,45 @@
   function hasAddrParts(owner){
     return !!(owner && owner.addr && typeof owner.addr === "object" && ADDR_KEYS.some(function(k){ return String(owner.addr[k] || "").trim() !== ""; }));
   }
+  // Texto em CAIXA ALTA (vem do CNPJ) vira "Caixa Alta Normal"; palavras comuns da região recebem o acento. Texto que já tem minúsculas não é mexido.
+  var PT_ACCENT = { belem:"Belém", sao:"São", joao:"João", jose:"José", maraba:"Marabá", santarem:"Santarém", braganca:"Bragança", tucurui:"Tucuruí", cameta:"Cametá", nazare:"Nazaré", humaita:"Humaitá", cremacao:"Cremação", guama:"Guamá", conceicao:"Conceição", esperanca:"Esperança", paraiso:"Paraíso", macapa:"Macapá", goiania:"Goiânia", brasilia:"Brasília", vitoria:"Vitória", ananindeua:"Ananindeua", castanhal:"Castanhal", icoaraci:"Icoaraci", marituba:"Marituba", benevides:"Benevides", altamira:"Altamira", itaituba:"Itaituba", parauapebas:"Parauapebas", abaetetuba:"Abaetetuba", pedreira:"Pedreira", marambaia:"Marambaia", sacramenta:"Sacramenta", umarizal:"Umarizal", reduto:"Reduto", jurunas:"Jurunas", batista:"Batista", campos:"Campos", doca:"Doca", souza:"Souza", dom:"Dom", pedro:"Pedro", ii:"II", iii:"III" };
+  var PT_SMALL = { da:1, de:1, do:1, das:1, dos:1, e:1, em:1, na:1, no:1, a:1, o:1, para:1, por:1 };
+  var PT_KEEP_UP = { BR:1, PA:1, AM:1, MA:1, TO:1, AP:1, MT:1, GO:1, DF:1, EMUC:1, SPDA:1, UFRA:1, UFPA:1, SN:1, II:1, III:1, IV:1 };
+  function fixCasePT(s){
+    var v = String(s == null ? "" : s).trim();
+    if(!v || /[a-zà-ÿ]/.test(v)) return v;
+    var first = true;
+    return v.toLowerCase().split(/(\s+|-|\/)/).map(function(w){
+      if(!w || /^(\s+|-|\/)$/.test(w)) return w;
+      var up = w.toUpperCase(), res;
+      if(/\d/.test(w) || PT_KEEP_UP[up]) res = up;
+      else if(!first && PT_SMALL[w]) res = w;
+      else if(PT_ACCENT[ptPlain(w)]) res = PT_ACCENT[ptPlain(w)];
+      else res = w.charAt(0).toUpperCase() + w.slice(1);
+      first = false;
+      return res;
+    }).join("");
+  }
+  // Tipo de logradouro por extenso: "Tv." / "TRAVESSA" → "Travessa"; "Av" → "Avenida"
+  var LOGR_ABBR = { av:"Avenida", avda:"Avenida", tv:"Travessa", trav:"Travessa", r:"Rua", rod:"Rodovia", pc:"Praça", "pça":"Praça", "pç":"Praça", al:"Alameda", est:"Estrada", lgo:"Largo", lg:"Largo", vl:"Viela" };
+  var LOGR_SURE = { av:1, avda:1, tv:1, trav:1, rod:1, est:1, lgo:1 };
+  function normLogradouro(s){
+    var v = fixCasePT(String(s == null ? "" : s).replace(/\s+/g, " ").trim());
+    if(!v) return v;
+    var m = /^([A-Za-zÀ-ÿçÇ]+)(\.?)\s+(.+)$/.exec(v);
+    if(m){
+      var k = m[1].toLowerCase();
+      if(LOGR_ABBR[k] && (m[2] === "." || LOGR_SURE[k])) return LOGR_ABBR[k] + " " + m[3];
+    }
+    return v;
+  }
   function composeAddress(a){
     function t(v){ return String(v == null ? "" : v).trim(); }
-    var street = t(a.logradouro), num = t(a.numero);
+    var street = normLogradouro(a.logradouro), num = t(a.numero);
     if(street && num) street += ", " + num; else if(num) street = num;
-    var cityUf = [t(a.cidade), t(a.uf)].filter(Boolean).join("/");
+    var cityUf = [fixCasePT(a.cidade), t(a.uf)].filter(Boolean).join("/");
     var cep = t(fmtCEP(a.cep));
-    return [street, t(a.complemento), t(a.bairro), cityUf, cep ? "CEP "+cep : ""].filter(Boolean).join(", ");
+    return [street, fixCasePT(a.complemento), fixCasePT(a.bairro), cityUf, cep ? "CEP "+cep : ""].filter(Boolean).join(", ");
   }
   // Separa um endereço escrito em um campo só (melhor esforço: o usuário confere depois)
   function parseAddressText(text){
@@ -3133,7 +3227,7 @@
     scheduleSave();
   }
   function maybeLookupCep(p, value){
-    var digits = String(value || "").replace(/D/g, "");
+    var digits = String(value || "").replace(/\D/g, "");
     var owner = addrOwner(p);
     if(digits.length !== 8){ if(cepDone) cepDone.delete(owner); return; }   // CEP editado: uma nova digitação volta a consultar
     if(cepDone && cepDone.get(owner) === digits) return;
@@ -3175,6 +3269,12 @@
         if(e.target.tagName === "SELECT") return;
         store(e.target);
         if(e.target.getAttribute("data-ak") === "cep") maybeLookupCep(p, e.target.value);
+      });
+      host.addEventListener("focusout", function(e){
+        var ak = e.target.getAttribute && e.target.getAttribute("data-ak");
+        if(ak !== "logradouro" && ak !== "bairro" && ak !== "cidade") return;
+        var nv = ak === "logradouro" ? normLogradouro(e.target.value) : fixCasePT(e.target.value);
+        if(nv !== e.target.value){ e.target.value = nv; store(e.target); }
       });
       host.addEventListener("change", function(e){ if(e.target.tagName === "SELECT") store(e.target); });
       host.addEventListener("focusout", function(e){
@@ -3272,9 +3372,25 @@
           ad.cidade = String(data.municipio || "").trim();
           ad.uf = String(data.uf || "").trim().toUpperCase();
           if(!ADDR_KEYS.some(function(k){ return ad[k]; })) return;
+          ad.logradouro = normLogradouro(ad.logradouro); ad.bairro = fixCasePT(ad.bairro); ad.cidade = fixCasePT(ad.cidade); ad.complemento = fixCasePT(ad.complemento);
           targetClient.addr = ad;
           targetClient.address = composeAddress(ad);
           if(isCurrent) syncAddressFields();
+          // a Receita escreve sem acento: o CEP confirma a grafia certa (só troca quando é a mesma palavra, sem considerar acento)
+          var cepDg = String(ad.cep || "").replace(/\D/g, "");
+          if(cepDg.length === 8){
+            fetchCep(cepDg).then(function(res){
+              if(!res) return;
+              var same = function(x, y){ return !!x && !!y && libNorm(x) === libNorm(y); };
+              if(same(res.cidade, ad.cidade)) ad.cidade = res.cidade;
+              if(same(res.bairro, ad.bairro)) ad.bairro = res.bairro;
+              var rl = normLogradouro(res.logradouro);
+              if(same(rl, ad.logradouro)) ad.logradouro = rl;
+              targetClient.address = composeAddress(ad);
+              if(draft().client === targetClient){ syncAddressFields(); renderPreview(); }
+              scheduleSave();
+            }).catch(function(){});
+          }
         })();
         apply("f-client-phone", "phone", formatCnpjPhone(data.ddd_telefone_1));
         apply("f-client-email", "email", data.email || "");
@@ -6397,14 +6513,14 @@
   function introEnderecoTexto(o){
     if(hasAddrParts(o)){
       var a = o.addr, t = function(v){ return String(v == null ? "" : v).trim(); }, parts = [];
-      var lg = t(a.logradouro), num = t(a.numero), cityUf = [t(a.cidade), t(a.uf)].filter(Boolean).join("/"), first = "";
+      var lg = normLogradouro(a.logradouro), num = t(a.numero), cityUf = [fixCasePT(a.cidade), t(a.uf)].filter(Boolean).join("/"), first = "";
       if(lg){
         first = introArtigoLogr(lg) + " " + lg;
         if(num) first += ", " + (/^s\/?n$/i.test(num) ? "s/nº" : "nº " + num);
       } else if(num){ first = "nº " + num; }
       if(first) parts.push(first);
       if(t(a.complemento)) parts.push(t(a.complemento));
-      if(t(a.bairro)) parts.push("bairro " + t(a.bairro));
+      if(t(a.bairro)) parts.push("bairro " + fixCasePT(a.bairro));
       if(cityUf) parts.push(cityUf);
       if(!parts.length) return "";
       if(!/^(na|no|em)\s/i.test(parts[0])) parts[0] = "em " + parts[0];
@@ -6421,11 +6537,12 @@
   function introPavimentos(o){
     var free = String(o.floors || "").trim().replace(/[.,;\s]+$/, "");
     if(free) return free;
-    var sub = intOrNull(o.subsolos), sup = intOrNull(o.superiores);
-    if(sub == null && sup == null) return "";
+    var sub = intOrNull(o.subsolos), sup = intOrNull(o.superiores), mez = intOrNull(o.mezaninos);
+    if(sub == null && sup == null && mez == null) return "";
     var parts = [];
     if(sub) parts.push(sub === 1 ? "subsolo" : ptWords(sub) + " subsolos");
     parts.push("pavimento térreo");
+    if(mez) parts.push(mez === 1 ? "mezanino" : ptWords(mez) + " mezaninos");
     if(sup) parts.push(sup === 1 ? "um pavimento superior" : ptWords(sup) + " pavimentos superiores");
     return parts.length > 1 ? parts.slice(0, -1).join(", ") + " e " + parts[parts.length - 1] : parts[0];
   }
@@ -6509,6 +6626,23 @@
     var u = bill === "m2" ? "m²" : bill === "kwp" ? "kWp" : bill === "hora" ? "h" : (q === 1 ? "visita" : "visitas");
     return fmtNum(q, q % 1 === 0 ? 0 : 2)+" "+u+" × "+fmtBRL(p);
   }
+  var TREATMENTS = [["","Sr(a)."],["sr","Sr."],["sra","Sra."],["dr","Dr."],["dra","Dra."]];
+  function contactPersonName(c){
+    var s = String(c == null ? "" : c).replace(/\([^)]*\)/g, " ").split(/\s[-–—]\s|[,;·\/]/)[0].replace(/\s+/g, " ").trim();
+    if(!/[A-Za-zÀ-ÿ]/.test(s)) return "";
+    return fixCasePT(s);
+  }
+  // Saudação: texto escrito por você tem prioridade; em branco (ou o padrão antigo) usa o nome do contato — "Prezado Sr. Márcio Tuma,"
+  function autoGreeting(dr){
+    var g = String(dr.greeting || "").trim(), def = "Prezado(a) Senhor(a),";
+    if(g && g !== def) return g;
+    var nm = contactPersonName(dr.client && dr.client.contact);
+    if(!nm) return g || def;
+    var t = dr.treatment || "";
+    var pre = (t === "sr" || t === "dr") ? "Prezado" : ((t === "sra" || t === "dra") ? "Prezada" : "Prezado(a)");
+    var tr = { "":"Sr(a).", sr:"Sr.", sra:"Sra.", dr:"Dr.", dra:"Dra." }[t] || "Sr(a).";
+    return pre + " " + tr + " " + nm + ",";
+  }
   function projetoDoc(dr){
     var info = issuerInfo(dr), totals = calcTotals(dr);
     var doc = { info:info, totals:totals };
@@ -6516,7 +6650,7 @@
     doc.dateLine = (dr.city && dr.city.trim() ? dr.city.trim()+", " : "") + longDateBR(dr.date);
     doc.validUntil = addDaysBR(dr.date, dr.validadeDias);
     doc.subject = (dr.subject||"").trim();
-    doc.greeting = (dr.greeting||"").trim();
+    doc.greeting = autoGreeting(dr);
     doc.intro = (dr.legacy && !(dr.intro||"").trim()) ? [] : projetoIntro(dr);
 
     // Tabela 1: linha 1 = escopo dos projetos (valor global); demais = outros itens (ART etc.)
@@ -6544,7 +6678,7 @@
     dr.items.forEach(function(it){
       n++;
       var qty = Number(it.qty)||0, lt = qty*(Number(it.price)||0);
-      var desc = (it.desc||"—") + (it.detail ? " ("+it.detail+")" : "");
+      var desc = (stripEndPunct(it.desc) || "—") + (it.detail ? " ("+it.detail+")" : "");
       if(qty !== 1 && lt > 0) desc += " — "+fmtNum(qty, qty % 1 === 0 ? 0 : 2)+" "+it.unit+" × "+fmtBRL(it.price);
       // Com valor global, o item sem preço próprio (a ART, por exemplo, em qualquer posição) já está no valor global:
       // fica sem valor na coluna, como os demais serviços, e a observação do item 1 diz quais itens o global cobre.
@@ -6600,7 +6734,7 @@
     });
     if(dr.conditions.pagamento && dr.conditions.pagamento.trim()) pay.notes.push(dr.conditions.pagamento.trim());
     if(dr.nf.mode === "note" && totals.nfPercent > 0){
-      pay.notes.push("Obs.: caso o cliente necessite de nota fiscal, será acrescido "+fmtNum(totals.nfPercent,0)+"% ao valor total da proposta (valor com nota fiscal: "+fmtBRL(totals.nfNoteTotal)+").");
+      pay.notes.push("Obs.: caso o cliente necessite de nota fiscal, "+(totals.nfPercent <= 1 ? "será acrescido " : "serão acrescidos ")+fmtNum(totals.nfPercent,0)+"% ao valor total da proposta (valor com nota fiscal: "+fmtBRL(totals.nfNoteTotal)+").");
     } else if(dr.nf.mode === "included" && totals.nfPercent > 0){
       pay.notes.push("O valor total já inclui o acréscimo de "+fmtNum(totals.nfPercent,0)+"% referente à emissão de nota fiscal.");
     }
@@ -6614,7 +6748,7 @@
       if(px.bank && px.bank.trim()) pixItems.push({ k:"Instituição financeira", v:px.bank.trim() });
       pixItems.push({ k:"Favorecido", v:(px.holder||info.name||"").trim() || "—" });
       pay.pix = {
-        intro:"O pagamento poderá ser realizado via transferência bancária utilizando o sistema Pix, conforme dados abaixo:",
+        intro:"O pagamento poderá ser realizado via Pix, conforme os dados abaixo:",
         lines:lines, items:pixItems, amount:pixAmountFor(dr), isParcel: parcels.length > 1, px:px
       };
     }
@@ -6824,7 +6958,8 @@
 
   function wrapText(ctx, text, maxWidth){
     if(!text) return [];
-    var words = pdfSafe(text).split(/\s+/);
+    var GLUE = "\uE000";
+    var words = pdfSafe(text).replace(/\b(Eng|Engª|Dr|Dra|Prof|Profª|Sr|Sra|Av|Tv|Trav|Rod|Pç|Pça|Al|Est|Cel|Gen)\.\s+/g, "$1." + GLUE).split(/\s+/).map(function(w){ return w.split(GLUE).join(" "); });
     var lines = [];
     var cur = "";
     for(var i=0;i<words.length;i++){
@@ -7534,16 +7669,16 @@
       y += 11;
       line(ML,y,LW-MR,y,0.6,CV_LINE_STRONG);
       y += 9;
-      var RP = 13.5;
+      var RP = 13.5, rowW = colDesc;
       function rowLines(str, o){
         o = o||{};
         var size = o.size||BODY, ind = o.indent||0;
         setFontFor(!!o.bold, size, false);
-        var rl = wrapText(ctx, str, colDesc-ind);
+        var rl = wrapText(ctx, str, rowW-ind);
         rl.forEach(function(l, i){
           ensureSpace(RP);
           if(o.bullet && i === 0) text({ x:xDesc+ind-11, y:y+bl(size,RP), text:"•", size:size, color:CV_SOFT });
-          text({ x:xDesc+ind, y:y+bl(size,RP), text:l, size:size, bold:!!o.bold, color:CV_INK, just: (!o.left && i < rl.length-1) ? colDesc-ind : 0 });
+          text({ x:xDesc+ind, y:y+bl(size,RP), text:l, size:size, bold:!!o.bold, color:CV_INK, just: (!o.left && i < rl.length-1) ? rowW-ind : 0 });
           y += RP;
         });
       }
@@ -7552,11 +7687,11 @@
       function actLine(num, str){
         var size = 10;
         setFontFor(false, size, false);
-        var rl = wrapText(ctx, str, colDesc-ACTNUM);
+        var rl = wrapText(ctx, str, rowW-ACTNUM);
         rl.forEach(function(l, i){
           ensureSpace(i === 0 && rl.length > 1 ? RP*2 : RP);
           if(i === 0) text({ x:xDesc, y:y+bl(size,RP)+0.5, text:num, size:9, color:CV_FAINT });
-          text({ x:xDesc+ACTNUM, y:y+bl(size,RP), text:l, size:size, color:CV_INK, just: i < rl.length-1 ? colDesc-ACTNUM : 0 });
+          text({ x:xDesc+ACTNUM, y:y+bl(size,RP), text:l, size:size, color:CV_INK, just: i < rl.length-1 ? rowW-ACTNUM : 0 });
           y += RP;
         });
         y += 2.5;
@@ -7564,6 +7699,8 @@
       if(!doc.rows.length) para("Nenhum serviço selecionado.", { color:CV_FAINT });
       doc.rows.forEach(function(r, ri){
         ensureSpace(34);
+        // linha sem valor nem observação à direita: o texto usa a largura toda, até a margem
+        rowW = (r.value || r.sub) ? colDesc : (CW - colItem);
         text({ x:ML, y:y+bl(BODY,RP), text:String(r.n), size:BODY, color:CV_SOFT });
         if(r.value) text({ x:LW-MR, y:y+bl(BODY,RP), text:r.value, size:BODY, color:CV_INK, align:"right" });
         if(r.sub) text({ x:LW-MR, y:y+bl(BODY,RP)+12, text:r.sub, size:8, color:CV_FAINT, align:"right" });
@@ -8583,7 +8720,7 @@
       var issuer = (prev && prev.issuer === "pf") ? "pf" : "qv";
       var extras = newProjetoExtras(issuer);
       Object.keys(extras).forEach(function(k){ d[k] = extras[k]; });
-      d.items = [ { desc:"Emissão de ART junto ao CREA-PA.", detail:"", unit:"un", qty:1, price:0 } ];
+      d.items = [ { desc:"Emissão de ART junto ao CREA-PA", detail:"", unit:"un", qty:1, price:0 } ];
       d.taxes = issuer === "pf" ? [] : [ defaultTax("projeto") ];
     }
     state.drafts[mode] = d;
