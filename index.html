@@ -354,11 +354,22 @@
     .lib-list{position:static; max-height:280px;}
   }
   .item-card-top{display:flex; gap:8px; align-items:flex-start;}
-  .item-card-top .field{flex:1;}
+  .item-card-top .field{flex:1; min-width:0;}
+  .item-card-top .field select{width:100%;}
   .item-grid{display:grid; grid-template-columns:1fr 1fr 1.2fr 1.2fr; gap:8px;}
   .item-grid .field label{font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .catalog-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px;}
   .catalog-card{cursor:grab;}
+  .cat-costs{border:1px solid var(--line); border-radius:10px; background:var(--paper-raised);}
+  .cat-costs > summary{cursor:pointer; padding:9px 12px; font-size:12.5px; font-weight:600; color:var(--ink-soft);}
+  .cat-costs[open] > summary{border-bottom:1px solid var(--line);}
+  #catalog-cost-list{padding:6px 12px 10px; max-height:420px; overflow:auto;}
+  .cat-cost-row{display:grid; grid-template-columns:minmax(0,1fr) 96px 78px; gap:10px; align-items:center; padding:3px 0; font-size:12.5px;}
+  .cat-cost-row + .cat-cost-row{border-top:1px solid var(--line);}
+  .cat-cost-head{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); border-top:0 !important;}
+  .cat-cost-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cat-cost-row input{padding:5px 8px; font-size:12.5px; min-width:0;}
+  .cat-cost-margin{text-align:right; color:var(--ink-soft);}
   .catalog-card.dragging{opacity:.4;}
   .catalog-card.drag-over{outline:2px dashed var(--accent); outline-offset:2px;}
   .drag-handle{color:var(--ink-faint); font-size:14px; line-height:1; padding:2px; user-select:none;}
@@ -972,6 +983,10 @@
       <div class="field-group" id="fg-catalog" data-panel="catalogo">
         <legend>Catálogo de cabos <span style="display:flex; gap:8px;"><button type="button" class="add-row-btn" id="btn-add-catalog">+ produto</button></span></legend>
         <div id="catalog-list" class="catalog-grid"></div>
+        <details class="cat-costs" id="catalog-costs">
+          <summary>Custo de compra e margem (uso interno — não sai na proposta)</summary>
+          <div id="catalog-cost-list"></div>
+        </details>
         <button type="button" class="btn btn-sm" id="btn-stock-report" style="align-self:flex-start;">Baixar relatório de estoque (PDF)</button>
       </div>
 
@@ -5260,14 +5275,48 @@
             '<div class="field"><label>Preço (R$)</label><input type="number" min="0" step="0.01" data-cfield="price" data-index="'+i+'" value="'+c.price+'"></div>' +
             '<div class="field"><label>Estoque ('+escapeHtml(c.unit||"un")+')</label><input type="number" step="0.01" data-cfield="stock" data-index="'+i+'" value="'+(c.stock||0)+'" style="'+((Number(c.stock)||0)<=0?'border-color:var(--danger); color:var(--danger);':'')+'"></div>' +
           '</div>' +
-          '<div class="item-grid" style="grid-template-columns:1fr 1fr 1fr;">' +
-            '<div class="field"><label title="Custo de compra por unidade — uso interno">Custo (R$)</label><input type="number" min="0" step="0.01" data-cfield="cost" data-index="'+i+'" value="'+((c.cost == null || c.cost === "") ? "" : c.cost)+'" placeholder="interno"></div>' +
-            '<div class="field"><label>Margem</label><input readonly data-catmargin="'+i+'" value="'+catMarginText(c)+'" style="color:var(--ink-soft);"></div>' +
-          '</div>' +
           '<button type="button" class="add-row-btn stock-add" data-index="'+i+'" style="align-self:flex-start;">+ entrada de estoque</button>' +
         '</div>'
       );
     }).join("");
+    renderCatalogCosts();
+  }
+  // Painel de custo de compra e margem: uma linha por cabo, fora dos cards (os cards ficam só com o que se mexe no dia a dia)
+  function renderCatalogCosts(){
+    var box = document.getElementById("catalog-cost-list");
+    if(!box) return;
+    var idxs = catalogSortedIndices();
+    if(!idxs.length){ box.innerHTML = '<div class="hint">Nenhum produto cadastrado.</div>'; return; }
+    box.innerHTML = '<div class="cat-cost-row cat-cost-head"><span>Produto</span><span>Custo (R$/un.)</span><span>Margem (%)</span></div>' +
+      idxs.map(function(o){
+        var c = o.c, i = o.i;
+        var nome = (c.desc || "(sem nome)") + (c.detail ? " — " + c.detail : "");
+        return '<div class="cat-cost-row" data-index="'+i+'"><span class="cat-cost-name" title="'+escapeHtml(nome)+'">'+escapeHtml(nome)+'</span>' +
+          '<input type="number" min="0" step="0.01" data-cfield="cost" data-index="'+i+'" aria-label="Custo de '+escapeHtml(nome)+' (R$ por '+escapeHtml(c.unit || "un")+')" value="'+((c.cost == null || c.cost === "") ? "" : escapeHtml(c.cost))+'" placeholder="interno">' +
+          '<span class="cat-cost-margin" data-catmargin="'+i+'">'+catMarginText(c)+'</span></div>';
+      }).join("");
+  }
+  function refreshCatMargin(idx){
+    var c = state.cableCatalog[idx], el = document.querySelector('#catalog-cost-list [data-catmargin="'+idx+'"]');
+    if(c && el) el.textContent = catMarginText(c);
+  }
+  function attachCatalogCosts(){
+    var box = document.getElementById("catalog-cost-list");
+    if(!box) return;
+    box.addEventListener("input", function(e){
+      if(e.target.getAttribute("data-cfield") !== "cost") return;
+      var idx = parseInt(e.target.getAttribute("data-index"), 10), c = state.cableCatalog[idx];
+      if(!c) return;
+      c.cost = e.target.value === "" ? null : nonNeg(e.target.value);
+      refreshCatMargin(idx);
+      renderCatalogPicker();
+      scheduleSave();
+    });
+    box.addEventListener("focusout", function(e){
+      if(e.target.getAttribute("data-cfield") !== "cost") return;
+      var c = state.cableCatalog[parseInt(e.target.getAttribute("data-index"), 10)];
+      if(c) e.target.value = c.cost == null ? "" : c.cost;
+    });
   }
   function attachCatalogDelegation(){
     var container = document.getElementById("catalog-list");
@@ -5278,10 +5327,7 @@
       var c = state.cableCatalog[idx];
       if(!c) return;
       c[field] = (field==="price"||field==="stock") ? nonNeg(e.target.value) : (field==="cost" ? (e.target.value === "" ? null : nonNeg(e.target.value)) : e.target.value);
-      if(field==="price" || field==="cost"){
-        var cm = e.target.closest(".catalog-card"), cmi = cm && cm.querySelector("[data-catmargin]");
-        if(cmi) cmi.value = catMarginText(c);
-      }
+      if(field==="price") refreshCatMargin(idx);
       if(field==="stock"){
         var low = (Number(c.stock)||0) <= 0;
         e.target.style.borderColor = low ? "var(--danger)" : "";
@@ -9196,6 +9242,7 @@
     attachTaxesDelegation();
     attachLogoHandlers();
     attachCatalogDelegation();
+    attachCatalogCosts();
     attachCatalogPickerHandler();
     attachHistoryDelegation();
     attachFolderHandlers();
