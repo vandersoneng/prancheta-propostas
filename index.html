@@ -5262,11 +5262,13 @@
         '<div class="item-card catalog-card" draggable="true" data-index="'+i+'">' +
           '<div class="item-card-top">' +
             '<span class="drag-handle" title="Arraste para reordenar" aria-hidden="true">⠿</span>' +
-            '<div class="field"><label>Produto</label>' +
-              '<select data-cfield="desc-select" data-index="'+i+'">'+descOpts+'</select></div>' +
+            // produto fora da lista padrão: mostra só o nome (campo único); apagar o nome traz de volta a lista para escolher
+            ((isCustomDesc && c.desc)
+              ? '<div class="field"><label>Produto</label><input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Nome do produto"></div>'
+              : '<div class="field"><label>Produto</label><select data-cfield="desc-select" data-index="'+i+'">'+descOpts+'</select></div>') +
             '<button type="button" class="btn-ghost btn-sm remove-catalog" data-index="'+i+'" title="Remover do catálogo">✕</button>' +
           '</div>' +
-          (isCustomDesc ? '<div class="field"><label>Produto novo (fica salvo na lista)</label><input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo de cobre flexível 750V 1x16mm²"></div>' : '') +
+          ((isCustomDesc && !c.desc) ? '<div class="field"><label>Produto novo (fica salvo na lista)</label><input data-cfield="desc" data-index="'+i+'" value="'+escapeHtml(c.desc)+'" placeholder="Ex.: Cabo de cobre flexível 750V 1x16mm²"></div>' : '') +
           '<div class="field"><label>Cor</label>' +
             '<select data-cfield="color-select" data-index="'+i+'">'+colorOpts+'</select></div>' +
           (isCustomColor ? '<div class="field"><label>Cor personalizada</label><input data-cfield="detail" data-index="'+i+'" value="'+escapeHtml(c.detail)+'" placeholder="Digite a cor"></div>' : '') +
